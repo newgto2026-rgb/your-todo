@@ -121,6 +121,18 @@ class TodoUiTest {
     }
 
     @Test
+    fun backPress_fromSecondTab_doesNotReturnToFirstTab() {
+        tabNode("all").assertIsSelected()
+        tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
+
+        pressBackUnconditionally()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            activityScenario.state == Lifecycle.State.DESTROYED
+        }
+    }
+
+    @Test
     fun backPress_whenBottomSheetOpen_closesBottomSheetFirst() {
         composeTestRule.onNodeWithTag("add_fab").performClick()
         composeTestRule.waitUntilNodeExists("task_edit_close")

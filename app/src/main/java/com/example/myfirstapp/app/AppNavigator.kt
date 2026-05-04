@@ -38,8 +38,7 @@ class AppNavigator(
     private fun navigateToTopLevel(route: NavKey) {
         if (route == state.topLevelRoute) return
 
-        state.topLevelHistory = (state.topLevelHistory + state.topLevelRoute)
-            .filter { historyRoute -> historyRoute != route }
+        state.topLevelHistory = emptyList()
         state.topLevelRoute = route
     }
 }
