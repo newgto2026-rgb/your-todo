@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarAction
-import com.example.myfirstapp.feature.calendar.impl.ui.CalendarSideEffect
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarUiState
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarViewModel
 import com.example.myfirstapp.feature.calendar.impl.ui.components.CalendarAgendaSection
@@ -32,25 +30,20 @@ fun CalendarRouteScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(viewModel) {
-        viewModel.sideEffect.collect { sideEffect ->
-            when (sideEffect) {
-                is CalendarSideEffect.NavigateToTodoEdit -> onNavigateToTodoEdit(sideEffect.todoId)
-                is CalendarSideEffect.NavigateToTodoAdd -> onNavigateToTodoAdd(sideEffect.dueDate)
-            }
-        }
-    }
-
     CalendarScreen(
         uiState = uiState,
-        onAction = viewModel::onAction
+        onAction = viewModel::onAction,
+        onTodoClick = onNavigateToTodoEdit,
+        onAddTodoClick = onNavigateToTodoAdd
     )
 }
 
 @Composable
 private fun CalendarScreen(
     uiState: CalendarUiState,
-    onAction: (CalendarAction) -> Unit
+    onAction: (CalendarAction) -> Unit,
+    onTodoClick: (Long) -> Unit,
+    onAddTodoClick: (java.time.LocalDate) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -87,8 +80,8 @@ private fun CalendarScreen(
             CalendarAgendaSection(
                 selectedDate = uiState.selectedDate,
                 selectedDateTodos = uiState.selectedDateTodos,
-                onTodoClick = { todoId -> onAction(CalendarAction.OnTodoClick(todoId)) },
-                onAddTodoClick = { onAction(CalendarAction.OnAddTodoClick) },
+                onTodoClick = onTodoClick,
+                onAddTodoClick = { onAddTodoClick(uiState.selectedDate) },
                 modifier = Modifier.fillMaxWidth()
             )
         }

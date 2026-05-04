@@ -41,7 +41,7 @@ internal fun CalendarAgendaSection(
     val selectedDateLabel = selectedDate.format(DateTimeFormatter.ofPattern("yyyy MMM d", locale))
     val selectedDateCount = selectedDateTodos.size
 
-    Column(modifier = modifier) {
+    Column(modifier = modifier.testTag("calendar_day_todo_sheet")) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

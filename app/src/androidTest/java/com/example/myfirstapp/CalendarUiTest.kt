@@ -3,20 +3,29 @@ package com.example.myfirstapp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.myfirstapp.app.MainActivity
 import com.example.myfirstapp.core.database.AppDatabase
+import com.example.myfirstapp.core.datastore.source.UserPreferencesDataSource
 import com.example.myfirstapp.core.domain.usecase.AddTodoUseCase
 import com.example.myfirstapp.core.model.ReminderRepeatType
+import com.example.myfirstapp.core.model.TodoFilter
+import com.example.myfirstapp.core.model.TodoPriorityFilter
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +41,7 @@ class CalendarUiTest {
     val hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeTestRule = createAndroidComposeRule<MainActivity>()
+    val composeTestRule = createEmptyComposeRule()
 
     @Inject
     lateinit var addTodoUseCase: AddTodoUseCase
@@ -40,8 +49,12 @@ class CalendarUiTest {
     @Inject
     lateinit var appDatabase: AppDatabase
 
+    @Inject
+    lateinit var userPreferencesDataSource: UserPreferencesDataSource
+
     private var todayTodoId: Long = -1L
     private val today: LocalDate = LocalDate.now()
+    private lateinit var activityScenario: ActivityScenario<MainActivity>
 
     @Before
     fun setup() {
@@ -49,6 +62,9 @@ class CalendarUiTest {
 
         runBlocking {
             appDatabase.clearAllTables()
+            userPreferencesDataSource.setSelectedTodoFilter(TodoFilter.ALL)
+            userPreferencesDataSource.setSelectedTodoCategoryFilter(null)
+            userPreferencesDataSource.setSelectedTodoPriorityFilter(TodoPriorityFilter.ALL)
 
             todayTodoId = addTodoUseCase(
                 title = "Calendar UI - today",
@@ -71,7 +87,15 @@ class CalendarUiTest {
             ).getOrThrow()
         }
 
+        activityScenario = ActivityScenario.launch(MainActivity::class.java)
         composeTestRule.waitForIdle()
+    }
+
+    @After
+    fun tearDown() {
+        if (::activityScenario.isInitialized) {
+            activityScenario.close()
+        }
     }
 
     @Test
@@ -110,7 +134,7 @@ class CalendarUiTest {
         composeTestRule.onNodeWithTag("calendar_day_$emptyDate").performClick()
 
         composeTestRule.onNodeWithTag("calendar_day_todo_sheet").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("calendar_day_todo_sheet_empty").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("calendar_day_todo_list_empty").assertIsDisplayed()
     }
 
     @Test
@@ -118,8 +142,10 @@ class CalendarUiTest {
         openCalendarTab()
 
         composeTestRule.onNodeWithTag("calendar_day_$today").performClick()
+        composeTestRule.waitUntilNodeExists("calendar_day_todo_item_$todayTodoId")
         composeTestRule.onNodeWithTag("calendar_day_todo_item_$todayTodoId").performClick()
 
+        composeTestRule.waitUntilNodeExists("task_title_input")
         composeTestRule.onNodeWithTag("task_title_input").assertIsDisplayed().assertTextContains("Calendar UI - today")
     }
 
@@ -128,7 +154,9 @@ class CalendarUiTest {
         openCalendarTab()
 
         composeTestRule.onNodeWithTag("calendar_day_$today").performClick()
+        composeTestRule.waitUntilNodeExists("calendar_day_todo_item_$todayTodoId")
         composeTestRule.onNodeWithTag("calendar_day_todo_item_$todayTodoId").performClick()
+        composeTestRule.waitUntilNodeExists("task_title_input")
         composeTestRule.onNodeWithTag("task_title_input").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("task_edit_close").performClick()
@@ -138,6 +166,28 @@ class CalendarUiTest {
         composeTestRule.onNodeWithTag("calendar_month_label").assertIsDisplayed()
         composeTestRule.onNodeWithTag("calendar_day_todo_sheet").assertIsDisplayed()
     }
+
+    @Test
+    fun addTaskForSelectedDate_prefillsDateAndReturnsToCalendarAgenda() {
+        val targetDate = findEmptyDateInCurrentMonth()
+        val title = "Calendar add ${System.currentTimeMillis()}"
+
+        openCalendarTab()
+        composeTestRule.onNodeWithTag("calendar_day_$targetDate").performClick()
+        composeTestRule.onNodeWithTag("calendar_add_todo_for_date").performClick()
+
+        composeTestRule.waitUntilNodeExists("task_title_input")
+        composeTestRule.onNodeWithText(targetDate.toString()).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("task_title_input").performTextInput(title)
+        composeTestRule.onNodeWithTag("save_button").performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("calendar_month_label").assertIsDisplayed()
+        composeTestRule.onNodeWithText(title).assertIsDisplayed()
+    }
+
     private fun openCalendarTab() {
         composeTestRule.onNodeWithTag("app_tab_calendar", useUnmergedTree = true).performClick()
         composeTestRule.onNodeWithTag("calendar_month_label").assertIsDisplayed()
@@ -155,5 +205,14 @@ class CalendarUiTest {
             .asSequence()
             .map { today.withDayOfMonth(it) }
             .first { it != today }
+    }
+
+    private fun ComposeTestRule.waitUntilNodeExists(
+        tag: String,
+        timeoutMillis: Long = 5_000
+    ) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

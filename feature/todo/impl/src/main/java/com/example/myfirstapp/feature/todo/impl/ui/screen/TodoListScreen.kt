@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myfirstapp.core.model.TodoFilter
@@ -111,6 +112,10 @@ fun TodoListRoute(
 
     LaunchedEffect(isModalVisible, onBackBlockedChange) {
         onBackBlockedChange(isModalVisible)
+    }
+
+    BackHandler(enabled = uiState.isEditDialogVisible) {
+        viewModel.onAction(TodoListAction.OnDismissDialog)
     }
 
     LaunchedEffect(isEditOnlyEntry, isModalVisible, seenEditSheetInEditOnly) {
@@ -333,11 +338,17 @@ private fun TodoPlannerRow(
         )
         if (showQuickActions) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { onAction(TodoListAction.OnMoveToTomorrow(item.id)) }) {
+                TextButton(
+                    onClick = { onAction(TodoListAction.OnMoveToTomorrow(item.id)) },
+                    modifier = Modifier.testTag("todo_quick_tomorrow_${item.id}")
+                ) {
                     Text(stringResource(R.string.todo_quick_action_tomorrow))
                 }
                 if (item.dueDate != null) {
-                    TextButton(onClick = { onAction(TodoListAction.OnClearSchedule(item.id)) }) {
+                    TextButton(
+                        onClick = { onAction(TodoListAction.OnClearSchedule(item.id)) },
+                        modifier = Modifier.testTag("todo_quick_clear_date_${item.id}")
+                    ) {
                         Text(stringResource(R.string.todo_quick_action_clear_date))
                     }
                 }

@@ -28,19 +28,6 @@ class AppNavigator(
             currentStack.removeLastOrNull()
             return true
         }
-
-        val previousRoute = state.topLevelHistory.lastOrNull { route -> route != state.topLevelRoute }
-        if (previousRoute != null) {
-            state.topLevelHistory = state.topLevelHistory.dropLast(1)
-            state.topLevelRoute = previousRoute
-            return true
-        }
-
-        if (state.topLevelRoute != state.startRoute) {
-            state.topLevelRoute = state.startRoute
-            return true
-        }
-
         return false
     }
 
