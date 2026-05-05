@@ -41,7 +41,6 @@
     <string name="todo_today_section_overdue">기한 지남</string>
     <string name="todo_today_section_timed">시간 지정</string>
     <string name="todo_today_section_today">오늘 마감</string>
-    <string name="todo_today_section_high_priority">높은 중요도</string>
     <string name="todo_quick_action_tomorrow">내일로 미루기</string>
     <string name="todo_quick_action_clear_date">날짜 제거</string>
     <string name="todo_action_undo">되돌리기</string>

@@ -41,7 +41,6 @@
     <string name="todo_today_section_overdue">Overdue</string>
     <string name="todo_today_section_timed">Timed today</string>
     <string name="todo_today_section_today">Due today</string>
-    <string name="todo_today_section_high_priority">High priority</string>
     <string name="todo_quick_action_tomorrow">Tomorrow</string>
     <string name="todo_quick_action_clear_date">Clear date</string>
     <string name="todo_action_undo">Undo</string>
