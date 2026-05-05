@@ -1,5 +1,6 @@
 package com.example.myfirstapp.feature.calendar.impl.ui.screen
 
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,12 +10,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarAction
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarUiState
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarViewModel
@@ -22,13 +25,24 @@ import com.example.myfirstapp.feature.calendar.impl.ui.components.CalendarAgenda
 import com.example.myfirstapp.feature.calendar.impl.ui.components.CalendarMonthGrid
 import com.example.myfirstapp.feature.calendar.impl.ui.components.CalendarTopHeader
 
+private const val TAG = "NavScopeTrace"
+
 @Composable
 fun CalendarRouteScreen(
     onNavigateToTodoEdit: (Long) -> Unit,
     onNavigateToTodoAdd: (java.time.LocalDate) -> Unit,
     viewModel: CalendarViewModel = hiltViewModel()
 ) {
+    val owner = LocalViewModelStoreOwner.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    DisposableEffect(owner, viewModel) {
+        val ownerName = owner?.let { it::class.java.simpleName } ?: "null"
+        val ownerId = owner?.let { System.identityHashCode(it) } ?: -1
+        Log.d(TAG, "CalendarRouteScreen enter owner=$ownerName@$ownerId vm=${System.identityHashCode(viewModel)}")
+        onDispose {
+            Log.d(TAG, "CalendarRouteScreen dispose owner=$ownerName@$ownerId vm=${System.identityHashCode(viewModel)}")
+        }
+    }
 
     CalendarScreen(
         uiState = uiState,

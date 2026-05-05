@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -73,16 +74,23 @@ class AppNavigationState(
 fun AppNavigationState.toEntries(
     entryProvider: (NavKey) -> NavEntry<NavKey>
 ): List<NavEntry<NavKey>> {
-    val decoratedEntries = backStacks.mapValues { (_, stack) ->
-        val decorators = listOf(
-            rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
-            rememberViewModelStoreNavEntryDecorator<NavKey>()
-        )
-        rememberDecoratedNavEntries(
-            backStack = stack,
-            entryDecorators = decorators,
-            entryProvider = entryProvider
-        )
+    val entryDecorators: List<NavEntryDecorator<NavKey>> = listOf(
+        rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
+        rememberViewModelStoreNavEntryDecorator<NavKey>()
+    )
+    val decoratedEntries = LinkedHashMap<NavKey, List<NavEntry<NavKey>>>(backStacks.size)
+    topLevelRoutes
+        .toList()
+        .sortedBy { it.toString() }
+        .forEach { route ->
+            val stack = requireNotNull(backStacks[route]) {
+                "Stack for $route not found while creating decorated entries"
+            }
+            decoratedEntries[route] = rememberDecoratedNavEntries(
+                backStack = stack,
+                entryDecorators = entryDecorators,
+                entryProvider = entryProvider
+            )
     }
 
     return decoratedEntries[topLevelRoute].orEmpty()

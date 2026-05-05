@@ -1,11 +1,10 @@
 package com.example.myfirstapp.feature.calendar.impl.navigation
 
-import com.example.myfirstapp.core.ui.navigation.AppNavigator
+import android.util.Log
+import com.example.myfirstapp.core.ui.navigation.AppRouteActions
 import com.example.myfirstapp.feature.calendar.api.CalendarFeatureEntry
 import com.example.myfirstapp.feature.calendar.api.CalendarRoute
 import com.example.myfirstapp.feature.calendar.impl.ui.screen.CalendarRouteScreen
-import com.example.myfirstapp.feature.todo.api.TodoAddRoute
-import com.example.myfirstapp.feature.todo.api.TodoEditRoute
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import javax.inject.Inject
@@ -13,14 +12,18 @@ import javax.inject.Inject
 class CalendarFeatureEntryImpl @Inject constructor() : CalendarFeatureEntry {
     override val route: NavKey = CalendarRoute
 
-    override fun register(entryProviderScope: EntryProviderScope<NavKey>, navigator: AppNavigator) {
+    override fun register(
+        entryProviderScope: EntryProviderScope<NavKey>,
+        routeActions: AppRouteActions
+    ) {
         entryProviderScope.entry<CalendarRoute> {
             CalendarRouteScreen(
                 onNavigateToTodoEdit = { todoId ->
-                    navigator.navigate(TodoEditRoute(todoId = todoId, editOnly = true))
+                    routeActions.openTodoEdit(todoId)
                 },
                 onNavigateToTodoAdd = { dueDate ->
-                    navigator.navigate(TodoAddRoute(dueDate = dueDate.toString(), editOnly = true))
+                    Log.d("NavScopeTrace", "CalendarFeatureEntry openTodoAdd dueDate=$dueDate")
+                    routeActions.openTodoAdd(dueDate.toString())
                 }
             )
         }

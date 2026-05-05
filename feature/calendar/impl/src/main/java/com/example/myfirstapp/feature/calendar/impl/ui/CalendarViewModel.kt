@@ -1,6 +1,8 @@
 package com.example.myfirstapp.feature.calendar.impl.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.example.myfirstapp.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveMonthlyTodosUseCase
@@ -32,12 +34,18 @@ import kotlin.math.min
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalendarViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase
 ) : ViewModel() {
+    private val vmId = System.identityHashCode(this)
 
-    private val monthState = MutableStateFlow(YearMonth.now())
-    private val selectedDateState = MutableStateFlow(LocalDate.now())
+    private val monthState = MutableStateFlow(
+        savedStateHandle.get<String>(STATE_MONTH_KEY)?.let(YearMonth::parse) ?: YearMonth.now()
+    )
+    private val selectedDateState = MutableStateFlow(
+        savedStateHandle.get<String>(STATE_SELECTED_DATE_KEY)?.let(LocalDate::parse) ?: LocalDate.now()
+    )
     private val sideEffectMutable = MutableSharedFlow<CalendarSideEffect>()
 
     val sideEffect = sideEffectMutable.asSharedFlow()
@@ -120,12 +128,21 @@ class CalendarViewModel @Inject constructor(
         )
     )
 
+    init {
+        Log.d(
+            TAG,
+            "CalendarViewModel init vm=$vmId month=${monthState.value} selected=${selectedDateState.value}"
+        )
+    }
+
     fun onAction(action: CalendarAction) {
         when (action) {
             CalendarAction.OnNextMonthClick -> moveMonthBy(1)
             CalendarAction.OnPreviousMonthClick -> moveMonthBy(-1)
             is CalendarAction.OnDateClick -> {
+                Log.d(TAG, "CalendarAction OnDateClick vm=$vmId date=${action.date}")
                 selectedDateState.value = action.date
+                savedStateHandle[STATE_SELECTED_DATE_KEY] = action.date.toString()
             }
 
             is CalendarAction.OnTodoClick -> {
@@ -135,6 +152,7 @@ class CalendarViewModel @Inject constructor(
             }
 
             CalendarAction.OnAddTodoClick -> {
+                Log.d(TAG, "CalendarAction OnAddTodoClick vm=$vmId selected=${selectedDateState.value}")
                 viewModelScope.launch {
                     sideEffectMutable.emit(CalendarSideEffect.NavigateToTodoAdd(selectedDateState.value))
                 }
@@ -145,7 +163,15 @@ class CalendarViewModel @Inject constructor(
     private fun moveMonthBy(offsetMonths: Long) {
         val newMonth = monthState.value.plusMonths(offsetMonths)
         monthState.value = newMonth
+        savedStateHandle[STATE_MONTH_KEY] = newMonth.toString()
         selectedDateState.value = selectedDateState.value.normalizeToMonth(newMonth)
+        savedStateHandle[STATE_SELECTED_DATE_KEY] = selectedDateState.value.toString()
+    }
+
+    companion object {
+        private const val TAG = "NavScopeTrace"
+        private const val STATE_MONTH_KEY = "calendar_month"
+        private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
     }
 }
 

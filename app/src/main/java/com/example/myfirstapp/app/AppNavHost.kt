@@ -1,6 +1,5 @@
 package com.example.myfirstapp.app
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -20,7 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import com.example.myfirstapp.app.navigation.BottomSheetSceneStrategy
 import com.example.myfirstapp.core.ui.navigation.AppFeatureEntry
+import com.example.myfirstapp.core.ui.navigation.AppRouteActions
+import com.example.myfirstapp.feature.todo.api.TodoEditorRoute
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 
@@ -39,19 +44,38 @@ fun AppNavHost(entries: Set<@JvmSuppressWildcards AppFeatureEntry>) {
         topLevelRoutes = topLevelRoutes
     )
     val navigator = remember(navigationState) { AppNavigator(navigationState) }
-    val currentTab = AppTabDestination.fromRoute(navigationState.topLevelRoute)
-    val appEntryProvider = entryProvider {
-        sortedEntries.forEach { entry ->
-            entry.register(this, navigator)
-        }
-    }
+    val routeActions = remember(navigator) {
+        object : AppRouteActions {
+            override fun openTodoEdit(todoId: Long) {
+                navigator.navigate(TodoEditorRoute(todoId = todoId, editOnly = true))
+            }
 
-    BackHandler(enabled = !navigator.blocksBack) {
-        if (!navigator.goBack()) {
-            (context as? android.app.Activity)?.finish()
-                ?: backPressedDispatcherOwner?.onBackPressedDispatcher?.onBackPressed()
+            override fun openTodoAdd(dueDate: String) {
+                navigator.navigate(TodoEditorRoute(dueDate = dueDate, editOnly = true))
+            }
+
+            override fun closeCurrentEntry() {
+                navigator.goBack()
+            }
+
+            override fun setBackBlocked(blocked: Boolean) {
+                navigator.setBackBlocked(blocked)
+            }
         }
     }
+    val currentTab = AppTabDestination.fromRoute(navigationState.topLevelRoute)
+    val entryDecorators = listOf(
+        rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
+        rememberViewModelStoreNavEntryDecorator<NavKey>()
+    )
+    val appEntryProvider = remember(sortedEntries, routeActions) {
+        entryProvider {
+            sortedEntries.forEach { entry ->
+                entry.register(this, routeActions)
+            }
+        }
+    }
+    val bottomSheetStrategy = remember { BottomSheetSceneStrategy<NavKey>() }
 
     Scaffold(
         bottomBar = {
@@ -65,7 +89,10 @@ fun AppNavHost(entries: Set<@JvmSuppressWildcards AppFeatureEntry>) {
         }
     ) { innerPadding ->
         NavDisplay(
-            entries = navigationState.toEntries(appEntryProvider),
+            backStack = navigationState.currentStack,
+            entryDecorators = entryDecorators,
+            entryProvider = appEntryProvider,
+            sceneStrategies = listOf(bottomSheetStrategy),
             onBack = {
                 if (!navigator.goBack()) {
                     (context as? android.app.Activity)?.finish()
