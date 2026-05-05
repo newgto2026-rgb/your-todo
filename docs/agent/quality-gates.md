@@ -13,7 +13,7 @@
 - Flow 테스트에는 Turbine을 사용하고 공용 fake/rule은 `core:testing`을 재사용한다.
 - 테스트는 구현 세부가 아닌 동작 중심으로 작성한다.
 - non-view 레이어 커버리지 최소 80%를 확인한다.
-- pre-push 훅에서 `./gradlew lint`를 통과해야 push한다.
+- pre-push 훅에서 변경 모듈 `lintDebug`를 우선 실행하며, Gradle/CI/훅 변경 시 `./gradlew lint` 전체를 실행한다.
 
 ## 작업 타입별 체크리스트
 
