@@ -2,7 +2,6 @@
 
 package com.example.myfirstapp.app.navigation
 
-import android.util.Log
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
@@ -16,8 +15,6 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneStrategy
 import androidx.navigation3.scene.SceneStrategyScope
 import com.example.myfirstapp.core.ui.navigation.BottomSheetRouteMetadata
-
-private const val TAG = "NavScopeTrace"
 
 private class BottomSheetScene<T : Any>(
     override val key: Any,
@@ -35,10 +32,7 @@ private class BottomSheetScene<T : Any>(
         }
         ModalBottomSheet(
             sheetState = sheetState,
-            onDismissRequest = {
-                Log.d(TAG, "sheet onDismissRequest key=${entry.contentKey}")
-                onBack()
-            },
+            onDismissRequest = onBack,
             properties = ModalBottomSheetProperties(
                 shouldDismissOnBackPress = true
             )
@@ -51,12 +45,7 @@ private class BottomSheetScene<T : Any>(
 class BottomSheetSceneStrategy<T : Any> : SceneStrategy<T> {
     override fun SceneStrategyScope<T>.calculateScene(entries: List<NavEntry<T>>): Scene<T>? {
         val entry = entries.lastOrNull() ?: return null
-        val isBottomSheet = entry.metadata[BottomSheetRouteMetadata.BottomSheetKey] != null
-        Log.d(
-            TAG,
-            "calculateScene size=${entries.size} topKey=${entry.contentKey} isBottomSheet=$isBottomSheet"
-        )
-        if (!isBottomSheet) return null
+        if (entry.metadata[BottomSheetRouteMetadata.BottomSheetKey] == null) return null
         return BottomSheetScene(
             key = entry.contentKey,
             previousEntries = entries.dropLast(1),

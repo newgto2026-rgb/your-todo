@@ -1,6 +1,5 @@
 package com.example.myfirstapp.feature.calendar.impl.navigation
 
-import android.util.Log
 import com.example.myfirstapp.core.ui.navigation.AppRouteActions
 import com.example.myfirstapp.feature.calendar.api.CalendarFeatureEntry
 import com.example.myfirstapp.feature.calendar.api.CalendarRoute
@@ -22,7 +21,6 @@ class CalendarFeatureEntryImpl @Inject constructor() : CalendarFeatureEntry {
                     routeActions.openTodoEdit(todoId)
                 },
                 onNavigateToTodoAdd = { dueDate ->
-                    Log.d("NavScopeTrace", "CalendarFeatureEntry openTodoAdd dueDate=$dueDate")
                     routeActions.openTodoAdd(dueDate.toString())
                 }
             )
