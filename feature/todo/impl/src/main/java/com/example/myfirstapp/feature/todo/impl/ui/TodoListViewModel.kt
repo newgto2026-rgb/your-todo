@@ -15,9 +15,11 @@ import com.example.myfirstapp.core.domain.usecase.UpdateSelectedTodoPriorityFilt
 import com.example.myfirstapp.core.domain.usecase.UpdateTodoUseCase
 import com.example.myfirstapp.core.model.ReminderRepeatType
 import com.example.myfirstapp.core.model.TodoFilter
+import com.example.myfirstapp.core.model.TodoItem
 import com.example.myfirstapp.core.model.TodoPriorityFilter
 import com.example.myfirstapp.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +71,9 @@ class TodoListViewModel @Inject constructor(
     fun onAction(action: TodoListAction) {
         when (action) {
             TodoListAction.OnAddClick -> updateLocalState { openNewTodoEditor() }
+            is TodoListAction.OnAddForDateClick -> {
+                updateLocalState { openNewTodoEditorForDate(action.dueDate) }
+            }
 
             is TodoListAction.OnTitleChange -> {
                 updateLocalState { copy(draftTitle = action.value) }
@@ -100,6 +105,9 @@ class TodoListViewModel @Inject constructor(
 
             TodoListAction.OnSaveClick -> saveTodo()
             is TodoListAction.OnToggleDone -> toggleDone(action.id)
+            is TodoListAction.OnMoveToTomorrow -> moveToTomorrow(action.id)
+            is TodoListAction.OnClearSchedule -> clearSchedule(action.id)
+            TodoListAction.OnUndoLastQuickAction -> undoLastQuickAction()
             is TodoListAction.OnEditClick -> openEditDialog(action.id)
             is TodoListAction.OnDeleteClick -> deleteTodo(action.id)
             is TodoListAction.OnFilterChange -> updateFilter(action.filter)
@@ -184,12 +192,131 @@ class TodoListViewModel @Inject constructor(
 
     private fun deleteTodo(id: Long) {
         viewModelScope.launch {
+            val previous = getTodoUseCase(id)
             deleteTodoUseCase(id)
-                .onSuccess { todoReminderScheduler.cancel(id) }
+                .onSuccess {
+                    todoReminderScheduler.cancel(id)
+                    previous?.let {
+                        uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = it)
+                        sideEffectMutable.emit(
+                            TodoListSideEffect.ShowSnackbar(
+                                messageRes = R.string.todo_action_deleted,
+                                actionLabelRes = R.string.todo_action_undo
+                            )
+                        )
+                    }
+                }
                 .onFailure {
                     sideEffectMutable.emit(
                         TodoListSideEffect.ShowSnackbar(R.string.todo_error_delete_failed)
                     )
+                }
+        }
+    }
+
+    private fun moveToTomorrow(id: Long) {
+        viewModelScope.launch {
+            val previous = getTodoUseCase(id) ?: return@launch
+            val tomorrow = LocalDate.now().plusDays(1)
+            val reminderAtEpochMillis = previous.reminderEpochMillisFor(tomorrow)
+            updateTodoUseCase(
+                id = previous.id,
+                title = previous.title,
+                dueDate = tomorrow,
+                categoryId = previous.categoryId,
+                dueTimeMinutes = previous.dueTimeMinutes,
+                reminderAtEpochMillis = reminderAtEpochMillis,
+                isReminderEnabled = previous.isReminderEnabled && reminderAtEpochMillis != null,
+                reminderRepeatType = previous.reminderRepeatType.normalizeRepeatType(),
+                reminderRepeatDaysMask = previous.reminderRepeatDaysMask,
+                reminderLeadMinutes = if (reminderAtEpochMillis != null) previous.reminderLeadMinutes else null,
+                priority = previous.priority
+            ).onSuccess {
+                uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = previous)
+                syncTodoReminder(id)
+                sideEffectMutable.emit(
+                    TodoListSideEffect.ShowSnackbar(
+                        messageRes = R.string.todo_action_moved_to_tomorrow,
+                        actionLabelRes = R.string.todo_action_undo
+                    )
+                )
+            }.onFailure {
+                sideEffectMutable.emit(
+                    TodoListSideEffect.ShowSnackbar(R.string.todo_error_reschedule_failed)
+                )
+            }
+        }
+    }
+
+    private fun clearSchedule(id: Long) {
+        viewModelScope.launch {
+            val previous = getTodoUseCase(id) ?: return@launch
+            updateTodoUseCase(
+                id = previous.id,
+                title = previous.title,
+                dueDate = null,
+                categoryId = previous.categoryId,
+                dueTimeMinutes = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                reminderLeadMinutes = null,
+                priority = previous.priority
+            ).onSuccess {
+                uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = previous)
+                todoReminderScheduler.cancel(id)
+                sideEffectMutable.emit(
+                    TodoListSideEffect.ShowSnackbar(
+                        messageRes = R.string.todo_action_schedule_cleared,
+                        actionLabelRes = R.string.todo_action_undo
+                    )
+                )
+            }.onFailure {
+                sideEffectMutable.emit(
+                    TodoListSideEffect.ShowSnackbar(R.string.todo_error_reschedule_failed)
+                )
+            }
+        }
+    }
+
+    private fun undoLastQuickAction() {
+        viewModelScope.launch {
+            val previous = uiLocalState.value.pendingUndoTodo ?: return@launch
+            val result = if (getTodoUseCase(previous.id) == null) {
+                addTodoUseCase(
+                    title = previous.title,
+                    dueDate = previous.dueDate,
+                    categoryId = previous.categoryId,
+                    dueTimeMinutes = previous.dueTimeMinutes,
+                    reminderAtEpochMillis = previous.reminderAtEpochMillis,
+                    isReminderEnabled = previous.isReminderEnabled,
+                    reminderRepeatType = previous.reminderRepeatType.normalizeRepeatType(),
+                    reminderRepeatDaysMask = previous.reminderRepeatDaysMask,
+                    reminderLeadMinutes = previous.reminderLeadMinutes,
+                    priority = previous.priority
+                ).map { newId ->
+                    if (previous.isDone) {
+                        toggleTodoDoneUseCase(newId)
+                    }
+                    getTodoUseCase(newId)?.let { restored ->
+                        if (restored.isReminderEnabled && restored.reminderAtEpochMillis != null) {
+                            todoReminderScheduler.schedule(restored)
+                        }
+                    }
+                }
+            } else {
+                restoreTodo(previous)
+            }
+
+            result
+                .onSuccess {
+                    uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = null)
+                    syncTodoReminder(previous.id)
+                    sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_action_restored))
+                }
+                .onFailure {
+                    sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_error_undo_failed))
                 }
         }
     }
@@ -229,5 +356,28 @@ class TodoListViewModel @Inject constructor(
 
     private inline fun updateLocalState(block: TodoListUiState.() -> TodoListUiState) {
         uiLocalState.value = uiLocalState.value.block()
+    }
+
+    private suspend fun restoreTodo(todo: TodoItem): Result<Unit> =
+        updateTodoUseCase(
+            id = todo.id,
+            title = todo.title,
+            dueDate = todo.dueDate,
+            categoryId = todo.categoryId,
+            dueTimeMinutes = todo.dueTimeMinutes,
+            reminderAtEpochMillis = todo.reminderAtEpochMillis,
+            isReminderEnabled = todo.isReminderEnabled,
+            reminderRepeatType = todo.reminderRepeatType.normalizeRepeatType(),
+            reminderRepeatDaysMask = todo.reminderRepeatDaysMask,
+            reminderLeadMinutes = todo.reminderLeadMinutes,
+            priority = todo.priority
+        )
+
+    private fun TodoItem.reminderEpochMillisFor(dueDate: LocalDate): Long? {
+        if (!isReminderEnabled) return null
+        val dueTime = dueTimeMinutes ?: return null
+        val leadMinutes = reminderLeadMinutes ?: DEFAULT_REMINDER_LEAD_MINUTES
+        val reminderAt = dueDateTimeToEpochMillis(dueDate, dueTime) - leadMinutes * 60_000L
+        return reminderAt.takeIf { it > System.currentTimeMillis() }
     }
 }

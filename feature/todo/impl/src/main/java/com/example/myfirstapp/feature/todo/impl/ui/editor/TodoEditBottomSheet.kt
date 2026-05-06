@@ -1,11 +1,8 @@
 package com.example.myfirstapp.feature.todo.impl.ui
 
 import android.app.TimePickerDialog
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,24 +26,20 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalBottomSheetProperties
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -62,6 +55,7 @@ import java.time.ZoneId
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun EditTodoBottomSheet(
+    sheetTitle: String,
     title: String,
     dueDateInput: String,
     dueTimeInput: String,
@@ -80,52 +74,32 @@ internal fun EditTodoBottomSheet(
     onDelete: () -> Unit,
     showDelete: Boolean
 ) {
-    var hasFocusedInput by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-
-    BackHandler(enabled = true) {
-        when {
-            showDatePicker -> showDatePicker = false
-            else -> onDismiss()
-        }
-    }
-
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { newValue -> newValue != SheetValue.Hidden }
-    )
     val context = LocalContext.current
+    val scrollState = rememberScrollState()
 
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = isoDateToUtcMillis(dueDateInput)
     )
+    LaunchedEffect(Unit) {
+        scrollState.scrollTo(0)
+    }
 
-    ModalBottomSheet(
-        sheetState = sheetState,
-        onDismissRequest = onDismiss,
-        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = true),
-        containerColor = Color(0xFFF6F7FB),
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 10.dp)
-                    .size(width = 42.dp, height = 5.dp)
-                    .background(Color(0xFFD4D7E0), RoundedCornerShape(12.dp))
-            )
-        }
+    Surface(
+        color = Color(0xFFF6F7FB),
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.todo_editor_title_new_task),
+                    text = sheetTitle,
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                     color = Color(0xFF323640)
                 )
@@ -159,10 +133,7 @@ internal fun EditTodoBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(96.dp)
-                    .testTag("task_title_input")
-                    .onFocusChanged { state ->
-                        hasFocusedInput = state.hasFocus || state.isCaptured
-                    },
+                    .testTag("task_title_input"),
                 singleLine = false,
                 shape = RoundedCornerShape(14.dp),
                 isError = errorMessageRes != null,

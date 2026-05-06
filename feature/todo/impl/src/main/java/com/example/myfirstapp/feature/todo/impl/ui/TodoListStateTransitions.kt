@@ -4,6 +4,7 @@ import com.example.myfirstapp.core.model.ReminderRepeatType
 import com.example.myfirstapp.core.model.TodoPriority
 import com.example.myfirstapp.feature.todo.impl.model.TodoEditModel
 import com.example.myfirstapp.feature.todo.impl.model.TodoItemUiModel
+import java.time.LocalDate
 
 internal fun TodoListUiState.openNewTodoEditor(): TodoListUiState = copy(
     isEditDialogVisible = true,
@@ -17,6 +18,9 @@ internal fun TodoListUiState.openNewTodoEditor(): TodoListUiState = copy(
     draftPriority = TodoPriority.MEDIUM,
     errorMessageRes = null
 )
+
+internal fun TodoListUiState.openNewTodoEditorForDate(dueDate: LocalDate): TodoListUiState =
+    openNewTodoEditor().copy(draftDueDateInput = dueDate.toString())
 
 internal fun TodoListUiState.dismissTodoEditor(): TodoListUiState = copy(
     isEditDialogVisible = false,

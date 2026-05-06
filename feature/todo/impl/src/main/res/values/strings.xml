@@ -17,6 +17,7 @@
     <string name="todo_priority_high">High</string>
 
     <string name="todo_editor_title_new_task">New Task</string>
+    <string name="todo_editor_title_edit_task">Edit Task</string>
     <string name="todo_editor_task_description">TASK DESCRIPTION</string>
     <string name="todo_editor_task_placeholder">What needs to be done?</string>
     <string name="todo_editor_select_due_date">Select due date</string>
@@ -37,6 +38,17 @@
     <string name="todo_empty_all">No tasks yet.\nTap + to add your first task.</string>
     <string name="todo_empty_today">No tasks due today.</string>
     <string name="todo_empty_completed">No completed tasks yet.</string>
+    <string name="todo_today_section_overdue">Overdue</string>
+    <string name="todo_today_section_timed">Timed today</string>
+    <string name="todo_today_section_today">Due today</string>
+    <string name="todo_today_section_high_priority">High priority</string>
+    <string name="todo_quick_action_tomorrow">Tomorrow</string>
+    <string name="todo_quick_action_clear_date">Clear date</string>
+    <string name="todo_action_undo">Undo</string>
+    <string name="todo_action_deleted">Task deleted.</string>
+    <string name="todo_action_moved_to_tomorrow">Moved to tomorrow.</string>
+    <string name="todo_action_schedule_cleared">Schedule cleared.</string>
+    <string name="todo_action_restored">Restored.</string>
 
     <string name="todo_row_subtitle_completed">@string/todo_filter_completed</string>
     <string name="todo_row_subtitle_today">@string/todo_filter_today</string>
@@ -53,4 +65,6 @@
     <string name="todo_error_delete_failed">Failed to delete.</string>
     <string name="todo_error_filter_change_failed">Failed to change filter.</string>
     <string name="todo_error_priority_filter_change_failed">Failed to change priority filter.</string>
+    <string name="todo_error_reschedule_failed">Failed to reschedule.</string>
+    <string name="todo_error_undo_failed">Failed to undo.</string>
 </resources>

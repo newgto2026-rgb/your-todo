@@ -7,11 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.toMutableStateList
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -69,30 +68,30 @@ class AppNavigationState(
         get() = requireNotNull(backStacks[topLevelRoute]) {
             "Stack for $topLevelRoute not found"
         }
-
-    val stacksInUse: List<NavKey>
-        get() = (topLevelHistory + topLevelRoute)
-            .distinct()
-            .ifEmpty { listOf(startRoute) }
 }
 
 @Composable
 fun AppNavigationState.toEntries(
     entryProvider: (NavKey) -> NavEntry<NavKey>
-): SnapshotStateList<NavEntry<NavKey>> {
-    val decorators = listOf(
+): List<NavEntry<NavKey>> {
+    val entryDecorators: List<NavEntryDecorator<NavKey>> = listOf(
         rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
         rememberViewModelStoreNavEntryDecorator<NavKey>()
     )
-    val decoratedEntries = backStacks.mapValues { (_, stack) ->
-        rememberDecoratedNavEntries(
-            backStack = stack,
-            entryDecorators = decorators,
-            entryProvider = entryProvider
-        )
+    val decoratedEntries = LinkedHashMap<NavKey, List<NavEntry<NavKey>>>(backStacks.size)
+    topLevelRoutes
+        .toList()
+        .sortedBy { it.toString() }
+        .forEach { route ->
+            val stack = requireNotNull(backStacks[route]) {
+                "Stack for $route not found while creating decorated entries"
+            }
+            decoratedEntries[route] = rememberDecoratedNavEntries(
+                backStack = stack,
+                entryDecorators = entryDecorators,
+                entryProvider = entryProvider
+            )
     }
 
-    return stacksInUse
-        .flatMap { route -> decoratedEntries[route] ?: emptyList() }
-        .toMutableStateList()
+    return decoratedEntries[topLevelRoute].orEmpty()
 }

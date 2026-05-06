@@ -7,11 +7,21 @@ interface AppFeatureEntry {
     val route: NavKey
     val isStartDestination: Boolean
         get() = false
-    fun register(entryProviderScope: EntryProviderScope<NavKey>, navigator: AppNavigator)
+    fun register(
+        entryProviderScope: EntryProviderScope<NavKey>,
+        routeActions: AppRouteActions
+    )
 }
 
 interface AppNavigator {
     fun navigate(route: NavKey)
     fun goBack(): Boolean
+    fun setBackBlocked(blocked: Boolean)
+}
+
+interface AppRouteActions {
+    fun openTodoEdit(todoId: Long)
+    fun openTodoAdd(dueDate: String)
+    fun closeCurrentEntry()
     fun setBackBlocked(blocked: Boolean)
 }

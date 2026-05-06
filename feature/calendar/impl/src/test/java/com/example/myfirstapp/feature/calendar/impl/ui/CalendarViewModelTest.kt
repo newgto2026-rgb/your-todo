@@ -2,6 +2,7 @@ package com.example.myfirstapp.feature.calendar.impl.ui
 
 import com.example.myfirstapp.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveMonthlyTodosUseCase
+import androidx.lifecycle.SavedStateHandle
 import com.example.myfirstapp.core.model.DateTodoSummary
 import com.example.myfirstapp.core.model.ReminderRepeatType
 import com.example.myfirstapp.core.testing.repository.FakeTodoRepository
@@ -90,6 +91,23 @@ class CalendarViewModelTest {
 
         assertThat(emitted.await()).isEqualTo(CalendarSideEffect.NavigateToTodoEdit(todoId))
     }
+
+    @Test
+    fun addTodoClickAction_emitsSelectedDateAddSideEffect() = runTest {
+        val repository = FakeTodoRepository()
+        val viewModel = createViewModel(repository)
+        val targetDate = viewModel.uiState.value.currentMonth.atDay(12)
+
+        viewModel.onAction(CalendarAction.OnDateClick(targetDate))
+        advanceUntilIdle()
+
+        val emitted = async { viewModel.sideEffect.first() }
+        viewModel.onAction(CalendarAction.OnAddTodoClick)
+        advanceUntilIdle()
+
+        assertThat(emitted.await()).isEqualTo(CalendarSideEffect.NavigateToTodoAdd(targetDate))
+    }
+
 
     @Test
     fun selectedDateTodos_includeOnlySelectedDateTodos() = runTest {
@@ -236,6 +254,7 @@ class CalendarViewModelTest {
 
     private fun createViewModel(repository: FakeTodoRepository): CalendarViewModel =
         CalendarViewModel(
+            savedStateHandle = SavedStateHandle(),
             observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
                 observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
             ),

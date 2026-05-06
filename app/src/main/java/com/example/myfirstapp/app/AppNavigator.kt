@@ -1,5 +1,4 @@
 package com.example.myfirstapp.app
-
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -28,19 +27,6 @@ class AppNavigator(
             currentStack.removeLastOrNull()
             return true
         }
-
-        val previousRoute = state.topLevelHistory.lastOrNull { route -> route != state.topLevelRoute }
-        if (previousRoute != null) {
-            state.topLevelHistory = state.topLevelHistory.dropLast(1)
-            state.topLevelRoute = previousRoute
-            return true
-        }
-
-        if (state.topLevelRoute != state.startRoute) {
-            state.topLevelRoute = state.startRoute
-            return true
-        }
-
         return false
     }
 
@@ -51,8 +37,7 @@ class AppNavigator(
     private fun navigateToTopLevel(route: NavKey) {
         if (route == state.topLevelRoute) return
 
-        state.topLevelHistory = (state.topLevelHistory + state.topLevelRoute)
-            .filter { historyRoute -> historyRoute != route }
+        state.topLevelHistory = emptyList()
         state.topLevelRoute = route
     }
 }

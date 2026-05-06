@@ -3,6 +3,7 @@ package com.example.myfirstapp.feature.todo.impl.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,11 +17,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,30 +43,32 @@ import com.example.myfirstapp.core.model.TodoFilter
 import com.example.myfirstapp.core.model.TodoPriority
 import com.example.myfirstapp.core.ui.TodoItemRow
 import com.example.myfirstapp.feature.todo.impl.R
+import com.example.myfirstapp.feature.todo.impl.model.TodoItemUiModel
+import java.time.LocalDate
 
 @Composable
 fun TodoListRoute(
     presetFilter: TodoFilter,
-    initialEditTodoId: Long? = null,
-    isEditOnlyEntry: Boolean = false,
-    onEditOnlyExit: (() -> Unit)? = null,
     onBackBlockedChange: (Boolean) -> Unit = {},
+    onAddRequested: (LocalDate?) -> Unit = {},
+    onEditRequested: (Long) -> Unit = {},
     viewModel: TodoListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    val isModalVisible = uiState.isEditDialogVisible
-    var hasHandledInitialEdit by remember(initialEditTodoId) {
-        mutableStateOf(initialEditTodoId == null)
-    }
-    var seenEditSheetInEditOnly by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.sideEffect.collect { sideEffect ->
             when (sideEffect) {
                 is TodoListSideEffect.ShowSnackbar -> {
-                    snackbarHostState.showSnackbar(context.getString(sideEffect.messageRes))
+                    val result = snackbarHostState.showSnackbar(
+                        message = context.getString(sideEffect.messageRes),
+                        actionLabel = sideEffect.actionLabelRes?.let(context::getString)
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.onAction(TodoListAction.OnUndoLastQuickAction)
+                    }
                 }
             }
         }
@@ -73,44 +80,12 @@ fun TodoListRoute(
         }
     }
 
-    LaunchedEffect(initialEditTodoId, uiState.items, hasHandledInitialEdit) {
-        if (
-            !hasHandledInitialEdit &&
-            initialEditTodoId != null &&
-            uiState.items.any { item -> item.id == initialEditTodoId }
-        ) {
-            viewModel.onAction(TodoListAction.OnEditClick(initialEditTodoId))
-            hasHandledInitialEdit = true
-        }
-    }
-
-    LaunchedEffect(isModalVisible, onBackBlockedChange) {
-        onBackBlockedChange(isModalVisible)
-    }
-
-    LaunchedEffect(isEditOnlyEntry, isModalVisible, seenEditSheetInEditOnly) {
-        if (!isEditOnlyEntry) return@LaunchedEffect
-        if (isModalVisible) {
-            seenEditSheetInEditOnly = true
-            return@LaunchedEffect
-        }
-        if (seenEditSheetInEditOnly) {
-            seenEditSheetInEditOnly = false
-            onEditOnlyExit?.invoke()
-        }
-    }
-
-    DisposableEffect(onBackBlockedChange) {
-        onDispose {
-            onBackBlockedChange(false)
-        }
-    }
-
     TodoListScreen(
         uiState = uiState,
         onAction = viewModel::onAction,
         snackbarHostState = snackbarHostState,
-        showListContent = !isEditOnlyEntry
+        onAddRequested = onAddRequested,
+        onEditRequested = onEditRequested
     )
 }
 
@@ -119,7 +94,8 @@ private fun TodoListScreen(
     uiState: TodoListUiState,
     onAction: (TodoListAction) -> Unit,
     snackbarHostState: SnackbarHostState,
-    showListContent: Boolean
+    onAddRequested: (LocalDate?) -> Unit,
+    onEditRequested: (Long) -> Unit
 ) {
     val (title, subtitle) = headerTextFor(
         filter = uiState.selectedFilter,
@@ -133,12 +109,11 @@ private fun TodoListScreen(
     val rowCompletedText = stringResource(R.string.todo_row_subtitle_completed)
     val rowTodayText = stringResource(R.string.todo_row_subtitle_today)
 
-    if (showListContent) {
-        Scaffold(
+    Scaffold(
             containerColor = Color(0xFFF5F6FB),
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = { onAction(TodoListAction.OnAddClick) },
+                    onClick = { onAddRequested(null) },
                     containerColor = Color(0xFF4A6697),
                     contentColor = Color.White,
                     modifier = Modifier
@@ -150,7 +125,7 @@ private fun TodoListScreen(
             },
             floatingActionButtonPosition = FabPosition.End,
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-        ) { innerPadding ->
+    ) { innerPadding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -179,44 +154,43 @@ private fun TodoListScreen(
                         contentPadding = PaddingValues(bottom = 120.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(items = uiState.items, key = { item -> item.id }) { item ->
-                            val dueDateLabel = when {
-                                isToday(item.dueDateText) -> rowTodayText
-                                !item.dueDateText.isNullOrBlank() -> formatDueDateLabel(item.dueDateText)
-                                else -> null
+                    if (uiState.selectedFilter == TodoFilter.TODAY) {
+                            todayPlannerSections(uiState.items).forEach { section ->
+                                if (section.items.isNotEmpty()) {
+                                    item(key = "section_${section.titleRes}") {
+                                        Text(
+                                            text = stringResource(section.titleRes),
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = Color(0xFF323640),
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                    }
+                                    items(items = section.items, key = { item -> item.id }) { item ->
+                                        TodoPlannerRow(
+                                            item = item,
+                                            rowCompletedText = rowCompletedText,
+                                            rowTodayText = rowTodayText,
+                                            onAction = onAction,
+                                            onEditRequested = onEditRequested,
+                                            showQuickActions = true
+                                        )
+                                    }
+                                }
                             }
-                            val dueLabel = buildDueLabel(dueDateLabel, item.dueTimeText)
-                            val leadLabel = when (item.reminderLeadMinutes) {
-                                0 -> stringResource(R.string.todo_reminder_lead_at_time)
-                                5 -> stringResource(R.string.todo_reminder_lead_5m)
-                                10 -> stringResource(R.string.todo_reminder_lead_10m)
-                                30 -> stringResource(R.string.todo_reminder_lead_30m)
-                                60 -> stringResource(R.string.todo_reminder_lead_60m)
-                                else -> null
+                    } else {
+                            items(items = uiState.items, key = { item -> item.id }) { item ->
+                                TodoPlannerRow(
+                                    item = item,
+                                    rowCompletedText = rowCompletedText,
+                                    rowTodayText = rowTodayText,
+                                    onAction = onAction,
+                                    onEditRequested = onEditRequested,
+                                    showQuickActions = false
+                                )
                             }
-                            val reminderLabel = if (item.isReminderEnabled && !leadLabel.isNullOrBlank() && !item.isDone) {
-                                leadLabel
-                            } else {
-                                null
-                            }
-                            val rowDueLabel = when {
-                                item.isDone -> rowCompletedText
-                                !dueLabel.isNullOrBlank() -> dueLabel
-                                else -> null
-                            }
-                            TodoItemRow(
-                                title = item.title,
-                                dueDateText = rowDueLabel,
-                                reminderText = reminderLabel,
-                                isDone = item.isDone,
-                                isEmphasized = !item.isDone && dueDateLabel == rowTodayText,
-                                isReminderEnabled = item.isReminderEnabled,
-                                onToggleDone = { onAction(TodoListAction.OnToggleDone(item.id)) },
-                                onClick = { onAction(TodoListAction.OnEditClick(item.id)) },
-                                priorityLabel = priorityLabel(item.priority),
-                                priorityColor = priorityColor(item.priority)
-                            )
-                        }
+                    }
                     }
                 } else {
                     EmptyState(
@@ -227,33 +201,103 @@ private fun TodoListScreen(
                     )
                 }
             }
-        }
+    }
+}
+
+@Composable
+private fun TodoPlannerRow(
+    item: TodoItemUiModel,
+    rowCompletedText: String,
+    rowTodayText: String,
+    onAction: (TodoListAction) -> Unit,
+    onEditRequested: (Long) -> Unit,
+    showQuickActions: Boolean
+) {
+    val dueDateLabel = when {
+        item.dueDate == LocalDate.now() -> rowTodayText
+        !item.dueDateText.isNullOrBlank() -> formatDueDateLabel(item.dueDateText)
+        else -> null
+    }
+    val dueLabel = buildDueLabel(dueDateLabel, item.dueTimeText)
+    val leadLabel = when (item.reminderLeadMinutes) {
+        0 -> stringResource(R.string.todo_reminder_lead_at_time)
+        5 -> stringResource(R.string.todo_reminder_lead_5m)
+        10 -> stringResource(R.string.todo_reminder_lead_10m)
+        30 -> stringResource(R.string.todo_reminder_lead_30m)
+        60 -> stringResource(R.string.todo_reminder_lead_60m)
+        else -> null
+    }
+    val reminderLabel = if (item.isReminderEnabled && !leadLabel.isNullOrBlank() && !item.isDone) {
+        leadLabel
+    } else {
+        null
+    }
+    val rowDueLabel = when {
+        item.isDone -> rowCompletedText
+        !dueLabel.isNullOrBlank() -> dueLabel
+        else -> null
     }
 
-    if (uiState.isEditDialogVisible) {
-        EditTodoBottomSheet(
-            title = uiState.draftTitle,
-            dueDateInput = uiState.draftDueDateInput,
-            dueTimeInput = uiState.draftDueTimeInput,
-            reminderEnabled = uiState.draftReminderEnabled,
-            reminderLeadMinutes = uiState.draftReminderLeadMinutes ?: DEFAULT_REMINDER_LEAD_MINUTES,
-            selectedPriority = uiState.draftPriority,
-            errorMessageRes = uiState.errorMessageRes,
-            onTitleChange = { onAction(TodoListAction.OnTitleChange(it)) },
-            onDateInputChange = { onAction(TodoListAction.OnDueDateInputChange(it)) },
-            onDueTimeInputChange = { onAction(TodoListAction.OnDueTimeInputChange(it)) },
-            onReminderEnabledChange = { onAction(TodoListAction.OnReminderEnabledChange(it)) },
-            onReminderLeadMinutesChange = { onAction(TodoListAction.OnReminderLeadMinutesChange(it)) },
-            onPrioritySelected = { onAction(TodoListAction.OnPrioritySelectedInEditor(it)) },
-            onDismiss = { onAction(TodoListAction.OnDismissDialog) },
-            onSave = { onAction(TodoListAction.OnSaveClick) },
-            onDelete = {
-                uiState.editingItem?.id?.let { onAction(TodoListAction.OnDeleteClick(it)) }
-                onAction(TodoListAction.OnDismissDialog)
-            },
-            showDelete = uiState.editingItem != null
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        TodoItemRow(
+            title = item.title,
+            dueDateText = rowDueLabel,
+            reminderText = reminderLabel,
+            isDone = item.isDone,
+            isEmphasized = !item.isDone && dueDateLabel == rowTodayText,
+            isReminderEnabled = item.isReminderEnabled,
+            onToggleDone = { onAction(TodoListAction.OnToggleDone(item.id)) },
+            onClick = { onEditRequested(item.id) },
+            priorityLabel = priorityLabel(item.priority),
+            priorityColor = priorityColor(item.priority)
         )
+        if (showQuickActions) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = { onAction(TodoListAction.OnMoveToTomorrow(item.id)) },
+                    modifier = Modifier.testTag("todo_quick_tomorrow_${item.id}")
+                ) {
+                    Text(stringResource(R.string.todo_quick_action_tomorrow))
+                }
+                if (item.dueDate != null) {
+                    TextButton(
+                        onClick = { onAction(TodoListAction.OnClearSchedule(item.id)) },
+                        modifier = Modifier.testTag("todo_quick_clear_date_${item.id}")
+                    ) {
+                        Text(stringResource(R.string.todo_quick_action_clear_date))
+                    }
+                }
+            }
+        }
     }
+}
+
+internal data class TodayPlannerSection(
+    val titleRes: Int,
+    val items: List<TodoItemUiModel>
+)
+
+internal fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlannerSection> {
+    val today = LocalDate.now()
+    val overdue = items.filter { !it.isDone && it.dueDate?.isBefore(today) == true }
+    val timedToday = items.filter {
+        !it.isDone && it.dueDate == today && !it.dueTimeText.isNullOrBlank()
+    }
+    val todayUntimed = items.filter {
+        !it.isDone && it.dueDate == today && it.dueTimeText.isNullOrBlank()
+    }
+    val sectionedIds = (overdue + timedToday + todayUntimed).mapTo(mutableSetOf()) { it.id }
+    val highPriority = items.filter {
+        !it.isDone &&
+            it.priority == TodoPriority.HIGH &&
+            it.id !in sectionedIds
+    }
+    return listOf(
+        TodayPlannerSection(R.string.todo_today_section_overdue, overdue),
+        TodayPlannerSection(R.string.todo_today_section_timed, timedToday),
+        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed),
+        TodayPlannerSection(R.string.todo_today_section_high_priority, highPriority)
+    )
 }
 
 @Composable

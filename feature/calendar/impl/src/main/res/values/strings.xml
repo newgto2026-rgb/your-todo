@@ -4,6 +4,7 @@
     <string name="calendar_a11y_selected">Selected date</string>
     <string name="calendar_a11y_today">Today</string>
     <string name="calendar_agenda_title">Today’s Agenda</string>
+    <string name="calendar_add_task_for_date">Add task for this date</string>
     <string name="calendar_agenda_date_label">%1$s</string>
     <string name="calendar_bottom_sheet_empty">No scheduled tasks for this date.</string>
     <string name="calendar_bottom_sheet_all_day">All day</string>

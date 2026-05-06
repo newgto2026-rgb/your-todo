@@ -4,6 +4,7 @@
     <string name="calendar_a11y_selected">선택된 날짜</string>
     <string name="calendar_a11y_today">오늘</string>
     <string name="calendar_agenda_title">오늘의 아젠다</string>
+    <string name="calendar_add_task_for_date">이 날짜에 할 일 추가</string>
     <string name="calendar_agenda_date_label">%1$s</string>
     <string name="calendar_bottom_sheet_empty">선택한 날짜에 예정된 일정이 없습니다.</string>
     <string name="calendar_bottom_sheet_all_day">종일</string>

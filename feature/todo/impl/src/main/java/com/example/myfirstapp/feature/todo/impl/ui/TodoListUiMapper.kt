@@ -35,7 +35,13 @@ private fun List<TodoItem>.filterBy(filter: TodoFilter): List<TodoItem> {
     val today = LocalDate.now()
     return when (filter) {
         TodoFilter.ALL -> this
-        TodoFilter.TODAY -> filter { it.dueDate == today }
+        TodoFilter.TODAY -> filter {
+            !it.isDone && (
+                it.dueDate == today ||
+                    it.dueDate?.isBefore(today) == true ||
+                    it.priority == TodoPriority.HIGH
+                )
+        }
         TodoFilter.COMPLETED -> filter { it.isDone }
     }
 }
@@ -58,6 +64,7 @@ private fun TodoItem.toUiModel(): TodoItemUiModel =
         id = id,
         title = title,
         isDone = isDone,
+        dueDate = dueDate,
         dueDateText = dueDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
         dueTimeText = dueTimeMinutes?.let(::minutesToDueTimeText),
         reminderAtEpochMillis = reminderAtEpochMillis,
