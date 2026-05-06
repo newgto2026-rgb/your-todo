@@ -296,6 +296,9 @@ class TodoListViewModel @Inject constructor(
                     reminderLeadMinutes = previous.reminderLeadMinutes,
                     priority = previous.priority
                 ).map { newId ->
+                    if (previous.isDone) {
+                        toggleTodoDoneUseCase(newId)
+                    }
                     getTodoUseCase(newId)?.let { restored ->
                         if (restored.isReminderEnabled && restored.reminderAtEpochMillis != null) {
                             todoReminderScheduler.schedule(restored)

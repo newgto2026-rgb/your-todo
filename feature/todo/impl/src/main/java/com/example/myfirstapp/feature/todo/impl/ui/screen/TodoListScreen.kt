@@ -272,12 +272,12 @@ private fun TodoPlannerRow(
     }
 }
 
-private data class TodayPlannerSection(
+internal data class TodayPlannerSection(
     val titleRes: Int,
     val items: List<TodoItemUiModel>
 )
 
-private fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlannerSection> {
+internal fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlannerSection> {
     val today = LocalDate.now()
     val overdue = items.filter { !it.isDone && it.dueDate?.isBefore(today) == true }
     val timedToday = items.filter {
@@ -286,10 +286,17 @@ private fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlanne
     val todayUntimed = items.filter {
         !it.isDone && it.dueDate == today && it.dueTimeText.isNullOrBlank()
     }
+    val sectionedIds = (overdue + timedToday + todayUntimed).mapTo(mutableSetOf()) { it.id }
+    val highPriority = items.filter {
+        !it.isDone &&
+            it.priority == TodoPriority.HIGH &&
+            it.id !in sectionedIds
+    }
     return listOf(
         TodayPlannerSection(R.string.todo_today_section_overdue, overdue),
         TodayPlannerSection(R.string.todo_today_section_timed, timedToday),
-        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed)
+        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed),
+        TodayPlannerSection(R.string.todo_today_section_high_priority, highPriority)
     )
 }
 

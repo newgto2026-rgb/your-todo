@@ -19,6 +19,7 @@ import com.example.myfirstapp.core.testing.repository.FakeTodoRepository
 import com.example.myfirstapp.core.testing.rule.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -160,6 +161,33 @@ class TodoListViewModelTest {
         assertThat(todo.dueTimeMinutes).isNull()
         assertThat(todo.isReminderEnabled).isFalse()
         assertThat(todo.reminderAtEpochMillis).isNull()
+    }
+
+    @Test
+    fun undoAfterDeletingCompletedTaskRestoresCompletedState() = runTest {
+        val id = repository.addTodo(
+            title = "Done task",
+            dueDate = null,
+            categoryId = null,
+            dueTimeMinutes = null,
+            reminderAtEpochMillis = null,
+            isReminderEnabled = false,
+            reminderRepeatType = ReminderRepeatType.NONE,
+            reminderRepeatDaysMask = 0
+        ).getOrThrow()
+        repository.toggleTodoDone(id)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnDeleteClick(id))
+        advanceUntilIdle()
+        assertThat(repository.getTodo(id)).isNull()
+
+        viewModel.onAction(TodoListAction.OnUndoLastQuickAction)
+        advanceUntilIdle()
+
+        val restored = repository.observeTodos().first { todos -> todos.isNotEmpty() }.first()
+        assertThat(restored.title).isEqualTo("Done task")
+        assertThat(restored.isDone).isTrue()
     }
 
     @Test
