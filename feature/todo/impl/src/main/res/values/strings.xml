@@ -31,6 +31,15 @@
     <string name="todo_reminder_lead_30m">30m before</string>
     <string name="todo_reminder_lead_60m">1h before</string>
     <string name="todo_editor_delete">Delete</string>
+    <string name="todo_row_more_actions">More actions</string>
+    <string name="todo_delete_confirm_title">Delete task?</string>
+    <string name="todo_delete_confirm_message">Deleted tasks cannot be restored.</string>
+    <string name="todo_clear_completed_action">Clear completed</string>
+    <string name="todo_clear_completed_confirm_title">Clear completed tasks?</string>
+    <plurals name="todo_clear_completed_confirm_message">
+        <item quantity="one">This will delete %1$d completed task.</item>
+        <item quantity="other">This will delete %1$d completed tasks.</item>
+    </plurals>
     <string name="todo_editor_save">Save</string>
     <string name="todo_editor_ok">OK</string>
     <string name="todo_editor_cancel">Cancel</string>

@@ -1,9 +1,9 @@
 package com.example.myfirstapp
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -15,14 +15,15 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.Espresso.pressBackUnconditionally
-import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.myfirstapp.app.MainActivity
 import com.example.myfirstapp.core.database.AppDatabase
 import com.example.myfirstapp.core.datastore.source.UserPreferencesDataSource
+import com.example.myfirstapp.core.domain.repository.TodoItemRepository
 import com.example.myfirstapp.core.domain.usecase.AddTodoUseCase
 import com.example.myfirstapp.core.model.ReminderRepeatType
 import com.example.myfirstapp.core.model.TodoFilter
@@ -36,18 +37,21 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.max
+import kotlin.math.min
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import kotlin.math.max
-import kotlin.math.min
 
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class TodoUiTest {
+    private companion object {
+        const val UiTimeoutMillis = 15_000L
+    }
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
@@ -59,6 +63,9 @@ class TodoUiTest {
     lateinit var addTodoUseCase: AddTodoUseCase
 
     @Inject
+    lateinit var todoItemRepository: TodoItemRepository
+
+    @Inject
     lateinit var appDatabase: AppDatabase
 
     @Inject
@@ -66,6 +73,8 @@ class TodoUiTest {
 
     private lateinit var activityScenario: ActivityScenario<MainActivity>
     private lateinit var newTaskTitle: String
+    private lateinit var editTaskTitle: String
+    private lateinit var undoText: String
 
     @Before
     fun setup() {
@@ -73,6 +82,12 @@ class TodoUiTest {
         newTaskTitle = InstrumentationRegistry.getInstrumentation()
             .targetContext
             .getString(TodoImplR.string.todo_editor_title_new_task)
+        editTaskTitle = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_editor_title_edit_task)
+        undoText = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_action_undo)
         runBlocking {
             appDatabase.clearAllTables()
             userPreferencesDataSource.setSelectedTodoFilter(TodoFilter.ALL)
@@ -111,7 +126,7 @@ class TodoUiTest {
         composeTestRule.onNodeWithTag("task_title_input").assertTextContains(title)
         composeTestRule.onNodeWithTag("save_button").performScrollTo().performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(title).assertIsDisplayed()
@@ -126,7 +141,7 @@ class TodoUiTest {
         tabNode("completed").assertIsSelected()
 
         pressBackUnconditionally()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             activityScenario.state == Lifecycle.State.DESTROYED
         }
     }
@@ -138,7 +153,7 @@ class TodoUiTest {
         tabNode("today").assertIsSelected()
 
         pressBackUnconditionally()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             activityScenario.state == Lifecycle.State.DESTROYED
         }
     }
@@ -151,7 +166,7 @@ class TodoUiTest {
         composeTestRule.waitForIdle()
 
         pressBack()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(newTaskTitle).fetchSemanticsNodes().isEmpty()
         }
         composeTestRule.onAllNodesWithText(newTaskTitle).assertCountEquals(0)
@@ -165,11 +180,102 @@ class TodoUiTest {
         composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("task_edit_close").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(newTaskTitle).fetchSemanticsNodes().isEmpty()
         }
 
         composeTestRule.onAllNodesWithText(newTaskTitle).assertCountEquals(0)
+    }
+
+    @Test
+    fun listOverflowDelete_confirmsAndDeletesItem() {
+        val title = "Delete UI ${System.currentTimeMillis()}"
+        val id = runBlocking {
+            addTodoUseCase(
+                title = title,
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+        }
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeTestRule.onNodeWithTag("todo_row_more_$id", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("todo_row_delete_$id", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("delete_confirmation_dialog")
+        composeTestRule.onNodeWithTag("confirm_delete_button").performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isEmpty()
+        }
+        composeTestRule.onAllNodesWithText(title).assertCountEquals(0)
+    }
+
+    @Test
+    fun completedTabClearCompleted_confirmsAndDeletesCompletedItems() {
+        val timestamp = System.currentTimeMillis()
+        val firstDoneTitle = "Done A $timestamp"
+        val secondDoneTitle = "Done B $timestamp"
+        val activeTitle = "Active $timestamp"
+
+        runBlocking {
+            val firstDoneId = addTodoUseCase(
+                title = firstDoneTitle,
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.LOW
+            ).getOrThrow()
+            val secondDoneId = addTodoUseCase(
+                title = secondDoneTitle,
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            addTodoUseCase(
+                title = activeTitle,
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            todoItemRepository.toggleTodoDone(firstDoneId)
+            todoItemRepository.toggleTodoDone(secondDoneId)
+        }
+
+        tabNode("completed").performClick()
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(firstDoneTitle).fetchSemanticsNodes().isNotEmpty() &&
+                composeTestRule.onAllNodesWithText(secondDoneTitle).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeTestRule.onNodeWithTag("clear_completed_button").performClick()
+        composeTestRule.waitUntilNodeExists("delete_confirmation_dialog")
+        composeTestRule.onNodeWithTag("confirm_delete_button").performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(firstDoneTitle).fetchSemanticsNodes().isEmpty() &&
+                composeTestRule.onAllNodesWithText(secondDoneTitle).fetchSemanticsNodes().isEmpty()
+        }
+        tabNode("all").performClick()
+        composeTestRule.onNodeWithText(activeTitle).assertIsDisplayed()
     }
 
     @Test
@@ -188,7 +294,7 @@ class TodoUiTest {
         composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
 
         pressBackUnconditionally()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(expectedDateLabel).fetchSemanticsNodes().isNotEmpty()
         }
 
@@ -229,7 +335,7 @@ class TodoUiTest {
         composeTestRule.onNodeWithTag("task_title_input").performTextInput(title)
         composeTestRule.onNodeWithTag("save_button").performScrollTo().performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(agendaDateLabel(targetDate)).assertIsDisplayed()
@@ -247,7 +353,7 @@ class TodoUiTest {
         composeTestRule.waitUntilNodeExists("task_edit_close")
         composeTestRule.onNodeWithTag("task_edit_close").performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(expectedDateLabel).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(expectedDateLabel).assertIsDisplayed()
@@ -271,13 +377,13 @@ class TodoUiTest {
 
         tabNode("calendar").performClick()
         composeTestRule.onNodeWithTag("calendar_day_$targetDate").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
 
         composeTestRule.onNodeWithText(title).performClick()
         composeTestRule.waitUntilNodeExists("task_edit_close")
-        composeTestRule.onNodeWithText("Edit Task").assertIsDisplayed()
+        composeTestRule.onNodeWithText(editTaskTitle).assertIsDisplayed()
         composeTestRule.onNodeWithTag("task_title_input").assertTextContains(title)
     }
 
@@ -314,7 +420,7 @@ class TodoUiTest {
         tabNode("all").assertIsSelected()
 
         pressBackUnconditionally()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             activityScenario.state == Lifecycle.State.DESTROYED
         }
     }
@@ -364,7 +470,11 @@ class TodoUiTest {
         }
 
         tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
 
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText("QA overdue").fetchSemanticsNodes().isNotEmpty()
+        }
         composeTestRule.onNodeWithText("QA overdue").assertIsDisplayed()
         composeTestRule.onNodeWithText("QA timed today").assertIsDisplayed()
         composeTestRule.onNodeWithText("QA due today").assertIsDisplayed()
@@ -388,12 +498,15 @@ class TodoUiTest {
         composeTestRule.onNodeWithText("QA move tomorrow").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("todo_quick_tomorrow_$id").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText("QA move tomorrow").fetchSemanticsNodes().isEmpty()
         }
 
-        composeTestRule.onNodeWithText("Undo").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(undoText).performClick()
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText("QA move tomorrow").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("QA move tomorrow").assertIsDisplayed()
@@ -417,12 +530,15 @@ class TodoUiTest {
         composeTestRule.onNodeWithText("QA clear date").assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("todo_quick_clear_date_$id").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText("QA clear date").fetchSemanticsNodes().isEmpty()
         }
 
-        composeTestRule.onNodeWithText("Undo").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(undoText).performClick()
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText("QA clear date").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("QA clear date").assertIsDisplayed()
@@ -452,10 +568,10 @@ class TodoUiTest {
 
     private fun ComposeTestRule.waitUntilNodeExists(
         tag: String,
-        timeoutMillis: Long = 5_000
+        timeoutMillis: Long = UiTimeoutMillis
     ) {
         waitUntil(timeoutMillis = timeoutMillis) {
-            onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+            onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

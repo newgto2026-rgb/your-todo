@@ -22,7 +22,10 @@ sealed interface TodoListAction {
     data class OnClearSchedule(val id: Long) : TodoListAction
     data object OnUndoLastQuickAction : TodoListAction
     data class OnEditClick(val id: Long) : TodoListAction
-    data class OnDeleteClick(val id: Long) : TodoListAction
+    data class OnDeleteRequest(val id: Long) : TodoListAction
+    data object OnDeleteCancel : TodoListAction
+    data object OnDeleteConfirm : TodoListAction
+    data object OnClearCompletedClick : TodoListAction
     data class OnFilterChange(val filter: TodoFilter) : TodoListAction
     data class OnPriorityFilterChange(val filter: TodoPriorityFilter) : TodoListAction
     data object OnDismissDialog : TodoListAction
