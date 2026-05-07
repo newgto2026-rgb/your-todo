@@ -4,6 +4,7 @@
     <string name="calendar_widget_expanded_name">Monthly calendar 4x4</string>
     <string name="calendar_widget_description">Shows the Todo calendar for this month.</string>
     <string name="calendar_widget_expanded_description">Shows Todo titles in a 4x4 monthly calendar.</string>
+    <string name="calendar_widget_brand_logo">YourTodo logo</string>
     <string name="calendar_widget_error">Calendar unavailable</string>
     <string name="calendar_widget_previous_month">Previous month</string>
     <string name="calendar_widget_next_month">Next month</string>

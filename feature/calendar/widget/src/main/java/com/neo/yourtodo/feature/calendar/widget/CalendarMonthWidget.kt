@@ -9,6 +9,8 @@ import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
@@ -32,6 +34,7 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
+import androidx.glance.layout.width
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import androidx.glance.semantics.testTag
@@ -106,6 +109,16 @@ internal fun CalendarMonthWidgetContent(
             .padding(layout.contentPadding)
             .semantics { testTag = CalendarMonthWidgetTestTags.Root }
     ) {
+        if (layout == CalendarMonthWidgetLayout.Expanded) {
+            Box(
+                modifier = GlanceModifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                WidgetBrandLogo(layout = layout)
+            }
+            Spacer(modifier = GlanceModifier.height(layout.brandLogoSpacing))
+        }
+
         CalendarMonthHeader(
             monthLabel = state.monthLabel.ifBlank {
                 context.getString(R.string.calendar_widget_name)
@@ -123,18 +136,24 @@ internal fun CalendarMonthWidgetContent(
         WeekdayHeader(labels = state.weekdayLabels, layout = layout)
         Spacer(modifier = GlanceModifier.height(layout.weekdaySpacing))
 
-        state.weeks.forEach { week ->
-            Row(
-                modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .defaultWeight()
-            ) {
-                week.forEach { day ->
-                    CalendarDayCell(
-                        day = day,
-                        layout = layout,
-                        modifier = GlanceModifier.defaultWeight()
-                    )
+        Column(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .defaultWeight()
+        ) {
+            state.weeks.forEach { week ->
+                Row(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .defaultWeight()
+                ) {
+                    week.forEach { day ->
+                        CalendarDayCell(
+                            day = day,
+                            layout = layout,
+                            modifier = GlanceModifier.defaultWeight()
+                        )
+                    }
                 }
             }
         }
@@ -148,6 +167,20 @@ internal fun calendarMonthWidgetErrorState(): CalendarMonthWidgetState =
         weeks = emptyList(),
         isError = true
     )
+
+@Composable
+private fun WidgetBrandLogo(layout: CalendarMonthWidgetLayout) {
+    val context = LocalContext.current
+
+    Image(
+        provider = ImageProvider(R.drawable.todo_wordmark),
+        contentDescription = context.getString(R.string.calendar_widget_brand_logo),
+        modifier = GlanceModifier
+            .width(layout.brandLogoWidth)
+            .height(layout.brandLogoHeight)
+            .semantics { testTag = CalendarMonthWidgetTestTags.BrandLogo }
+    )
+}
 
 @Composable
 private fun CalendarMonthHeader(
@@ -167,19 +200,25 @@ private fun CalendarMonthHeader(
             testTag = CalendarMonthWidgetTestTags.PreviousMonthButton,
             layout = layout
         )
-        Text(
-            text = monthLabel,
+        Row(
             modifier = GlanceModifier
-                .defaultWeight()
-                .semantics { testTag = CalendarMonthWidgetTestTags.MonthLabel },
-            style = TextStyle(
-                color = ColorProvider(TitleColor),
-                fontSize = layout.titleFontSize.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            ),
-            maxLines = 1
-        )
+                .defaultWeight(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = monthLabel,
+                modifier = GlanceModifier
+                    .semantics { testTag = CalendarMonthWidgetTestTags.MonthLabel },
+                style = TextStyle(
+                    color = ColorProvider(TitleColor),
+                    fontSize = layout.titleFontSize.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                ),
+                maxLines = 1
+            )
+        }
         MonthNavigationButton(
             text = context.getString(R.string.calendar_widget_next_month_symbol),
             contentDescription = context.getString(R.string.calendar_widget_next_month),
@@ -315,7 +354,8 @@ private fun CalendarDayCell(
         CompactCalendarDayCell(
             day = day,
             modifier = cellModifier,
-            textColor = textColor
+            textColor = textColor,
+            layout = layout
         )
     }
 }
@@ -324,16 +364,17 @@ private fun CalendarDayCell(
 private fun CompactCalendarDayCell(
     day: CalendarMonthWidgetDay,
     modifier: GlanceModifier,
-    textColor: Color
+    textColor: Color,
+    layout: CalendarMonthWidgetLayout
 ) {
     Column(
-        modifier = modifier.padding(vertical = 3.dp),
+        modifier = modifier.padding(vertical = layout.compactCellVerticalPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         DayLabel(
             day = day,
             textColor = textColor,
-            fontSize = 12
+            fontSize = layout.dayFontSize
         )
         if (day.taskCountLabel != null && day.isCurrentMonth) {
             val countColor = if (day.isToday) TodayTextColor else CountTextColor
@@ -344,14 +385,14 @@ private fun CompactCalendarDayCell(
                 },
                 style = TextStyle(
                     color = ColorProvider(countColor),
-                    fontSize = 9.sp,
+                    fontSize = layout.taskCountFontSize.sp,
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.Bold
                 ),
                 maxLines = 1
             )
         } else {
-            Spacer(modifier = GlanceModifier.size(9.dp))
+            Spacer(modifier = GlanceModifier.size(layout.taskCountPlaceholderSize))
         }
     }
 }
@@ -364,7 +405,7 @@ private fun ExpandedCalendarDayCell(
     layout: CalendarMonthWidgetLayout
 ) {
     Column(
-        modifier = modifier.padding(vertical = layout.expandedCellVerticalPadding, horizontal = 2.dp),
+        modifier = modifier.padding(vertical = layout.expandedCellVerticalPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         DayLabel(
@@ -379,7 +420,8 @@ private fun ExpandedCalendarDayCell(
                     date = day.date.toString(),
                     index = index,
                     chip = chip,
-                    isToday = day.isToday
+                    isToday = day.isToday,
+                    layout = layout
                 )
             }
         }
@@ -412,7 +454,8 @@ private fun TodoPreviewChip(
     date: String,
     index: Int,
     chip: CalendarMonthWidgetTodoChip,
-    isToday: Boolean
+    isToday: Boolean,
+    layout: CalendarMonthWidgetLayout
 ) {
     val backgroundColor = when {
         isToday -> TodayChipBackground
@@ -427,26 +470,30 @@ private fun TodoPreviewChip(
         else -> TodoChipText
     }
 
-    Text(
-        text = chip.label,
+    Box(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .height(11.dp)
-            .padding(top = 1.dp)
-            .background(ColorProvider(backgroundColor))
-            .cornerRadius(ChipCornerRadius)
-            .padding(horizontal = 2.dp)
-            .semantics {
-                testTag = CalendarMonthWidgetTestTags.dayTodoChip(date, index)
-            },
-        style = TextStyle(
-            color = ColorProvider(textColor),
-            fontSize = 7.sp,
-            textAlign = TextAlign.Start,
-            fontWeight = if (chip.isOverflow) FontWeight.Bold else FontWeight.Normal
-        ),
-        maxLines = 1
-    )
+            .padding(horizontal = 1.dp, vertical = 1.dp)
+    ) {
+        Text(
+            text = chip.label,
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(ColorProvider(backgroundColor))
+                .cornerRadius(ChipCornerRadius)
+                .padding(horizontal = layout.todoChipHorizontalPadding)
+                .semantics {
+                    testTag = CalendarMonthWidgetTestTags.dayTodoChip(date, index)
+                },
+            style = TextStyle(
+                color = ColorProvider(textColor),
+                fontSize = layout.todoChipFontSize.sp,
+                textAlign = TextAlign.Start,
+                fontWeight = if (chip.isOverflow) FontWeight.Bold else FontWeight.Normal
+            ),
+            maxLines = TodoChipMaxLines
+        )
+    }
 }
 
 private val WidgetBackground = Color(0xFFFAFAFA)
@@ -455,7 +502,7 @@ private val PrimaryTextColor = Color(0xFF263248)
 private val SecondaryTextColor = Color(0xFF69758B)
 private val MutedTextColor = Color(0xFFADB5C4)
 private val DayCellBackground = Color(0xFFFFFFFF)
-private val AdjacentDayCellBackground = Color(0xFFF7F9FC)
+private val AdjacentDayCellBackground = Color(0xFFFFFFFF)
 private val TodayBackground = Color(0xFF1A73E8)
 private val TodayTextColor = Color(0xFFFFFFFF)
 private val CountTextColor = Color(0xFF174EA6)
@@ -469,7 +516,8 @@ private val OverflowChipBackground = Color(0xFFE2E7F0)
 private val OverflowChipText = Color(0xFF536074)
 private val WidgetCornerRadius = 28.dp
 private val DayCellCornerRadius = 8.dp
-private val ChipCornerRadius = 4.dp
+private val ChipCornerRadius = 0.dp
+private const val TodoChipMaxLines = 2
 
 internal object CalendarMonthWidgetSizes {
     val Compact = DpSize(width = 180.dp, height = 180.dp)
@@ -483,68 +531,116 @@ internal enum class CalendarMonthWidgetLayout {
 
     val contentPadding
         get() = when (this) {
-            Compact -> 10.dp
-            Expanded -> 12.dp
+            Compact -> 8.dp
+            Expanded -> 6.dp
         }
 
     val headerSpacing
         get() = when (this) {
-            Compact -> 5.dp
-            Expanded -> 7.dp
+            Compact -> 4.dp
+            Expanded -> 3.dp
+        }
+
+    val brandLogoHeight
+        get() = when (this) {
+            Compact -> 0.dp
+            Expanded -> 17.dp
+        }
+
+    val brandLogoWidth
+        get() = when (this) {
+            Compact -> 0.dp
+            Expanded -> 65.dp
+        }
+
+    val brandLogoSpacing
+        get() = when (this) {
+            Compact -> 0.dp
+            Expanded -> 2.dp
         }
 
     val weekdaySpacing
         get() = when (this) {
             Compact -> 3.dp
-            Expanded -> 4.dp
+            Expanded -> 2.dp
         }
 
     val titleFontSize
         get() = when (this) {
-            Compact -> 14
+            Compact -> 15
             Expanded -> 17
         }
 
     val navigationButtonSize
         get() = when (this) {
             Compact -> 28.dp
-            Expanded -> 32.dp
+            Expanded -> 28.dp
         }
 
     val navigationFontSize
         get() = when (this) {
             Compact -> 14
-            Expanded -> 16
+            Expanded -> 15
         }
 
     val weekdayFontSize
         get() = when (this) {
-            Compact -> 9
+            Compact -> 10
             Expanded -> 11
         }
 
     val dayFontSize
         get() = when (this) {
-            Compact -> 10
+            Compact -> 15
+            Expanded -> 15
+        }
+
+    val taskCountFontSize
+        get() = when (this) {
+            Compact -> 11
             Expanded -> 10
+        }
+
+    val taskCountPlaceholderSize
+        get() = when (this) {
+            Compact -> 11.dp
+            Expanded -> 11.dp
+        }
+
+    val todoChipFontSize
+        get() = when (this) {
+            Compact -> 11
+            Expanded -> 10
+        }
+
+    val todoChipHorizontalPadding
+        get() = when (this) {
+            Compact -> 0.dp
+            Expanded -> 0.dp
         }
 
     val cellHorizontalGap
         get() = when (this) {
-            Compact -> 1.dp
-            Expanded -> 2.dp
+            Compact -> 0.dp
+            Expanded -> 0.dp
         }
 
     val cellVerticalGap
         get() = when (this) {
             Compact -> 1.dp
-            Expanded -> 2.dp
+            Expanded -> 1.dp
         }
 
     val expandedCellVerticalPadding
         get() = when (this) {
             Compact -> 3.dp
-            Expanded -> 4.dp
+            Expanded -> 1.dp
+        }
+
+    val compactCellVerticalPadding
+        get() = when (this) {
+            Compact -> 2.dp
+            Expanded -> 2.dp
         }
 
     companion object {
@@ -562,6 +658,7 @@ internal enum class CalendarMonthWidgetLayout {
 
 internal object CalendarMonthWidgetTestTags {
     const val Root = "calendar_widget_root"
+    const val BrandLogo = "calendar_widget_brand_logo"
     const val MonthLabel = "calendar_widget_month_label"
     const val PreviousMonthButton = "calendar_widget_previous_month_button"
     const val NextMonthButton = "calendar_widget_next_month_button"

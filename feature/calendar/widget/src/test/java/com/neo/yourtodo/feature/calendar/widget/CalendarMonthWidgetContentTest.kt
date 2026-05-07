@@ -57,6 +57,44 @@ class CalendarMonthWidgetContentTest {
     }
 
     @Test
+    fun content_compactStateDoesNotRenderBrandLogo() = runGlanceAppWidgetUnitTest {
+        setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Compact)
+        provideComposable {
+            CalendarMonthWidgetContent(
+                state = CalendarMonthWidgetState(
+                    monthLabel = "2026 May",
+                    weekdayLabels = emptyList(),
+                    weeks = emptyList(),
+                    isError = false
+                )
+            )
+        }
+
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.BrandLogo))
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun content_expandedStateRendersBrandLogo() = runGlanceAppWidgetUnitTest {
+        setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Expanded)
+        provideComposable {
+            CalendarMonthWidgetContent(
+                state = CalendarMonthWidgetState(
+                    monthLabel = "2026 May",
+                    weekdayLabels = emptyList(),
+                    weeks = emptyList(),
+                    isError = false
+                )
+            )
+        }
+
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.BrandLogo))
+            .assertExists()
+    }
+
+    @Test
     fun content_expandedStateRendersTodoChips() = runGlanceAppWidgetUnitTest {
         val selectedDate = LocalDate.of(2026, 5, 7)
 
@@ -95,6 +133,48 @@ class CalendarMonthWidgetContentTest {
             .assertHasTextEqualTo("Dinner")
         onNode(hasTestTag(CalendarMonthWidgetTestTags.dayTaskCount(selectedDate.toString())))
             .assertDoesNotExist()
+    }
+
+    @Test
+    fun content_expandedStateRendersAllMonthWeeks() = runGlanceAppWidgetUnitTest {
+        val sixthWeekDate = LocalDate.of(2026, 5, 31)
+        val weeks = (0 until 6).map { weekIndex ->
+            listOf(
+                CalendarMonthWidgetDay(
+                    date = LocalDate.of(2026, 4, 26).plusWeeks(weekIndex.toLong()),
+                    dayLabel = (weekIndex + 1).toString(),
+                    taskCountLabel = null,
+                    isCurrentMonth = true,
+                    isToday = false
+                )
+            )
+        }.dropLast(1) + listOf(
+            listOf(
+                CalendarMonthWidgetDay(
+                    date = sixthWeekDate,
+                    dayLabel = "31",
+                    taskCountLabel = null,
+                    isCurrentMonth = true,
+                    isToday = false
+                )
+            )
+        )
+
+        setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Expanded)
+        provideComposable {
+            CalendarMonthWidgetContent(
+                state = CalendarMonthWidgetState(
+                    monthLabel = "2026 May",
+                    weekdayLabels = emptyList(),
+                    weeks = weeks,
+                    isError = false
+                )
+            )
+        }
+
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.day(sixthWeekDate.toString())))
+            .assertExists()
     }
 
     @Test

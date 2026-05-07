@@ -19,7 +19,7 @@ internal fun buildCalendarMonthWidgetDateGrid(
     val firstDate = yearMonth.atDay(1)
     val leadingCells = firstDate.dayOfWeek.distanceFrom(firstDayOfWeek)
     val daysInMonth = yearMonth.lengthOfMonth()
-    val totalCells = ((leadingCells + daysInMonth + 6) / 7) * 7
+    val totalCells = ((leadingCells + daysInMonth + 6) / WEEK_DAY_COUNT) * WEEK_DAY_COUNT
     val previousMonth = yearMonth.minusMonths(1)
     val previousMonthDays = previousMonth.lengthOfMonth()
     val nextMonth = yearMonth.plusMonths(1)
