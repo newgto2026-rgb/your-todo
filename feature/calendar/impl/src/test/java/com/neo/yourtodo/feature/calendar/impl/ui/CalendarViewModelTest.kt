@@ -2,6 +2,7 @@ package com.neo.yourtodo.feature.calendar.impl.ui
 
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import androidx.lifecycle.SavedStateHandle
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.ReminderRepeatType
@@ -158,6 +159,32 @@ class CalendarViewModelTest {
         assertThat(emitted.await()).isEqualTo(CalendarSideEffect.NavigateToTodoAdd(targetDate))
     }
 
+    @Test
+    fun toggleTodoDoneAction_marksSelectedDateTodoDone() = runTest {
+        val repository = FakeTodoRepository()
+        val viewModel = createViewModel(repository)
+        val targetDate = viewModel.uiState.value.currentMonth.atDay(13)
+        val todoId = repository.addTodo(
+            title = "Toggle from calendar",
+            dueDate = targetDate,
+            categoryId = null,
+            reminderAtEpochMillis = null,
+            isReminderEnabled = false,
+            reminderRepeatType = ReminderRepeatType.NONE,
+            reminderRepeatDaysMask = 0
+        ).getOrThrow()
+
+        viewModel.onAction(CalendarAction.OnDateClick(targetDate))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.selectedDateTodos.single().isDone).isFalse()
+
+        viewModel.onAction(CalendarAction.OnToggleTodoDone(todoId))
+        advanceUntilIdle()
+
+        assertThat(repository.getTodo(todoId)?.isDone).isTrue()
+        assertThat(viewModel.uiState.value.selectedDateTodos.single().isDone).isTrue()
+    }
+
 
     @Test
     fun selectedDateTodos_includeOnlySelectedDateTodos() = runTest {
@@ -308,7 +335,8 @@ class CalendarViewModelTest {
             observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
                 observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
             ),
-            observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
+            observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
+            toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository)
         )
         uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()

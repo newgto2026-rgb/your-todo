@@ -20,6 +20,7 @@ import com.neo.yourtodo.app.MainActivity
 import com.neo.yourtodo.core.database.AppDatabase
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
@@ -48,6 +49,9 @@ class CalendarUiTest {
 
     @Inject
     lateinit var addTodoUseCase: AddTodoUseCase
+
+    @Inject
+    lateinit var getTodoUseCase: GetTodoUseCase
 
     @Inject
     lateinit var appDatabase: AppDatabase
@@ -150,6 +154,20 @@ class CalendarUiTest {
 
         composeTestRule.waitUntilNodeExists("task_title_input")
         composeTestRule.onNodeWithTag("task_title_input").assertIsDisplayed().assertTextContains("Calendar UI - today")
+    }
+
+    @Test
+    fun todoToggleInAgenda_marksTodoCompleted() {
+        openCalendarTab()
+
+        composeTestRule.onNodeWithTag("calendar_day_$today").performClick()
+        composeTestRule.waitUntilNodeExists("calendar_day_todo_toggle_$todayTodoId")
+        composeTestRule.onNodeWithTag("calendar_day_todo_toggle_$todayTodoId", useUnmergedTree = true)
+            .performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            runBlocking { getTodoUseCase(todayTodoId)?.isDone == true }
+        }
     }
 
     @Test

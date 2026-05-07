@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -38,9 +39,17 @@ import com.neo.yourtodo.feature.calendar.impl.ui.CalendarSelectedTodoUiModel
 @Composable
 internal fun CalendarAgendaItem(
     todo: CalendarSelectedTodoUiModel,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onToggleDone: () -> Unit
 ) {
     val dueText = todo.dueTimeLabel ?: stringResource(R.string.calendar_bottom_sheet_all_day)
+    val toggleLabel = stringResource(
+        if (todo.isDone) {
+            R.string.calendar_mark_task_incomplete
+        } else {
+            R.string.calendar_mark_task_complete
+        }
+    )
     val reminderText = when (todo.reminderLeadMinutes) {
         0 -> stringResource(R.string.calendar_reminder_lead_at_time)
         5 -> stringResource(R.string.calendar_reminder_lead_5m)
@@ -80,12 +89,18 @@ internal fun CalendarAgendaItem(
                 Box(
                     modifier = Modifier
                         .size(22.dp)
+                        .testTag("calendar_day_todo_toggle_${todo.id}")
                         .clip(RoundedCornerShape(7.dp))
                         .background(if (todo.isDone) Color(0xFF6C63FF) else Color.Transparent)
                         .border(
                             width = if (todo.isDone) 0.dp else 1.8.dp,
                             color = Color(0xFF6C63FF),
                             shape = RoundedCornerShape(7.dp)
+                        )
+                        .clickable(
+                            onClickLabel = toggleLabel,
+                            role = Role.Checkbox,
+                            onClick = onToggleDone
                         ),
                     contentAlignment = Alignment.Center
                 ) {

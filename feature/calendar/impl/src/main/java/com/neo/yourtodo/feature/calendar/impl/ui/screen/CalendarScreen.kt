@@ -127,6 +127,7 @@ private fun CalendarScreen(
                 selectedDate = uiState.selectedDate,
                 selectedDateTodos = uiState.selectedDateTodos,
                 onTodoClick = onTodoClick,
+                onToggleTodoDone = { todoId -> onAction(CalendarAction.OnToggleTodoDone(todoId)) },
                 onAddTodoClick = { onAddTodoClick(uiState.selectedDate) },
                 modifier = Modifier.fillMaxWidth()
             )

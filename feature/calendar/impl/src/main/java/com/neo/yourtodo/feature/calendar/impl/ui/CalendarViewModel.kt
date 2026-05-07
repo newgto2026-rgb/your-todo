@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
@@ -38,7 +39,8 @@ private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
 class CalendarViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
-    observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase
+    observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
+    private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase
 ) : ViewModel() {
     private val monthState = MutableStateFlow(savedStateHandle.initialMonth())
     private val selectedDateState = MutableStateFlow(savedStateHandle.initialSelectedDate())
@@ -131,6 +133,8 @@ class CalendarViewModel @Inject constructor(
                 }
             }
 
+            is CalendarAction.OnToggleTodoDone -> toggleTodoDone(action.todoId)
+
             CalendarAction.OnAddTodoClick -> {
                 viewModelScope.launch {
                     sideEffectMutable.emit(CalendarSideEffect.NavigateToTodoAdd(selectedDateState.value))
@@ -169,6 +173,12 @@ class CalendarViewModel @Inject constructor(
         savedStateHandle[STATE_SELECTED_DATE_KEY] = selectedDate.toString()
         monthState.value = month
         selectedDateState.value = selectedDate
+    }
+
+    private fun toggleTodoDone(todoId: Long) {
+        viewModelScope.launch {
+            toggleTodoDoneUseCase(todoId)
+        }
     }
 }
 
