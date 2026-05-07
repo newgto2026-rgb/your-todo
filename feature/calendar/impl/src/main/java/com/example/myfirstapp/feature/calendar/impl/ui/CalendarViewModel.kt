@@ -1,4 +1,5 @@
 package com.example.myfirstapp.feature.calendar.impl.ui
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -11,12 +12,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -36,11 +37,29 @@ class CalendarViewModel @Inject constructor(
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase
 ) : ViewModel() {
-    private val monthState = MutableStateFlow(
-        savedStateHandle.get<String>(STATE_MONTH_KEY)?.let(YearMonth::parse) ?: YearMonth.now()
-    )
-    private val selectedDateState = MutableStateFlow(
-        savedStateHandle.get<String>(STATE_SELECTED_DATE_KEY)?.let(LocalDate::parse) ?: LocalDate.now()
+    private val monthState = savedStateHandle
+        .getStateFlow(
+            key = STATE_MONTH_KEY,
+            initialValue = savedStateHandle[STATE_MONTH_KEY] ?: YearMonth.now().toString()
+        )
+        .map(YearMonth::parse)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = savedStateHandle.get<String>(STATE_MONTH_KEY)?.let(YearMonth::parse)
+                ?: YearMonth.now()
+        )
+    private val selectedDateState = savedStateHandle
+        .getStateFlow(
+            key = STATE_SELECTED_DATE_KEY,
+            initialValue = savedStateHandle[STATE_SELECTED_DATE_KEY] ?: LocalDate.now().toString()
+        )
+        .map(LocalDate::parse)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = savedStateHandle.get<String>(STATE_SELECTED_DATE_KEY)?.let(LocalDate::parse)
+                ?: LocalDate.now()
     )
     private val sideEffectMutable = MutableSharedFlow<CalendarSideEffect>()
 
@@ -95,8 +114,8 @@ class CalendarViewModel @Inject constructor(
         selectedDateTodos
     ) { currentMonth, selectedDate, summaries, dateTodos ->
         val adjustedSelectedDate = selectedDate.normalizeToMonth(currentMonth)
-        if (adjustedSelectedDate != selectedDateState.value) {
-            selectedDateState.value = adjustedSelectedDate
+        if (adjustedSelectedDate != selectedDate) {
+            savedStateHandle[STATE_SELECTED_DATE_KEY] = adjustedSelectedDate.toString()
         }
         CalendarUiState(
             currentMonth = currentMonth,
@@ -113,7 +132,7 @@ class CalendarViewModel @Inject constructor(
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Eagerly,
+        started = SharingStarted.WhileSubscribed(5_000),
         initialValue = CalendarUiState(
             currentMonth = monthState.value,
             selectedDate = selectedDateState.value.normalizeToMonth(monthState.value),
@@ -129,7 +148,6 @@ class CalendarViewModel @Inject constructor(
             CalendarAction.OnNextMonthClick -> moveMonthBy(1)
             CalendarAction.OnPreviousMonthClick -> moveMonthBy(-1)
             is CalendarAction.OnDateClick -> {
-                selectedDateState.value = action.date
                 savedStateHandle[STATE_SELECTED_DATE_KEY] = action.date.toString()
             }
 
@@ -149,10 +167,9 @@ class CalendarViewModel @Inject constructor(
 
     private fun moveMonthBy(offsetMonths: Long) {
         val newMonth = monthState.value.plusMonths(offsetMonths)
-        monthState.value = newMonth
         savedStateHandle[STATE_MONTH_KEY] = newMonth.toString()
-        selectedDateState.value = selectedDateState.value.normalizeToMonth(newMonth)
-        savedStateHandle[STATE_SELECTED_DATE_KEY] = selectedDateState.value.toString()
+        savedStateHandle[STATE_SELECTED_DATE_KEY] =
+            selectedDateState.value.normalizeToMonth(newMonth).toString()
     }
 
     companion object {

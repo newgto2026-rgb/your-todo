@@ -18,6 +18,16 @@ import javax.inject.Inject
 
 class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
     override val route: NavKey = TodoAllRoute
+    override val topLevelRoutes: Set<NavKey> = setOf(
+        TodoAllRoute,
+        TodoTodayRoute,
+        TodoCompletedRoute
+    )
+    override val transientRouteTypes = setOf(
+        TodoEditorRoute::class,
+        TodoEditRoute::class,
+        TodoAddRoute::class
+    )
     override val isStartDestination: Boolean = true
 
     override fun register(
@@ -27,6 +37,7 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
         entryProviderScope.entry<TodoAllRoute> {
             TodoListRoute(
                 presetFilter = TodoFilter.ALL,
+                viewModelKey = "todo:all",
                 onBackBlockedChange = routeActions::setBackBlocked,
                 onAddRequested = { dueDate ->
                     routeActions.openTodoAdd(dueDate?.toString().orEmpty())
@@ -37,6 +48,7 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
         entryProviderScope.entry<TodoTodayRoute> {
             TodoListRoute(
                 presetFilter = TodoFilter.TODAY,
+                viewModelKey = "todo:today",
                 onBackBlockedChange = routeActions::setBackBlocked,
                 onAddRequested = { dueDate ->
                     routeActions.openTodoAdd(dueDate?.toString().orEmpty())
@@ -47,6 +59,7 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
         entryProviderScope.entry<TodoCompletedRoute> {
             TodoListRoute(
                 presetFilter = TodoFilter.COMPLETED,
+                viewModelKey = "todo:completed",
                 onBackBlockedChange = routeActions::setBackBlocked,
                 onAddRequested = { dueDate ->
                     routeActions.openTodoAdd(dueDate?.toString().orEmpty())

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarAction
 import com.example.myfirstapp.feature.calendar.impl.ui.CalendarUiState
@@ -20,14 +21,17 @@ import com.example.myfirstapp.feature.calendar.impl.ui.CalendarViewModel
 import com.example.myfirstapp.feature.calendar.impl.ui.components.CalendarAgendaSection
 import com.example.myfirstapp.feature.calendar.impl.ui.components.CalendarMonthGrid
 import com.example.myfirstapp.feature.calendar.impl.ui.components.CalendarTopHeader
+import java.time.LocalDate
 
 @Composable
 fun CalendarRouteScreen(
     onNavigateToTodoEdit: (Long) -> Unit,
-    onNavigateToTodoAdd: (java.time.LocalDate) -> Unit,
+    onNavigateToTodoAdd: (LocalDate) -> Unit,
     viewModel: CalendarViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle(
+        minActiveState = Lifecycle.State.CREATED
+    )
 
     CalendarScreen(
         uiState = uiState,
@@ -42,7 +46,7 @@ private fun CalendarScreen(
     uiState: CalendarUiState,
     onAction: (CalendarAction) -> Unit,
     onTodoClick: (Long) -> Unit,
-    onAddTodoClick: (java.time.LocalDate) -> Unit
+    onAddTodoClick: (LocalDate) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),

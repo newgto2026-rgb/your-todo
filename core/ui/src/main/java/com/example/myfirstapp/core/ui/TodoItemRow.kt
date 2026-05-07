@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,7 +42,9 @@ fun TodoItemRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     priorityLabel: String,
-    priorityColor: Color
+    priorityColor: Color,
+    toggleTestTag: String? = null,
+    content: @Composable (() -> Unit)? = null
 ) {
     val containerColor = when {
         isDone -> Color(0xFFF2F4F8)
@@ -64,6 +67,7 @@ fun TodoItemRow(
             modifier = Modifier
                 .size(24.dp)
                 .clip(RoundedCornerShape(8.dp))
+                .then(if (toggleTestTag != null) Modifier.testTag(toggleTestTag) else Modifier)
                 .background(if (isDone) Color(0xFFDDE4F4) else Color(0xFFF7F9FD))
                 .border(
                     width = 1.2.dp,
@@ -149,6 +153,15 @@ fun TodoItemRow(
                         color = subtitleColor
                     )
                 }
+            }
+        }
+
+        if (content != null) {
+            Box(
+                modifier = Modifier.align(Alignment.CenterVertically),
+                contentAlignment = Alignment.Center
+            ) {
+                content()
             }
         }
     }

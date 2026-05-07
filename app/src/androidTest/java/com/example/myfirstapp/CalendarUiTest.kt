@@ -26,11 +26,11 @@ import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.runner.RunWith
 
 @HiltAndroidTest

@@ -25,6 +25,7 @@ internal fun buildTodoListUiState(
 
     return localState.copy(
         items = filteredItems.map { it.toUiModel() },
+        completedTodoIds = items.filter { it.isDone }.map { it.id },
         selectedFilter = selectedFilter,
         selectedPriorityFilter = selectedPriorityFilter,
         isLoading = false

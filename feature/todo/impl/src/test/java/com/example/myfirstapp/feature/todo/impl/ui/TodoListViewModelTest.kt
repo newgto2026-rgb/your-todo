@@ -4,28 +4,32 @@ import com.example.myfirstapp.core.domain.scheduler.TodoReminderScheduler
 import com.example.myfirstapp.core.domain.usecase.AddTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.DeleteTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.GetTodoUseCase
-import com.example.myfirstapp.core.domain.usecase.ObserveSelectedTodoFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveSelectedTodoPriorityFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveTodosUseCase
 import com.example.myfirstapp.core.domain.usecase.ToggleTodoDoneUseCase
-import com.example.myfirstapp.core.domain.usecase.UpdateSelectedTodoFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.UpdateTodoUseCase
 import com.example.myfirstapp.core.model.ReminderRepeatType
 import com.example.myfirstapp.core.model.TodoFilter
+import com.example.myfirstapp.core.model.TodoItem
 import com.example.myfirstapp.core.model.TodoPriority
 import com.example.myfirstapp.core.model.TodoPriorityFilter
 import com.example.myfirstapp.core.testing.repository.FakeTodoRepository
 import com.example.myfirstapp.core.testing.rule.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
+import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodoListViewModelTest {
@@ -34,24 +38,33 @@ class TodoListViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var repository: FakeTodoRepository
+    private lateinit var reminderScheduler: RecordingReminderScheduler
     private lateinit var viewModel: TodoListViewModel
+    private lateinit var uiStateCollectionJob: Job
 
     @Before
     fun setUp() {
         repository = FakeTodoRepository()
+        reminderScheduler = RecordingReminderScheduler()
         viewModel = TodoListViewModel(
             observeTodosUseCase = ObserveTodosUseCase(repository),
-            observeSelectedTodoFilterUseCase = ObserveSelectedTodoFilterUseCase(repository),
             observeSelectedTodoPriorityFilterUseCase = ObserveSelectedTodoPriorityFilterUseCase(repository),
             addTodoUseCase = AddTodoUseCase(repository),
             updateTodoUseCase = UpdateTodoUseCase(repository),
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
-            updateSelectedTodoFilterUseCase = UpdateSelectedTodoFilterUseCase(repository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
-            todoReminderScheduler = NoopReminderScheduler
+            todoReminderScheduler = reminderScheduler
         )
+        uiStateCollectionJob = CoroutineScope(mainDispatcherRule.testDispatcher).launch {
+            viewModel.uiState.collect()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        uiStateCollectionJob.cancel()
     }
 
     @Test
@@ -90,6 +103,20 @@ class TodoListViewModelTest {
         val state = viewModel.uiState.value
         assertThat(state.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.HIGH)
         assertThat(state.items.map { it.title }).containsExactly("High")
+    }
+
+    @Test
+    fun routeFilterAppliesPresetBeforeRenderingRouteState() = runTest {
+        val today = LocalDate.now()
+        repository.addTodo(title = "Today route item", dueDate = today, categoryId = null)
+        repository.addTodo(title = "All route only item", dueDate = null, categoryId = null)
+
+        viewModel.setRouteFilter(TodoFilter.TODAY)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.selectedFilter).isEqualTo(TodoFilter.TODAY)
+        assertThat(state.items.map { it.title }).containsExactly("Today route item")
     }
 
     @Test
@@ -178,7 +205,8 @@ class TodoListViewModelTest {
         repository.toggleTodoDone(id)
         advanceUntilIdle()
 
-        viewModel.onAction(TodoListAction.OnDeleteClick(id))
+        viewModel.onAction(TodoListAction.OnDeleteRequest(id))
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
         advanceUntilIdle()
         assertThat(repository.getTodo(id)).isNull()
 
@@ -226,9 +254,133 @@ class TodoListViewModelTest {
         assertThat(state.draftPriority).isEqualTo(TodoPriority.MEDIUM)
     }
 
-    private data object NoopReminderScheduler : TodoReminderScheduler {
-        override suspend fun schedule(todo: com.example.myfirstapp.core.model.TodoItem) = Unit
-        override suspend fun cancel(todoId: Long) = Unit
+    @Test
+    fun deleteRequestOpensConfirmationAndCancelKeepsItem() = runTest {
+        val id = repository.addTodo(
+            title = "Keep me",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.MEDIUM
+        ).getOrThrow()
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnDeleteRequest(id))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.deleteConfirmation)
+            .isEqualTo(TodoDeleteConfirmation.Single(id))
+
+        viewModel.onAction(TodoListAction.OnDeleteCancel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.deleteConfirmation).isNull()
+        assertThat(state.items.map { it.id }).contains(id)
+    }
+
+    @Test
+    fun deleteConfirmRemovesItemCancelsReminderAndCanUndo() = runTest {
+        val id = repository.addTodo(
+            title = "Remove me",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.MEDIUM
+        ).getOrThrow()
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnDeleteRequest(id))
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.deleteConfirmation).isNull()
+        assertThat(state.items.map { it.id }).doesNotContain(id)
+        assertThat(reminderScheduler.cancelledTodoIds).containsExactly(id)
+
+        viewModel.onAction(TodoListAction.OnUndoLastQuickAction)
+        advanceUntilIdle()
+
+        assertThat(repository.observeTodos().first().map { it.title }).contains("Remove me")
+    }
+
+    @Test
+    fun editDeleteConfirmClosesEditorAndRemovesItem() = runTest {
+        val id = repository.addTodo(
+            title = "Edit delete",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.LOW
+        ).getOrThrow()
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnEditClick(id))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.isEditDialogVisible).isTrue()
+
+        viewModel.onAction(TodoListAction.OnDeleteRequest(id))
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isEditDialogVisible).isFalse()
+        assertThat(state.editingItem).isNull()
+        assertThat(state.items.map { it.id }).doesNotContain(id)
+    }
+
+    @Test
+    fun clearCompletedDeletesAllCompletedItemsIgnoringPriorityFilter() = runTest {
+        val lowCompletedId = repository.addTodo(
+            title = "Low done",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.LOW
+        ).getOrThrow()
+        val highCompletedId = repository.addTodo(
+            title = "High done",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        ).getOrThrow()
+        val activeHighId = repository.addTodo(
+            title = "High active",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        ).getOrThrow()
+        repository.toggleTodoDone(lowCompletedId)
+        repository.toggleTodoDone(highCompletedId)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.COMPLETED))
+        viewModel.onAction(TodoListAction.OnPriorityFilterChange(TodoPriorityFilter.HIGH))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.items.map { it.id }).containsExactly(highCompletedId)
+
+        viewModel.onAction(TodoListAction.OnClearCompletedClick)
+        advanceUntilIdle()
+        val confirmation = viewModel.uiState.value.deleteConfirmation
+        assertThat(confirmation).isInstanceOf(TodoDeleteConfirmation.Completed::class.java)
+        assertThat(checkNotNull(confirmation).ids)
+            .containsExactly(lowCompletedId, highCompletedId)
+
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
+        advanceUntilIdle()
+
+        assertThat(repository.getTodo(lowCompletedId)).isNull()
+        assertThat(repository.getTodo(highCompletedId)).isNull()
+        assertThat(repository.getTodo(activeHighId)).isNotNull()
+        assertThat(reminderScheduler.cancelledTodoIds)
+            .containsExactly(lowCompletedId, highCompletedId)
+    }
+
+    private class RecordingReminderScheduler : TodoReminderScheduler {
+        val cancelledTodoIds = mutableListOf<Long>()
+
+        override suspend fun schedule(todo: TodoItem) = Unit
+        override suspend fun cancel(todoId: Long) {
+            cancelledTodoIds += todoId
+        }
+
         override suspend fun rescheduleAll() = Unit
     }
 }

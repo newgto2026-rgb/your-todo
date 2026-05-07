@@ -2,9 +2,14 @@ package com.example.myfirstapp.core.ui.navigation
 
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
+import kotlin.reflect.KClass
 
 interface AppFeatureEntry {
     val route: NavKey
+    val topLevelRoutes: Set<NavKey>
+        get() = setOf(route)
+    val transientRouteTypes: Set<KClass<out NavKey>>
+        get() = emptySet()
     val isStartDestination: Boolean
         get() = false
     fun register(

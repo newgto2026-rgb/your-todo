@@ -16,6 +16,7 @@ internal fun TodoListUiState.openNewTodoEditor(): TodoListUiState = copy(
     draftReminderLeadMinutes = DEFAULT_REMINDER_LEAD_MINUTES,
     draftReminderRepeatType = ReminderRepeatType.NONE,
     draftPriority = TodoPriority.MEDIUM,
+    deleteConfirmation = null,
     errorMessageRes = null
 )
 
@@ -32,6 +33,7 @@ internal fun TodoListUiState.dismissTodoEditor(): TodoListUiState = copy(
     draftReminderLeadMinutes = DEFAULT_REMINDER_LEAD_MINUTES,
     draftReminderRepeatType = ReminderRepeatType.NONE,
     draftPriority = TodoPriority.MEDIUM,
+    deleteConfirmation = null,
     errorMessageRes = null
 )
 

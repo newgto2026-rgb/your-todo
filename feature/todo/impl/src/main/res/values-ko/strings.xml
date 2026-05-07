@@ -31,6 +31,14 @@
     <string name="todo_reminder_lead_30m">30분 전</string>
     <string name="todo_reminder_lead_60m">1시간 전</string>
     <string name="todo_editor_delete">삭제</string>
+    <string name="todo_row_more_actions">더보기</string>
+    <string name="todo_delete_confirm_title">할 일을 삭제할까요?</string>
+    <string name="todo_delete_confirm_message">삭제한 할 일은 복구할 수 없습니다.</string>
+    <string name="todo_clear_completed_action">완료 항목 정리</string>
+    <string name="todo_clear_completed_confirm_title">완료 항목을 정리할까요?</string>
+    <plurals name="todo_clear_completed_confirm_message">
+        <item quantity="other">완료한 할 일 %1$d개를 삭제합니다.</item>
+    </plurals>
     <string name="todo_editor_save">저장</string>
     <string name="todo_editor_ok">확인</string>
     <string name="todo_editor_cancel">취소</string>
@@ -63,7 +71,6 @@
     <string name="todo_error_save_failed">저장에 실패했습니다.</string>
     <string name="todo_error_toggle_done_failed">완료 상태 변경에 실패했습니다.</string>
     <string name="todo_error_delete_failed">삭제에 실패했습니다.</string>
-    <string name="todo_error_filter_change_failed">필터 변경에 실패했습니다.</string>
     <string name="todo_error_priority_filter_change_failed">중요도 필터 변경에 실패했습니다.</string>
     <string name="todo_error_reschedule_failed">재계획에 실패했습니다.</string>
     <string name="todo_error_undo_failed">되돌리기에 실패했습니다.</string>

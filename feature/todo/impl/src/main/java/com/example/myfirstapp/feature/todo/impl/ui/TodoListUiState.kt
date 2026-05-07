@@ -1,7 +1,7 @@
 package com.example.myfirstapp.feature.todo.impl.ui
 
-import androidx.compose.runtime.Immutable
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Immutable
 import com.example.myfirstapp.core.model.ReminderRepeatType
 import com.example.myfirstapp.core.model.TodoFilter
 import com.example.myfirstapp.core.model.TodoItem
@@ -13,10 +13,12 @@ import com.example.myfirstapp.feature.todo.impl.model.TodoItemUiModel
 @Immutable
 data class TodoListUiState(
     val items: List<TodoItemUiModel> = emptyList(),
+    val completedTodoIds: List<Long> = emptyList(),
     val selectedFilter: TodoFilter = TodoFilter.ALL,
     val selectedPriorityFilter: TodoPriorityFilter = TodoPriorityFilter.ALL,
     val isLoading: Boolean = false,
     val isEditDialogVisible: Boolean = false,
+    val deleteConfirmation: TodoDeleteConfirmation? = null,
     val editingItem: TodoEditModel? = null,
     val draftPriority: TodoPriority = TodoPriority.MEDIUM,
     val draftTitle: String = "",
@@ -28,3 +30,14 @@ data class TodoListUiState(
     val pendingUndoTodo: TodoItem? = null,
     @StringRes val errorMessageRes: Int? = null
 )
+
+@Immutable
+sealed interface TodoDeleteConfirmation {
+    val ids: List<Long>
+
+    data class Single(val id: Long) : TodoDeleteConfirmation {
+        override val ids: List<Long> = listOf(id)
+    }
+
+    data class Completed(override val ids: List<Long>) : TodoDeleteConfirmation
+}
