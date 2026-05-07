@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.feature.todo.impl.R
@@ -20,13 +21,14 @@ import com.neo.yourtodo.feature.todo.impl.R
 @Composable
 internal fun PriorityFilterBar(
     selectedPriorityFilter: TodoPriorityFilter,
-    onPrioritySelected: (TodoPriorityFilter) -> Unit
+    onPrioritySelected: (TodoPriorityFilter) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .testTag("priority_filter_bar"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         PriorityFilterChip(
             label = stringResource(R.string.todo_filter_all),
@@ -70,10 +72,10 @@ private fun PriorityFilterChip(
         Text(
             text = label,
             color = if (selected) color else Color(0xFF6C7382),
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
             modifier = Modifier
                 .testTag("priority_filter_chip_$label")
-                .padding(horizontal = 12.dp, vertical = 7.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
 }

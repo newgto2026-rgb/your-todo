@@ -1,5 +1,5 @@
 <resources>
-    <string name="todo_app_header_title">니가할일</string>
+    <string name="todo_app_header_title">Your Todo</string>
 
     <string name="todo_filter_all">전체</string>
     <string name="todo_filter_today">오늘</string>
@@ -11,7 +11,7 @@
     <string name="todo_header_all_subtitle_priority">중요도 순 정렬</string>
     <string name="todo_header_completed_title">완료 목록</string>
     <string name="todo_header_completed_subtitle">완료한 할 일</string>
-    <string name="todo_header_profile_icon">👤</string>
+    <string name="todo_header_profile_icon">프로필</string>
     <string name="todo_header_completed_symbol">✓</string>
     <string name="todo_today_header_date_format">M월 d일</string>
     <string name="todo_due_date_format">@string/todo_today_header_date_format</string>
@@ -38,7 +38,6 @@
     <string name="todo_reminder_lead_30m">30분 전</string>
     <string name="todo_reminder_lead_60m">1시간 전</string>
     <string name="todo_editor_delete">삭제</string>
-    <string name="todo_row_more_actions">더보기</string>
     <string name="todo_delete_confirm_title">할 일을 삭제할까요?</string>
     <string name="todo_delete_confirm_message">삭제한 할 일은 복구할 수 없습니다.</string>
     <string name="todo_clear_completed_action">완료 항목 정리</string>

@@ -121,7 +121,7 @@ class TodoUiTest {
 
     @Test
     fun mainScreen_showsCoreUi() {
-        composeTestRule.onNodeWithText("니가할일").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Your Todo").assertIsDisplayed()
         tabNode("all").assertIsSelected()
         tabNode("today").assertIsNotSelected()
         tabNode("completed").assertIsNotSelected()
@@ -1500,8 +1500,17 @@ class TodoUiTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return context.getString(
             com.neo.yourtodo.feature.calendar.impl.R.string.calendar_agenda_date_label,
-            date.format(DateTimeFormatter.ofPattern("yyyy MMM d (E)", Locale.getDefault()))
+            date.format(calendarAgendaDateFormatter(Locale.getDefault()))
         )
+    }
+
+    private fun calendarAgendaDateFormatter(locale: Locale): DateTimeFormatter {
+        val pattern = if (locale.language == Locale.KOREAN.language) {
+            "yyyy년 M월 d일 (E)"
+        } else {
+            "yyyy MMM d (E)"
+        }
+        return DateTimeFormatter.ofPattern(pattern, locale)
     }
 
     private fun grantNotificationPermissionIfNeeded() {

@@ -43,7 +43,7 @@ internal fun CalendarMonthGrid(
 ) {
     Column(modifier = modifier) {
         WeekdayHeaderRow()
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         days.chunked(7).forEach { week ->
             Row(
@@ -57,7 +57,7 @@ internal fun CalendarMonthGrid(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(3.dp))
         }
     }
 }
@@ -98,7 +98,7 @@ private fun RowScope.CalendarDayCell(
         Spacer(
             modifier = Modifier
                 .weight(1f)
-                .height(48.dp)
+                .height(40.dp)
         )
         return
     }
@@ -139,17 +139,17 @@ private fun RowScope.CalendarDayCell(
     Column(
         modifier = Modifier
             .weight(1f)
-            .height(48.dp)
+            .height(40.dp)
             .testTag("calendar_day_$date")
             .clickable(enabled = day.isCurrentMonth) { onClick(date) }
             .semantics { contentDescription = a11yParts.joinToString(separator = ", ") }
-            .padding(vertical = 5.dp, horizontal = 4.dp),
+            .padding(vertical = 3.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
         Box(
             modifier = Modifier
-                .size(30.dp)
+                .size(28.dp)
                 .then(
                     if (day.isToday && !isInactiveMonth && !day.isSelected) {
                         Modifier.border(
@@ -166,7 +166,7 @@ private fun RowScope.CalendarDayCell(
             if (day.isSelected) {
                 Box(
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(28.dp)
                         .background(
                             color = MaterialTheme.colorScheme.primary,
                             shape = CircleShape
@@ -179,7 +179,7 @@ private fun RowScope.CalendarDayCell(
                 color = textColor
             )
         }
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.height(1.dp))
         Box(
             modifier = Modifier.height(4.dp),
             contentAlignment = Alignment.Center

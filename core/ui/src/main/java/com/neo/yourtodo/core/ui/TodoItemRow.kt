@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,15 +57,16 @@ fun TodoItemRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(containerColor)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(24.dp)
+                .size(22.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .then(if (toggleTestTag != null) Modifier.testTag(toggleTestTag) else Modifier)
                 .background(if (isDone) Color(0xFFDDE4F4) else Color(0xFFF7F9FD))
@@ -89,37 +89,19 @@ fun TodoItemRow(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = titleColor,
-                    textDecoration = if (isDone) TextDecoration.LineThrough else null,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.size(8.dp))
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = priorityColor.copy(alpha = 0.16f)
-                ) {
-                    Text(
-                        text = priorityLabel,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        color = priorityColor,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                }
-            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = titleColor,
+                textDecoration = if (isDone) TextDecoration.LineThrough else null,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
             if (dueDateText != null || (isReminderEnabled && !reminderText.isNullOrBlank())) {
                 Row(
-                    modifier = Modifier.padding(top = 7.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (dueDateText != null) {
@@ -148,6 +130,14 @@ fun TodoItemRow(
             }
         }
 
+        Box(
+            modifier = Modifier
+                .size(width = 6.dp, height = 36.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(priorityColor.copy(alpha = if (isDone) 0.34f else 0.72f))
+                .testTag("todo_row_priority_$priorityLabel")
+        )
+
         if (content != null) {
             Box(
                 modifier = Modifier.align(Alignment.CenterVertically),
@@ -174,7 +164,7 @@ private fun TodoMetaChip(
         contentColor = contentColor
     ) {
         Row(
-            modifier = Modifier.padding(PaddingValues(horizontal = 8.dp, vertical = 4.dp)),
+            modifier = Modifier.padding(PaddingValues(horizontal = 7.dp, vertical = 3.dp)),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

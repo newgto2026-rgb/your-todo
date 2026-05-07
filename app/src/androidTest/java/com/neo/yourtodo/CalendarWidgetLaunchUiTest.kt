@@ -127,5 +127,14 @@ class CalendarWidgetLaunchUiTest {
     }
 
     private fun LocalDate.agendaLabel(): String =
-        format(DateTimeFormatter.ofPattern("yyyy MMM d (E)", Locale.getDefault()))
+        format(calendarAgendaDateFormatter(Locale.getDefault()))
+
+    private fun calendarAgendaDateFormatter(locale: Locale): DateTimeFormatter {
+        val pattern = if (locale.language == Locale.KOREAN.language) {
+            "yyyy년 M월 d일 (E)"
+        } else {
+            "yyyy MMM d (E)"
+        }
+        return DateTimeFormatter.ofPattern(pattern, locale)
+    }
 }
