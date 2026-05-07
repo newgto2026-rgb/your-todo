@@ -11,7 +11,7 @@ import org.junit.Test
 class TodoListScreenSectionsTest {
 
     @Test
-    fun todayPlannerSectionsIncludesHighPriorityItemsOutsideTodayBuckets() {
+    fun todayPlannerSectionsUseOnlyDueDateBuckets() {
         val today = LocalDate.now()
         val items = listOf(
             item(id = 1L, dueDate = today.minusDays(1), priority = TodoPriority.MEDIUM),
@@ -22,9 +22,34 @@ class TodoListScreenSectionsTest {
         )
 
         val sections = todayPlannerSections(items)
-        val highPrioritySection = sections.first { it.titleRes == R.string.todo_today_section_high_priority }
 
-        assertThat(highPrioritySection.items.map { it.id }).containsExactly(4L, 5L)
+        assertThat(sections.map { it.titleRes }).containsExactly(
+            R.string.todo_today_section_overdue,
+            R.string.todo_today_section_timed,
+            R.string.todo_today_section_today
+        ).inOrder()
+        assertThat(sections.flatMap { it.items }.map { it.id }).containsExactly(1L, 2L, 3L)
+    }
+
+    @Test
+    fun formatDueDateLabelUsesProvidedDatePattern() {
+        val label = formatDueDateLabel("2026-05-02", "M월 d일")
+
+        assertThat(label).isEqualTo("5월 2일")
+    }
+
+    @Test
+    fun formatDueDateLabelKeepsInvalidRawValue() {
+        val label = formatDueDateLabel("May 2", "M월 d일")
+
+        assertThat(label).isEqualTo("May 2")
+    }
+
+    @Test
+    fun formatDateLabelFallsBackToIsoDateForInvalidPattern() {
+        val label = formatDateLabel(LocalDate.of(2026, 5, 2), "MMMM '")
+
+        assertThat(label).isEqualTo("2026-05-02")
     }
 
     private fun item(
