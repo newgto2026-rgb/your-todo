@@ -19,31 +19,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
-import com.example.myfirstapp.app.navigation.BottomSheetSceneStrategy
+import androidx.navigation3.runtime.entryProvider
+import com.example.myfirstapp.app.navigation.ImmediateNavDisplay
 import com.example.myfirstapp.core.ui.navigation.AppFeatureEntry
 import com.example.myfirstapp.core.ui.navigation.AppRouteActions
 import com.example.myfirstapp.feature.todo.api.TodoEditorRoute
-import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.ui.NavDisplay
 
 @Composable
 fun AppNavHost(entries: Set<@JvmSuppressWildcards AppFeatureEntry>) {
     val context = LocalContext.current
     val backPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
-    val sortedEntries = remember(entries) { entries.sortedBy { entry -> entry.route.toString() } }
-    val startDestination = sortedEntries
-        .firstOrNull(AppFeatureEntry::isStartDestination)
-        ?.route
-        ?: AppTabDestination.ALL.route
-    val topLevelRoutes = remember { AppTabDestination.tabs.map(AppTabDestination::route).toSet() }
+    val navigationGraph = remember(entries) { buildAppNavigationGraph(entries) }
+    val orderedTopLevelRoutes = navigationGraph.topLevelRoutes
     val navigationState = rememberAppNavigationState(
-        startRoute = startDestination,
-        topLevelRoutes = topLevelRoutes
+        startRoute = navigationGraph.startRoute,
+        topLevelRoutes = orderedTopLevelRoutes
     )
-    val navigator = remember(navigationState) { AppNavigator(navigationState) }
+    val navigator = remember(navigationState, navigationGraph.transientRouteTypes) {
+        AppNavigator(
+            state = navigationState,
+            transientRouteTypes = navigationGraph.transientRouteTypes
+        )
+    }
     val routeActions = remember(navigator) {
         object : AppRouteActions {
             override fun openTodoEdit(todoId: Long) {
@@ -55,7 +52,7 @@ fun AppNavHost(entries: Set<@JvmSuppressWildcards AppFeatureEntry>) {
             }
 
             override fun closeCurrentEntry() {
-                navigator.goBack()
+                navigator.closeCurrentEntry()
             }
 
             override fun setBackBlocked(blocked: Boolean) {
@@ -63,36 +60,31 @@ fun AppNavHost(entries: Set<@JvmSuppressWildcards AppFeatureEntry>) {
             }
         }
     }
-    val currentTab = AppTabDestination.fromRoute(navigationState.topLevelRoute)
-    val entryDecorators = listOf(
-        rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
-        rememberViewModelStoreNavEntryDecorator<NavKey>()
-    )
-    val appEntryProvider = remember(sortedEntries, routeActions) {
+    val currentTopLevelRoute = navigationState.topLevelRoute
+    val currentTab = AppTabDestination.fromRoute(currentTopLevelRoute)
+    val appEntryProvider = remember(navigationGraph.featureEntries, routeActions) {
         entryProvider {
-            sortedEntries.forEach { entry ->
+            navigationGraph.featureEntries.forEach { entry ->
                 entry.register(this, routeActions)
             }
         }
     }
-    val bottomSheetStrategy = remember { BottomSheetSceneStrategy<NavKey>() }
-
+    val navEntries = navigationState.toEntries(
+        entryProvider = appEntryProvider
+    )
     Scaffold(
         bottomBar = {
             AppBottomBar(
                 selectedTab = currentTab,
                 onTabSelected = { tab ->
-                    if (tab == currentTab) return@AppBottomBar
                     navigator.navigate(tab.route)
                 }
             )
         }
     ) { innerPadding ->
-        NavDisplay(
-            backStack = navigationState.currentStack,
-            entryDecorators = entryDecorators,
-            entryProvider = appEntryProvider,
-            sceneStrategies = listOf(bottomSheetStrategy),
+        ImmediateNavDisplay(
+            entries = navEntries,
+            activeContentKey = navigationState.currentStack.last().toString(),
             onBack = {
                 if (!navigator.goBack()) {
                     (context as? android.app.Activity)?.finish()

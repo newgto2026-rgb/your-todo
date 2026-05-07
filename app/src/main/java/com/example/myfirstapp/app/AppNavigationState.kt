@@ -1,12 +1,10 @@
 package com.example.myfirstapp.app
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSerializable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
@@ -15,83 +13,167 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.runtime.serialization.NavKeySerializer
-import androidx.savedstate.compose.serialization.serializers.MutableStateSerializer
-import kotlinx.serialization.builtins.ListSerializer
 
 @Composable
 fun rememberAppNavigationState(
     startRoute: NavKey,
-    topLevelRoutes: Set<NavKey>
+    topLevelRoutes: List<NavKey>
 ): AppNavigationState {
-    val topLevelRoute = rememberSerializable(
-        startRoute,
-        topLevelRoutes,
-        serializer = MutableStateSerializer(NavKeySerializer())
-    ) {
-        mutableStateOf(startRoute)
+    val topLevelStack = rememberNavBackStack(startRoute)
+    val backStacks = linkedMapOf<NavKey, NavBackStack<NavKey>>()
+    val entryStates = linkedMapOf<NavKey, AppNavEntryStackState>()
+    topLevelRoutes.forEach { route ->
+        key(route) {
+            backStacks[route] = rememberNavBackStack(route)
+            entryStates[route] = rememberAppNavEntryStackState("topLevel:$route")
+        }
     }
-    val topLevelHistory = rememberSerializable(
-        startRoute,
-        topLevelRoutes,
-        serializer = MutableStateSerializer(ListSerializer(NavKeySerializer()))
-    ) {
-        mutableStateOf(emptyList())
-    }
-    val backStacks = topLevelRoutes.associateWith { key -> rememberNavBackStack(key) }
+    val topLevelRouteSet = remember(topLevelRoutes) { topLevelRoutes.toSet() }
+    val transientStack = remember { mutableStateListOf<NavKey>() }
+    val transientEntryState = rememberAppNavEntryStackState("transient")
 
     return remember(startRoute, topLevelRoutes) {
         AppNavigationState(
             startRoute = startRoute,
-            topLevelRoutes = topLevelRoutes,
-            topLevelRoute = topLevelRoute,
-            topLevelHistory = topLevelHistory,
-            backStacks = backStacks
+            orderedTopLevelRoutes = topLevelRoutes,
+            topLevelRoutes = topLevelRouteSet,
+            topLevelStack = topLevelStack,
+            backStacks = backStacks,
+            transientStack = transientStack,
+            entryStates = entryStates,
+            transientEntryState = transientEntryState
+        )
+    }
+}
+
+class AppNavEntryStackState(
+    val entryCache: LinkedHashMap<NavKey, NavEntry<NavKey>>,
+    val decorators: List<NavEntryDecorator<NavKey>>
+)
+
+@Composable
+private fun rememberAppNavEntryStackState(scopeName: String): AppNavEntryStackState {
+    val entryCache = remember { linkedMapOf<NavKey, NavEntry<NavKey>>() }
+    val saveableStateDecorator = rememberSaveableStateHolderNavEntryDecorator<NavKey>()
+    val viewModelStoreDecorator = rememberViewModelStoreNavEntryDecorator<NavKey>()
+    val decorators = remember(saveableStateDecorator, viewModelStoreDecorator) {
+        listOf(
+            saveableStateDecorator,
+            viewModelStoreDecorator
+        )
+    }
+    return remember(scopeName, entryCache, decorators) {
+        AppNavEntryStackState(
+            entryCache = entryCache,
+            decorators = decorators
         )
     }
 }
 
 class AppNavigationState(
     val startRoute: NavKey,
+    val orderedTopLevelRoutes: List<NavKey>,
     val topLevelRoutes: Set<NavKey>,
-    topLevelRoute: MutableState<NavKey>,
-    topLevelHistory: MutableState<List<NavKey>>,
-    val backStacks: Map<NavKey, NavBackStack<NavKey>>
+    val topLevelStack: NavBackStack<NavKey>,
+    val backStacks: Map<NavKey, NavBackStack<NavKey>>,
+    val transientStack: SnapshotStateList<NavKey>,
+    val entryStates: Map<NavKey, AppNavEntryStackState> = emptyMap(),
+    val transientEntryState: AppNavEntryStackState? = null
 ) {
-    var topLevelRoute: NavKey by topLevelRoute
-    var topLevelHistory: List<NavKey> by topLevelHistory
+    var topLevelRoute: NavKey
+        get() = topLevelStack.last()
+        set(route) {
+            require(route in topLevelRoutes) {
+                "Top-level route $route is not registered: $topLevelRoutes"
+            }
+            topLevelStack.apply {
+                if (route == startRoute) {
+                    clear()
+                } else {
+                    remove(route)
+                }
+                add(route)
+            }
+        }
 
     val currentRoute: NavKey
-        get() = currentStack.last()
+        get() = transientStack.lastOrNull() ?: currentStack.last()
 
     val currentStack: NavBackStack<NavKey>
         get() = requireNotNull(backStacks[topLevelRoute]) {
             "Stack for $topLevelRoute not found"
         }
+
 }
 
 @Composable
 fun AppNavigationState.toEntries(
     entryProvider: (NavKey) -> NavEntry<NavKey>
 ): List<NavEntry<NavKey>> {
-    val entryDecorators: List<NavEntryDecorator<NavKey>> = listOf(
-        rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
-        rememberViewModelStoreNavEntryDecorator<NavKey>()
-    )
-    val decoratedEntries = LinkedHashMap<NavKey, List<NavEntry<NavKey>>>(backStacks.size)
-    topLevelRoutes
-        .toList()
-        .sortedBy { it.toString() }
-        .forEach { route ->
-            val stack = requireNotNull(backStacks[route]) {
-                "Stack for $route not found while creating decorated entries"
-            }
-            decoratedEntries[route] = rememberDecoratedNavEntries(
-                backStack = stack,
-                entryDecorators = entryDecorators,
+    val decoratedTopLevelEntries = backStacks.mapValues { (route, backStack) ->
+        key(route) {
+            rememberTopLevelEntries(
+                backStack = backStack,
+                entryState = entryStates.getValue(route),
                 entryProvider = entryProvider
             )
+        }
     }
 
-    return decoratedEntries[topLevelRoute].orEmpty()
+    val transientEntries = rememberTransientEntries(
+        backStack = transientStack,
+        entryState = checkNotNull(transientEntryState) {
+            "Transient entry state is required when rendering navigation entries."
+        },
+        entryProvider = entryProvider
+    )
+    val topLevelEntriesInUse = orderedTopLevelRoutes
+        .flatMap { route -> decoratedTopLevelEntries.getValue(route) }
+    return topLevelEntriesInUse + transientEntries
+}
+
+@Composable
+private fun rememberTopLevelEntries(
+    backStack: NavBackStack<NavKey>,
+    entryState: AppNavEntryStackState,
+    entryProvider: (NavKey) -> NavEntry<NavKey>
+): List<NavEntry<NavKey>> {
+    return rememberDecoratedNavEntries(
+        backStack = backStack,
+        entryDecorators = entryState.decorators,
+        entryProvider = entryProvider,
+    )
+}
+
+@Composable
+private fun rememberTransientEntries(
+    backStack: List<NavKey>,
+    entryState: AppNavEntryStackState,
+    entryProvider: (NavKey) -> NavEntry<NavKey>
+): List<NavEntry<NavKey>> {
+    val entries = rememberStableNavEntries(
+        entryState = entryState,
+        backStack = backStack,
+        entryProvider = entryProvider
+    )
+    return rememberDecoratedNavEntries(
+        entries = entries,
+        entryDecorators = entryState.decorators,
+    )
+}
+
+@Composable
+private fun rememberStableNavEntries(
+    entryState: AppNavEntryStackState,
+    backStack: List<NavKey>,
+    entryProvider: (NavKey) -> NavEntry<NavKey>
+): List<NavEntry<NavKey>> {
+    val stackSnapshot = backStack.toList()
+    return remember(stackSnapshot, entryProvider) {
+        val retainedRoutes = stackSnapshot.toSet()
+        entryState.entryCache.keys.retainAll(retainedRoutes)
+        stackSnapshot.map { route ->
+            entryState.entryCache.getOrPut(route) { entryProvider(route) }
+        }
+    }
 }

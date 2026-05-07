@@ -71,7 +71,6 @@
     <string name="todo_error_save_failed">저장에 실패했습니다.</string>
     <string name="todo_error_toggle_done_failed">완료 상태 변경에 실패했습니다.</string>
     <string name="todo_error_delete_failed">삭제에 실패했습니다.</string>
-    <string name="todo_error_filter_change_failed">필터 변경에 실패했습니다.</string>
     <string name="todo_error_priority_filter_change_failed">중요도 필터 변경에 실패했습니다.</string>
     <string name="todo_error_reschedule_failed">재계획에 실패했습니다.</string>
     <string name="todo_error_undo_failed">되돌리기에 실패했습니다.</string>

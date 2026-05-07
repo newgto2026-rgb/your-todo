@@ -54,6 +54,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myfirstapp.core.model.TodoFilter
 import com.example.myfirstapp.core.model.TodoPriority
@@ -65,12 +66,24 @@ import java.time.LocalDate
 @Composable
 fun TodoListRoute(
     presetFilter: TodoFilter,
+    viewModelKey: String = "todo:${presetFilter.name}",
     onBackBlockedChange: (Boolean) -> Unit = {},
     onAddRequested: (LocalDate?) -> Unit = {},
     onEditRequested: (Long) -> Unit = {},
-    viewModel: TodoListViewModel = hiltViewModel()
+    viewModel: TodoListViewModel = hiltViewModel(key = viewModelKey)
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val routeUiState = remember(viewModel, presetFilter) {
+        viewModel.setRouteFilter(presetFilter)
+        viewModel.uiState
+    }
+    val collectedUiState by routeUiState.collectAsStateWithLifecycle(
+        minActiveState = Lifecycle.State.CREATED
+    )
+    val uiState = if (collectedUiState.selectedFilter == presetFilter) {
+        collectedUiState
+    } else {
+        TodoListUiState(isLoading = true, selectedFilter = presetFilter)
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -87,12 +100,6 @@ fun TodoListRoute(
                     }
                 }
             }
-        }
-    }
-
-    LaunchedEffect(presetFilter, uiState.selectedFilter) {
-        if (uiState.selectedFilter != presetFilter) {
-            viewModel.onAction(TodoListAction.OnFilterChange(presetFilter))
         }
     }
 
@@ -149,6 +156,7 @@ private fun TodoListScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .testTag("todo_screen_${uiState.selectedFilter.name.lowercase()}")
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp)
         ) {
@@ -192,7 +200,9 @@ private fun TodoListScreen(
 
             if (uiState.items.isNotEmpty()) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("todo_list"),
                     contentPadding = PaddingValues(bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {

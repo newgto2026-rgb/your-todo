@@ -4,11 +4,9 @@ import com.example.myfirstapp.core.domain.scheduler.TodoReminderScheduler
 import com.example.myfirstapp.core.domain.usecase.AddTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.DeleteTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.GetTodoUseCase
-import com.example.myfirstapp.core.domain.usecase.ObserveSelectedTodoFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveSelectedTodoPriorityFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveTodosUseCase
 import com.example.myfirstapp.core.domain.usecase.ToggleTodoDoneUseCase
-import com.example.myfirstapp.core.domain.usecase.UpdateSelectedTodoFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.UpdateTodoUseCase
 import com.example.myfirstapp.core.model.ReminderRepeatType
@@ -20,10 +18,15 @@ import com.example.myfirstapp.core.testing.repository.FakeTodoRepository
 import com.example.myfirstapp.core.testing.rule.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -37,6 +40,7 @@ class TodoListViewModelTest {
     private lateinit var repository: FakeTodoRepository
     private lateinit var reminderScheduler: RecordingReminderScheduler
     private lateinit var viewModel: TodoListViewModel
+    private lateinit var uiStateCollectionJob: Job
 
     @Before
     fun setUp() {
@@ -44,17 +48,23 @@ class TodoListViewModelTest {
         reminderScheduler = RecordingReminderScheduler()
         viewModel = TodoListViewModel(
             observeTodosUseCase = ObserveTodosUseCase(repository),
-            observeSelectedTodoFilterUseCase = ObserveSelectedTodoFilterUseCase(repository),
             observeSelectedTodoPriorityFilterUseCase = ObserveSelectedTodoPriorityFilterUseCase(repository),
             addTodoUseCase = AddTodoUseCase(repository),
             updateTodoUseCase = UpdateTodoUseCase(repository),
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
-            updateSelectedTodoFilterUseCase = UpdateSelectedTodoFilterUseCase(repository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler
         )
+        uiStateCollectionJob = CoroutineScope(mainDispatcherRule.testDispatcher).launch {
+            viewModel.uiState.collect()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        uiStateCollectionJob.cancel()
     }
 
     @Test
@@ -93,6 +103,20 @@ class TodoListViewModelTest {
         val state = viewModel.uiState.value
         assertThat(state.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.HIGH)
         assertThat(state.items.map { it.title }).containsExactly("High")
+    }
+
+    @Test
+    fun routeFilterAppliesPresetBeforeRenderingRouteState() = runTest {
+        val today = LocalDate.now()
+        repository.addTodo(title = "Today route item", dueDate = today, categoryId = null)
+        repository.addTodo(title = "All route only item", dueDate = null, categoryId = null)
+
+        viewModel.setRouteFilter(TodoFilter.TODAY)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.selectedFilter).isEqualTo(TodoFilter.TODAY)
+        assertThat(state.items.map { it.title }).containsExactly("Today route item")
     }
 
     @Test

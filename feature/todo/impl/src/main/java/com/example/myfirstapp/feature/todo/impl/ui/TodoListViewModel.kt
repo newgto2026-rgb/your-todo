@@ -6,11 +6,9 @@ import com.example.myfirstapp.core.domain.scheduler.TodoReminderScheduler
 import com.example.myfirstapp.core.domain.usecase.AddTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.DeleteTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.GetTodoUseCase
-import com.example.myfirstapp.core.domain.usecase.ObserveSelectedTodoFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveSelectedTodoPriorityFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.ObserveTodosUseCase
 import com.example.myfirstapp.core.domain.usecase.ToggleTodoDoneUseCase
-import com.example.myfirstapp.core.domain.usecase.UpdateSelectedTodoFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.example.myfirstapp.core.domain.usecase.UpdateTodoUseCase
 import com.example.myfirstapp.core.model.ReminderRepeatType
@@ -33,13 +31,11 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class TodoListViewModel @Inject constructor(
     observeTodosUseCase: ObserveTodosUseCase,
-    observeSelectedTodoFilterUseCase: ObserveSelectedTodoFilterUseCase,
     observeSelectedTodoPriorityFilterUseCase: ObserveSelectedTodoPriorityFilterUseCase,
     private val addTodoUseCase: AddTodoUseCase,
     private val updateTodoUseCase: UpdateTodoUseCase,
     private val deleteTodoUseCase: DeleteTodoUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
-    private val updateSelectedTodoFilterUseCase: UpdateSelectedTodoFilterUseCase,
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
     private val getTodoUseCase: GetTodoUseCase,
     private val todoReminderScheduler: TodoReminderScheduler
@@ -47,19 +43,20 @@ class TodoListViewModel @Inject constructor(
 
     private val uiLocalState = MutableStateFlow(TodoListUiState(isLoading = true))
     private val sideEffectMutable = MutableSharedFlow<TodoListSideEffect>()
+    private val todoItems = observeTodosUseCase()
+    private val selectedPriorityFilter = observeSelectedTodoPriorityFilterUseCase()
 
     val sideEffect = sideEffectMutable.asSharedFlow()
 
     val uiState: StateFlow<TodoListUiState> = combine(
-        observeTodosUseCase(),
-        observeSelectedTodoFilterUseCase(),
-        observeSelectedTodoPriorityFilterUseCase(),
+        todoItems,
+        selectedPriorityFilter,
         uiLocalState
-    ) { items, selectedFilter, selectedPriorityFilter, localState ->
+    ) { items, selectedPriorityFilter, localState ->
         buildTodoListUiState(
             localState = localState,
             items = items,
-            selectedFilter = selectedFilter,
+            selectedFilter = localState.selectedFilter,
             selectedPriorityFilter = selectedPriorityFilter
         )
     }.stateIn(
@@ -67,6 +64,12 @@ class TodoListViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = TodoListUiState(isLoading = true)
     )
+
+    fun setRouteFilter(filter: TodoFilter) {
+        if (uiLocalState.value.selectedFilter != filter) {
+            updateLocalState { copy(selectedFilter = filter) }
+        }
+    }
 
     fun onAction(action: TodoListAction) {
         when (action) {
@@ -353,14 +356,7 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun updateFilter(filter: TodoFilter) {
-        viewModelScope.launch {
-            updateSelectedTodoFilterUseCase(filter)
-                .onFailure {
-                    sideEffectMutable.emit(
-                        TodoListSideEffect.ShowSnackbar(R.string.todo_error_filter_change_failed)
-                    )
-                }
-        }
+        updateLocalState { copy(selectedFilter = filter) }
     }
 
     private fun updatePriorityFilter(filter: TodoPriorityFilter) {

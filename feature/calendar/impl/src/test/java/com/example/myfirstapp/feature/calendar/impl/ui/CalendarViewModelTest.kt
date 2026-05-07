@@ -8,11 +8,16 @@ import com.example.myfirstapp.core.model.ReminderRepeatType
 import com.example.myfirstapp.core.testing.repository.FakeTodoRepository
 import com.example.myfirstapp.core.testing.rule.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
@@ -26,6 +31,14 @@ class CalendarViewModelTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    private val uiStateCollectionJobs = mutableListOf<Job>()
+
+    @After
+    fun tearDown() {
+        uiStateCollectionJobs.forEach { job -> job.cancel() }
+        uiStateCollectionJobs.clear()
+    }
 
     @Test
     fun initialState_hasCurrentMonthAndSelectedDate() = runTest {
@@ -252,12 +265,17 @@ class CalendarViewModelTest {
         assertThat(uiState.todayTaskCount).isEqualTo(5)
     }
 
-    private fun createViewModel(repository: FakeTodoRepository): CalendarViewModel =
-        CalendarViewModel(
+    private fun createViewModel(repository: FakeTodoRepository): CalendarViewModel {
+        val viewModel = CalendarViewModel(
             savedStateHandle = SavedStateHandle(),
             observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
                 observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
         )
+        uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
+            viewModel.uiState.collect()
+        }
+        return viewModel
+    }
 }

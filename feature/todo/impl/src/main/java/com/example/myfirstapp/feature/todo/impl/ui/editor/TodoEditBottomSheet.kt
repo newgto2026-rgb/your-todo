@@ -87,7 +87,8 @@ internal fun EditTodoBottomSheet(
 
     Surface(
         color = Color(0xFFF6F7FB),
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        modifier = Modifier.testTag("todo_editor_sheet")
     ) {
         Column(
             modifier = Modifier
