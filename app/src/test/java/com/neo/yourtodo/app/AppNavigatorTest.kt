@@ -51,6 +51,21 @@ class AppNavigatorTest {
     }
 
     @Test
+    fun goBack_fromInitialTopLevelContentRoute_returnsFalse() {
+        val initialDateRoute = CalendarDateRoute("2026-05-07")
+        val state = testNavigationState(
+            startTopLevelRoute = CalendarRoute,
+            startRoute = CalendarRoute,
+            initialTopLevelContentRoute = initialDateRoute
+        )
+        val navigator = AppNavigator(state)
+
+        assertThat(state.currentRoute).isEqualTo(initialDateRoute)
+        assertThat(navigator.goBack()).isFalse()
+        assertThat(state.currentRoute).isEqualTo(initialDateRoute)
+    }
+
+    @Test
     fun navigateToAnotherTab_preservesSourceTabChildRoutes() {
         val state = testNavigationState(startTopLevelRoute = CalendarRoute)
         val navigator = AppNavigator(state)
@@ -173,20 +188,29 @@ class AppNavigatorTest {
     }
 
     private fun testNavigationState(
-        startTopLevelRoute: NavKey = TodoAllRoute
+        startTopLevelRoute: NavKey = TodoAllRoute,
+        startRoute: NavKey = TodoAllRoute,
+        initialTopLevelContentRoute: NavKey? = null
     ): AppNavigationState {
         val topLevelRoutes = setOf(TodoAllRoute, TodoTodayRoute, TodoCompletedRoute, CalendarRoute)
         return AppNavigationState(
-            startRoute = TodoAllRoute,
+            startRoute = startRoute,
             orderedTopLevelRoutes = topLevelRoutes.toList(),
             topLevelRoutes = topLevelRoutes,
-            topLevelStack = NavBackStack<NavKey>(TodoAllRoute).apply {
-                if (startTopLevelRoute != TodoAllRoute) {
+            topLevelStack = NavBackStack<NavKey>(startRoute).apply {
+                if (startTopLevelRoute != startRoute) {
                     add(startTopLevelRoute)
                 }
             },
-            backStacks = topLevelRoutes.associateWith { route -> NavBackStack(route) },
-            transientStack = mutableStateListOf()
+            backStacks = topLevelRoutes.associateWith { route ->
+                if (route == startTopLevelRoute && initialTopLevelContentRoute != null) {
+                    NavBackStack(route, initialTopLevelContentRoute)
+                } else {
+                    NavBackStack(route)
+                }
+            },
+            transientStack = mutableStateListOf(),
+            initialTopLevelContentRoute = initialTopLevelContentRoute
         )
     }
 }

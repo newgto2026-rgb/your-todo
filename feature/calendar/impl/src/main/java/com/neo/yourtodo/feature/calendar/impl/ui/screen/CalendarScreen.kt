@@ -1,8 +1,5 @@
 package com.neo.yourtodo.feature.calendar.impl.ui.screen
 
-import android.content.Context
-import android.content.ContextWrapper
-import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,11 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -24,43 +20,51 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarAction
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarUiState
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarViewModel
+import com.neo.yourtodo.feature.calendar.impl.ui.initialCalendarUiState
 import com.neo.yourtodo.feature.calendar.impl.ui.components.CalendarAgendaSection
 import com.neo.yourtodo.feature.calendar.impl.ui.components.CalendarMonthGrid
 import com.neo.yourtodo.feature.calendar.impl.ui.components.CalendarTopHeader
 import java.time.LocalDate
+import java.time.YearMonth
 
 @Composable
 fun CalendarRouteScreen(
     initialSelectedDate: String?,
     onNavigateToTodoEdit: (Long) -> Unit,
     onNavigateToTodoAdd: (LocalDate) -> Unit,
-    viewModel: CalendarViewModel = hiltViewModel(
-        viewModelStoreOwner = LocalContext.current.findComponentActivity()
-    )
+    viewModel: CalendarViewModel = hiltViewModel()
 ) {
-    LaunchedEffect(initialSelectedDate) {
-        if (initialSelectedDate != null) {
-            viewModel.selectRouteDate(initialSelectedDate)
+    val routeDate = remember(initialSelectedDate) {
+        initialSelectedDate?.let { rawDate ->
+            runCatching { LocalDate.parse(rawDate) }.getOrNull()
         }
     }
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle(
+    val routeUiState = remember(viewModel, initialSelectedDate) {
+        initialSelectedDate?.let(viewModel::selectRouteDate)
+        viewModel.uiState
+    }
+    val uiState by routeUiState.collectAsStateWithLifecycle(
         minActiveState = Lifecycle.State.CREATED
     )
+    val displayedUiState = if (
+        routeDate != null &&
+        uiState.selectedDate != routeDate
+    ) {
+        initialCalendarUiState(
+            currentMonth = YearMonth.from(routeDate),
+            selectedDate = routeDate
+        )
+    } else {
+        uiState
+    }
 
     CalendarScreen(
-        uiState = uiState,
+        uiState = displayedUiState,
         onAction = viewModel::onAction,
         onTodoClick = onNavigateToTodoEdit,
         onAddTodoClick = onNavigateToTodoAdd
     )
 }
-
-private tailrec fun Context.findComponentActivity(): ComponentActivity =
-    when (this) {
-        is ComponentActivity -> this
-        is ContextWrapper -> baseContext.findComponentActivity()
-        else -> error("CalendarRouteScreen requires a ComponentActivity context.")
-    }
 
 @Composable
 private fun CalendarScreen(

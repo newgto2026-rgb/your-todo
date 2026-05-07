@@ -102,6 +102,11 @@ fun TodoListRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    if (uiState.isLoading) {
+        TodoListLoadingScreen()
+        return
+    }
+
     LaunchedEffect(Unit) {
         viewModel.sideEffect.collect { sideEffect ->
             when (sideEffect) {
@@ -134,6 +139,15 @@ fun TodoListRoute(
         snackbarHostState = snackbarHostState,
         onAddRequested = onAddRequested,
         onEditRequested = onEditRequested
+    )
+}
+
+@Composable
+private fun TodoListLoadingScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F6FB))
     )
 }
 
@@ -315,7 +329,7 @@ private fun TodoListScreen(
                         }
                     }
                 }
-            } else if (!uiState.isQuickAddVisible) {
+            } else if (!uiState.isLoading && !uiState.isQuickAddVisible) {
                 EmptyState(
                     modifier = Modifier
                         .fillMaxWidth()

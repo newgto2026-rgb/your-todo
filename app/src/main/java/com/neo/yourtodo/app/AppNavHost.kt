@@ -35,12 +35,14 @@ fun AppNavHost(
     val backPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
     val navigationGraph = remember(entries) { buildAppNavigationGraph(entries) }
     val orderedTopLevelRoutes = navigationGraph.topLevelRoutes
-    val initialStartRoute = remember(navigationGraph.startRoute) {
-        launchNavigationRequest?.topLevelRoute ?: navigationGraph.startRoute
+    val initialLaunchNavigationRequest = remember { launchNavigationRequest }
+    val initialStartRoute = remember(navigationGraph.startRoute, initialLaunchNavigationRequest) {
+        initialLaunchNavigationRequest?.topLevelRoute ?: navigationGraph.startRoute
     }
     val navigationState = rememberAppNavigationState(
         startRoute = initialStartRoute,
-        topLevelRoutes = orderedTopLevelRoutes
+        topLevelRoutes = orderedTopLevelRoutes,
+        initialTopLevelContentRoute = initialLaunchNavigationRequest?.contentRoute
     )
     val navigator = remember(navigationState, navigationGraph.transientRouteTypes) {
         AppNavigator(
@@ -81,6 +83,7 @@ fun AppNavHost(
     )
     LaunchedEffect(launchNavigationRequest?.id) {
         val request = launchNavigationRequest ?: return@LaunchedEffect
+        if (request.id == initialLaunchNavigationRequest?.id) return@LaunchedEffect
         navigator.navigate(request.topLevelRoute)
         request.contentRoute?.let { route ->
             navigator.replaceTopLevelContent(route)

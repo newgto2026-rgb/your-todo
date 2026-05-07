@@ -39,6 +39,9 @@ class AppNavigator(
         }
 
         val currentStack = state.currentStack
+        if (state.isAtInitialTopLevelContentRoot()) {
+            return false
+        }
         if (currentStack.last() != state.topLevelRoute) {
             currentStack.removeLastOrNull()
             return true

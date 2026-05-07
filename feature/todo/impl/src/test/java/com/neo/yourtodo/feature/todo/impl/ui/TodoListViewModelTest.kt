@@ -5,7 +5,6 @@ import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
-import com.neo.yourtodo.core.domain.usecase.ObserveSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
@@ -53,7 +52,6 @@ class TodoListViewModelTest {
         calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
         viewModel = TodoListViewModel(
             observeTodosUseCase = ObserveTodosUseCase(repository),
-            observeSelectedTodoPriorityFilterUseCase = ObserveSelectedTodoPriorityFilterUseCase(repository),
             addTodoUseCase = AddTodoUseCase(repository),
             updateTodoUseCase = UpdateTodoUseCase(repository),
             deleteTodoUseCase = DeleteTodoUseCase(repository),

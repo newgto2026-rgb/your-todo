@@ -8,8 +8,10 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.espresso.Espresso.pressBackUnconditionally
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.neo.yourtodo.app.MainActivity
@@ -99,6 +101,12 @@ class CalendarWidgetLaunchUiTest {
             "Widget launch date should be marked selected. Description was: $selectedDescription",
             selectedDescription.contains(selectedCopy)
         )
+
+        pressBackUnconditionally()
+        assertTrue(
+            "Widget launch back should leave the foreground instead of popping to the default calendar.",
+            activityScenario.state < Lifecycle.State.RESUMED
+        )
     }
 
     private fun widgetDateIntent(date: LocalDate): Intent {
@@ -110,5 +118,5 @@ class CalendarWidgetLaunchUiTest {
     }
 
     private fun LocalDate.agendaLabel(): String =
-        format(DateTimeFormatter.ofPattern("yyyy MMM d", Locale.getDefault()))
+        format(DateTimeFormatter.ofPattern("yyyy MMM d (E)", Locale.getDefault()))
 }
