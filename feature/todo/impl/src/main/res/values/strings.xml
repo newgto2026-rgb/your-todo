@@ -11,6 +11,8 @@
     <string name="todo_header_completed_subtitle">Finished tasks</string>
     <string name="todo_header_profile_icon">👤</string>
     <string name="todo_header_completed_symbol">✓</string>
+    <string name="todo_today_header_date_format">MMMM d</string>
+    <string name="todo_due_date_format">MMM d</string>
 
     <string name="todo_priority_low">Low</string>
     <string name="todo_priority_medium">Medium</string>
@@ -50,7 +52,6 @@
     <string name="todo_today_section_overdue">Overdue</string>
     <string name="todo_today_section_timed">Timed today</string>
     <string name="todo_today_section_today">Due today</string>
-    <string name="todo_today_section_high_priority">High priority</string>
     <string name="todo_quick_action_tomorrow">Tomorrow</string>
     <string name="todo_quick_action_clear_date">Clear date</string>
     <string name="todo_quick_add_open">Quick add</string>

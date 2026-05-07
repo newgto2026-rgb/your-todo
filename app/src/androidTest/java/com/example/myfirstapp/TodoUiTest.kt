@@ -873,7 +873,7 @@ class TodoUiTest {
     }
 
     @Test
-    fun todayPlanner_showsOverdueTimedDueTodayAndHighPrioritySections() {
+    fun todayPlanner_showsOverdueTimedAndDueTodaySections() {
         val today = LocalDate.now()
         runBlocking {
             addTodoUseCase(
@@ -928,6 +928,7 @@ class TodoUiTest {
             .performScrollToNode(hasText("QA due today"))
         composeTestRule.onNodeWithText("QA due today")
             .assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("QA high priority").assertCountEquals(0)
     }
 
     @Test

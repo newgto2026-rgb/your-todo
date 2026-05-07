@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -115,43 +116,34 @@ fun TodoItemRow(
                 }
             }
 
-            if (dueDateText != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "·", style = MaterialTheme.typography.bodySmall, color = subtitleColor)
-                    Spacer(Modifier.size(2.dp))
-                    Text(text = dueDateText, style = MaterialTheme.typography.bodySmall, color = subtitleColor)
-                    if (isReminderEnabled && !reminderText.isNullOrBlank()) {
-                        Spacer(Modifier.size(6.dp))
-                        Text(text = "·", style = MaterialTheme.typography.bodySmall, color = subtitleColor)
-                        Spacer(Modifier.size(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = null,
-                            tint = subtitleColor,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.size(4.dp))
-                        Text(
-                            text = reminderText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = subtitleColor
+            if (dueDateText != null || (isReminderEnabled && !reminderText.isNullOrBlank())) {
+                Row(
+                    modifier = Modifier.padding(top = 7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (dueDateText != null) {
+                        TodoMetaChip(
+                            text = dueDateText,
+                            contentColor = subtitleColor,
+                            containerColor = if (isDone) Color(0xFFE8EBF1) else Color(0xFFF0F3F8)
                         )
                     }
-                }
-            } else if (isReminderEnabled && !reminderText.isNullOrBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = null,
-                        tint = subtitleColor,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    Text(
-                        text = reminderText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = subtitleColor
-                    )
+                    if (isReminderEnabled && !reminderText.isNullOrBlank()) {
+                        TodoMetaChip(
+                            text = reminderText,
+                            contentColor = subtitleColor,
+                            containerColor = if (isDone) Color(0xFFE8EBF1) else Color(0xFFF0F3F8),
+                            content = {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = null,
+                                    tint = subtitleColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -163,6 +155,39 @@ fun TodoItemRow(
             ) {
                 content()
             }
+        }
+    }
+}
+
+@Composable
+private fun TodoMetaChip(
+    text: String,
+    contentColor: Color,
+    containerColor: Color,
+    modifier: Modifier = Modifier,
+    content: (@Composable () -> Unit)? = null
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = containerColor,
+        contentColor = contentColor
+    ) {
+        Row(
+            modifier = Modifier.padding(PaddingValues(horizontal = 8.dp, vertical = 4.dp)),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (content != null) {
+                content()
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

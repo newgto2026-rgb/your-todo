@@ -39,8 +39,7 @@ private fun List<TodoItem>.filterBy(filter: TodoFilter): List<TodoItem> {
         TodoFilter.TODAY -> filter {
             !it.isDone && (
                 it.dueDate == today ||
-                    it.dueDate?.isBefore(today) == true ||
-                    it.priority == TodoPriority.HIGH
+                    it.dueDate?.isBefore(today) == true
                 )
         }
         TodoFilter.COMPLETED -> filter { it.isDone }

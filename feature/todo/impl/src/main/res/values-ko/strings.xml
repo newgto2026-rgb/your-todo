@@ -11,6 +11,8 @@
     <string name="todo_header_completed_subtitle">완료한 할 일</string>
     <string name="todo_header_profile_icon">👤</string>
     <string name="todo_header_completed_symbol">✓</string>
+    <string name="todo_today_header_date_format">M월 d일</string>
+    <string name="todo_due_date_format">@string/todo_today_header_date_format</string>
 
     <string name="todo_priority_low">낮음</string>
     <string name="todo_priority_medium">중간</string>
@@ -49,7 +51,6 @@
     <string name="todo_today_section_overdue">기한 지남</string>
     <string name="todo_today_section_timed">시간 지정</string>
     <string name="todo_today_section_today">오늘 마감</string>
-    <string name="todo_today_section_high_priority">높은 우선순위</string>
     <string name="todo_quick_action_tomorrow">내일로 미루기</string>
     <string name="todo_quick_action_clear_date">날짜 제거</string>
     <string name="todo_quick_add_open">빠른 추가</string>

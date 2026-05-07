@@ -232,7 +232,7 @@ class TodoListViewModelTest {
     }
 
     @Test
-    fun todayFilterIncludesOverdueTodayAndHighPriorityOpenItems() = runTest {
+    fun todayFilterIncludesOnlyOverdueAndTodayOpenItems() = runTest {
         val today = LocalDate.now()
         repository.addTodo(title = "Overdue", dueDate = today.minusDays(1), categoryId = null)
         repository.addTodo(title = "Today", dueDate = today, categoryId = null)
@@ -250,7 +250,7 @@ class TodoListViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.items.map { it.title })
-            .containsExactly("Overdue", "Today", "High no date")
+            .containsExactly("Overdue", "Today")
     }
 
     @Test

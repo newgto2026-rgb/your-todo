@@ -72,6 +72,8 @@ import com.example.myfirstapp.core.ui.TodoItemRow
 import com.example.myfirstapp.feature.todo.impl.R
 import com.example.myfirstapp.feature.todo.impl.model.TodoItemUiModel
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun TodoListRoute(
@@ -140,11 +142,13 @@ private fun TodoListScreen(
     onAddRequested: (LocalDate?) -> Unit,
     onEditRequested: (Long) -> Unit
 ) {
+    val todayHeaderDateFormat = stringResource(R.string.todo_today_header_date_format)
     val (title, subtitle) = headerTextFor(
         filter = uiState.selectedFilter,
         allTitle = stringResource(R.string.todo_header_all_title),
         allSubtitle = stringResource(R.string.todo_header_all_subtitle),
         todayTitle = stringResource(R.string.todo_filter_today),
+        todaySubtitle = formatDateLabel(LocalDate.now(), todayHeaderDateFormat),
         completedTitle = stringResource(R.string.todo_header_completed_title),
         completedSubtitle = stringResource(R.string.todo_header_completed_subtitle)
     )
@@ -152,6 +156,7 @@ private fun TodoListScreen(
     val rowCompletedText = stringResource(R.string.todo_row_subtitle_completed)
     val rowTodayText = stringResource(R.string.todo_row_subtitle_today)
     val shouldShowQuickAdd = uiState.selectedFilter != TodoFilter.COMPLETED
+    val dueDateFormat = stringResource(R.string.todo_due_date_format)
 
     Scaffold(
         containerColor = Color(0xFFF5F6FB),
@@ -261,6 +266,7 @@ private fun TodoListScreen(
                                         item = item,
                                         rowCompletedText = rowCompletedText,
                                         rowTodayText = rowTodayText,
+                                        dueDateFormat = dueDateFormat,
                                         onAction = onAction,
                                         onEditRequested = onEditRequested,
                                         onDeleteRequest = {
@@ -277,6 +283,7 @@ private fun TodoListScreen(
                                 item = item,
                                 rowCompletedText = rowCompletedText,
                                 rowTodayText = rowTodayText,
+                                dueDateFormat = dueDateFormat,
                                 onAction = onAction,
                                 onEditRequested = onEditRequested,
                                 onDeleteRequest = {
@@ -402,6 +409,7 @@ private fun TodoPlannerRow(
     item: TodoItemUiModel,
     rowCompletedText: String,
     rowTodayText: String,
+    dueDateFormat: String,
     onAction: (TodoListAction) -> Unit,
     onEditRequested: (Long) -> Unit,
     onDeleteRequest: () -> Unit,
@@ -409,7 +417,7 @@ private fun TodoPlannerRow(
 ) {
     val dueDateLabel = when {
         item.dueDate == LocalDate.now() -> rowTodayText
-        !item.dueDateText.isNullOrBlank() -> formatDueDateLabel(item.dueDateText)
+        !item.dueDateText.isNullOrBlank() -> formatDueDateLabel(item.dueDateText, dueDateFormat)
         else -> null
     }
     val dueLabel = buildDueLabel(dueDateLabel, item.dueTimeText)
@@ -630,17 +638,10 @@ internal fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlann
     val todayUntimed = items.filter {
         !it.isDone && it.dueDate == today && it.dueTimeText.isNullOrBlank()
     }
-    val sectionedIds = (overdue + timedToday + todayUntimed).mapTo(mutableSetOf()) { it.id }
-    val highPriority = items.filter {
-        !it.isDone &&
-            it.priority == TodoPriority.HIGH &&
-            it.id !in sectionedIds
-    }
     return listOf(
         TodayPlannerSection(R.string.todo_today_section_overdue, overdue),
         TodayPlannerSection(R.string.todo_today_section_timed, timedToday),
-        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed),
-        TodayPlannerSection(R.string.todo_today_section_high_priority, highPriority)
+        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed)
     )
 }
 
@@ -662,16 +663,12 @@ private fun headerTextFor(
     allTitle: String,
     allSubtitle: String,
     todayTitle: String,
+    todaySubtitle: String,
     completedTitle: String,
     completedSubtitle: String
 ): Pair<String, String> = when (filter) {
     TodoFilter.ALL -> allTitle to allSubtitle
-    TodoFilter.TODAY -> {
-        val subtitle = java.time.LocalDate.now().format(
-            java.time.format.DateTimeFormatter.ofPattern("MMMM d", java.util.Locale.getDefault())
-        )
-        todayTitle to subtitle
-    }
+    TodoFilter.TODAY -> todayTitle to todaySubtitle
     TodoFilter.COMPLETED -> completedTitle to completedSubtitle
 }
 
@@ -680,11 +677,16 @@ private fun completionProgress(uiState: TodoListUiState): Float {
     return uiState.items.count { it.isDone }.toFloat() / uiState.items.size.toFloat()
 }
 
-private fun formatDueDateLabel(raw: String?): String? {
+internal fun formatDateLabel(date: LocalDate, pattern: String): String =
+    runCatching {
+        date.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+    }.getOrDefault(date.toString())
+
+internal fun formatDueDateLabel(raw: String?, pattern: String): String? {
     if (raw.isNullOrBlank()) return null
     return runCatching {
-        val parsed = java.time.LocalDate.parse(raw, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-        parsed.format(java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.getDefault()))
+        val parsed = LocalDate.parse(raw, DateTimeFormatter.ISO_LOCAL_DATE)
+        formatDateLabel(parsed, pattern)
     }.getOrDefault(raw)
 }
 
