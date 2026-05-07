@@ -1,5 +1,6 @@
 package com.neo.yourtodo.feature.todo.impl.ui.editor
 
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
@@ -31,18 +32,21 @@ class TodoEditorViewModelTest {
 
     private lateinit var repository: FakeTodoRepository
     private lateinit var reminderScheduler: RecordingReminderScheduler
+    private lateinit var calendarWidgetUpdater: RecordingCalendarWidgetUpdater
     private lateinit var viewModel: TodoEditorViewModel
 
     @Before
     fun setUp() {
         repository = FakeTodoRepository()
         reminderScheduler = RecordingReminderScheduler()
+        calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
         viewModel = TodoEditorViewModel(
             addTodoUseCase = AddTodoUseCase(repository),
             updateTodoUseCase = UpdateTodoUseCase(repository),
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
-            todoReminderScheduler = reminderScheduler
+            todoReminderScheduler = reminderScheduler,
+            calendarWidgetUpdater = calendarWidgetUpdater
         )
     }
 
@@ -151,6 +155,7 @@ class TodoEditorViewModelTest {
         assertThat(todos.first().priority).isEqualTo(TodoPriority.HIGH)
         assertThat(exitDeferred.await()).isEqualTo(TodoEditorSideEffect.Exit)
         assertThat(reminderScheduler.cancelledTodoIds).contains(todos.first().id)
+        assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
     }
 
     @Test
@@ -182,6 +187,7 @@ class TodoEditorViewModelTest {
         assertThat(updated?.isReminderEnabled).isTrue()
         assertThat(updated?.reminderAtEpochMillis).isNotNull()
         assertThat(reminderScheduler.scheduledTodos.map(TodoItem::id)).contains(id)
+        assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
     }
 
     @Test
@@ -211,6 +217,7 @@ class TodoEditorViewModelTest {
         assertThat(repository.getTodo(id)).isNull()
         assertThat(reminderScheduler.cancelledTodoIds).contains(id)
         assertThat(exitDeferred.await()).isEqualTo(TodoEditorSideEffect.Exit)
+        assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
     }
 
     private class RecordingReminderScheduler : TodoReminderScheduler {
@@ -226,5 +233,15 @@ class TodoEditorViewModelTest {
         }
 
         override suspend fun rescheduleAll() = Unit
+    }
+
+    private class RecordingCalendarWidgetUpdater : CalendarWidgetUpdater {
+        var updateCount: Int = 0
+            private set
+
+        override suspend fun updateCalendarWidgets(): Result<Unit> {
+            updateCount += 1
+            return Result.success(Unit)
+        }
     }
 }

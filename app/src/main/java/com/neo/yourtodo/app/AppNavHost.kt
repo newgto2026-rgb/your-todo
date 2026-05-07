@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -26,13 +27,19 @@ import com.neo.yourtodo.core.ui.navigation.AppRouteActions
 import com.neo.yourtodo.feature.todo.api.TodoEditorRoute
 
 @Composable
-fun AppNavHost(entries: Set<@JvmSuppressWildcards AppFeatureEntry>) {
+fun AppNavHost(
+    entries: Set<@JvmSuppressWildcards AppFeatureEntry>,
+    launchNavigationRequest: AppLaunchNavigationRequest? = null
+) {
     val context = LocalContext.current
     val backPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
     val navigationGraph = remember(entries) { buildAppNavigationGraph(entries) }
     val orderedTopLevelRoutes = navigationGraph.topLevelRoutes
+    val initialStartRoute = remember(navigationGraph.startRoute) {
+        launchNavigationRequest?.topLevelRoute ?: navigationGraph.startRoute
+    }
     val navigationState = rememberAppNavigationState(
-        startRoute = navigationGraph.startRoute,
+        startRoute = initialStartRoute,
         topLevelRoutes = orderedTopLevelRoutes
     )
     val navigator = remember(navigationState, navigationGraph.transientRouteTypes) {
@@ -72,6 +79,13 @@ fun AppNavHost(entries: Set<@JvmSuppressWildcards AppFeatureEntry>) {
     val navEntries = navigationState.toEntries(
         entryProvider = appEntryProvider
     )
+    LaunchedEffect(launchNavigationRequest?.id) {
+        val request = launchNavigationRequest ?: return@LaunchedEffect
+        navigator.navigate(request.topLevelRoute)
+        request.contentRoute?.let { route ->
+            navigator.replaceTopLevelContent(route)
+        }
+    }
     Scaffold(
         bottomBar = {
             AppBottomBar(

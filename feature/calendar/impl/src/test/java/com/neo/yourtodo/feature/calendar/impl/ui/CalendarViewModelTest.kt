@@ -79,6 +79,43 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun selectRouteDate_updatesMonthAndSelectedDate() = runTest {
+        val viewModel = createViewModel(FakeTodoRepository())
+        val targetDate = LocalDate.of(2026, 5, 7)
+
+        viewModel.selectRouteDate(targetDate.toString())
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.currentMonth).isEqualTo(YearMonth.of(2026, 5))
+        assertThat(viewModel.uiState.value.selectedDate).isEqualTo(targetDate)
+    }
+
+    @Test
+    fun selectRouteDate_forDifferentMonthUpdatesVisibleMonthAndSelectedDate() = runTest {
+        val viewModel = createViewModel(FakeTodoRepository())
+        val targetDate = viewModel.uiState.value.currentMonth.plusMonths(2).atDay(11)
+
+        viewModel.selectRouteDate(targetDate.toString())
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.currentMonth).isEqualTo(YearMonth.from(targetDate))
+        assertThat(viewModel.uiState.value.selectedDate).isEqualTo(targetDate)
+        assertThat(viewModel.uiState.value.days.map { it.date }).contains(targetDate)
+    }
+
+    @Test
+    fun selectRouteDate_withInvalidDateFallsBackToToday() = runTest {
+        val viewModel = createViewModel(FakeTodoRepository())
+        val today = LocalDate.now()
+
+        viewModel.selectRouteDate("not-a-date")
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.currentMonth).isEqualTo(YearMonth.from(today))
+        assertThat(viewModel.uiState.value.selectedDate).isEqualTo(today)
+    }
+
+    @Test
     fun todoClickAction_emitsNavigateSideEffect() = runTest {
         val repository = FakeTodoRepository()
         val viewModel = createViewModel(repository)

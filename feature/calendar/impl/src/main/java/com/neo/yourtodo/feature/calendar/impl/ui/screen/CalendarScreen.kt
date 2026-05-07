@@ -1,4 +1,8 @@
 package com.neo.yourtodo.feature.calendar.impl.ui.screen
+
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,9 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -25,10 +31,18 @@ import java.time.LocalDate
 
 @Composable
 fun CalendarRouteScreen(
+    initialSelectedDate: String?,
     onNavigateToTodoEdit: (Long) -> Unit,
     onNavigateToTodoAdd: (LocalDate) -> Unit,
-    viewModel: CalendarViewModel = hiltViewModel()
+    viewModel: CalendarViewModel = hiltViewModel(
+        viewModelStoreOwner = LocalContext.current.findComponentActivity()
+    )
 ) {
+    LaunchedEffect(initialSelectedDate) {
+        if (initialSelectedDate != null) {
+            viewModel.selectRouteDate(initialSelectedDate)
+        }
+    }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle(
         minActiveState = Lifecycle.State.CREATED
     )
@@ -40,6 +54,13 @@ fun CalendarRouteScreen(
         onAddTodoClick = onNavigateToTodoAdd
     )
 }
+
+private tailrec fun Context.findComponentActivity(): ComponentActivity =
+    when (this) {
+        is ComponentActivity -> this
+        is ContextWrapper -> baseContext.findComponentActivity()
+        else -> error("CalendarRouteScreen requires a ComponentActivity context.")
+    }
 
 @Composable
 private fun CalendarScreen(

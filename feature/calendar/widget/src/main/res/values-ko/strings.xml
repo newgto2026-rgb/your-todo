@@ -1,0 +1,9 @@
+<resources>
+    <string name="calendar_widget_name">월간 캘린더</string>
+    <string name="calendar_widget_description">이번 달 할 일 캘린더를 보여줍니다.</string>
+    <string name="calendar_widget_error">캘린더를 불러올 수 없어요</string>
+    <string name="calendar_widget_previous_month">이전 달</string>
+    <string name="calendar_widget_next_month">다음 달</string>
+    <string name="calendar_widget_previous_month_symbol">&lt;</string>
+    <string name="calendar_widget_next_month_symbol">&gt;</string>
+</resources>

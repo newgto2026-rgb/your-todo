@@ -2,6 +2,7 @@ package com.neo.yourtodo.feature.todo.impl.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
@@ -38,7 +39,8 @@ class TodoListViewModel @Inject constructor(
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
     private val getTodoUseCase: GetTodoUseCase,
-    private val todoReminderScheduler: TodoReminderScheduler
+    private val todoReminderScheduler: TodoReminderScheduler,
+    private val calendarWidgetUpdater: CalendarWidgetUpdater
 ) : ViewModel() {
 
     private val uiLocalState = MutableStateFlow(TodoListUiState(isLoading = true))
@@ -178,6 +180,7 @@ class TodoListViewModel @Inject constructor(
 
             if (result.isSuccess) {
                 result.getOrNull()?.let { syncTodoReminder(it) }
+                notifyCalendarWidgetChanged()
                 uiLocalState.value = current.dismissTodoEditor()
             } else {
                 sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_error_save_failed))
@@ -233,6 +236,7 @@ class TodoListViewModel @Inject constructor(
                 reminderLeadMinutes = null,
                 priority = priority
             ).onSuccess {
+                notifyCalendarWidgetChanged()
                 updateLocalState {
                     copy(
                         isQuickAddVisible = true,
@@ -259,6 +263,9 @@ class TodoListViewModel @Inject constructor(
     private fun toggleDone(id: Long) {
         viewModelScope.launch {
             toggleTodoDoneUseCase(id)
+                .onSuccess {
+                    notifyCalendarWidgetChanged()
+                }
                 .onFailure {
                     sideEffectMutable.emit(
                         TodoListSideEffect.ShowSnackbar(R.string.todo_error_toggle_done_failed)
@@ -319,11 +326,17 @@ class TodoListViewModel @Inject constructor(
                 clearedState.copy(deleteConfirmation = null)
             }
 
+            if (deletedIds.isNotEmpty()) {
+                notifyCalendarWidgetChanged()
+            }
+
             if (hasFailure) {
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(R.string.todo_error_delete_failed)
                 )
-            } else if (previousSingle != null) {
+            }
+
+            if (!hasFailure && previousSingle != null) {
                 uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = previousSingle)
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
@@ -356,6 +369,7 @@ class TodoListViewModel @Inject constructor(
             ).onSuccess {
                 uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = previous)
                 syncTodoReminder(id)
+                notifyCalendarWidgetChanged()
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
                         messageRes = R.string.todo_action_moved_to_tomorrow,
@@ -389,6 +403,7 @@ class TodoListViewModel @Inject constructor(
             ).onSuccess {
                 uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = previous)
                 todoReminderScheduler.cancel(id)
+                notifyCalendarWidgetChanged()
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
                         messageRes = R.string.todo_action_schedule_cleared,
@@ -437,6 +452,7 @@ class TodoListViewModel @Inject constructor(
                 .onSuccess {
                     uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = null)
                     syncTodoReminder(previous.id)
+                    notifyCalendarWidgetChanged()
                     sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_action_restored))
                 }
                 .onFailure {
@@ -489,6 +505,10 @@ class TodoListViewModel @Inject constructor(
         } else {
             todoReminderScheduler.cancel(todoId)
         }
+    }
+
+    private suspend fun notifyCalendarWidgetChanged() {
+        calendarWidgetUpdater.updateCalendarWidgets()
     }
 
     private inline fun updateLocalState(block: TodoListUiState.() -> TodoListUiState) {
