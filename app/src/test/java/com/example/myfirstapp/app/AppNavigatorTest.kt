@@ -3,6 +3,7 @@ package com.example.myfirstapp.app
 import androidx.compose.runtime.mutableStateListOf
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import com.example.myfirstapp.feature.calendar.api.CalendarDateRoute
 import com.example.myfirstapp.feature.calendar.api.CalendarRoute
 import com.example.myfirstapp.feature.todo.api.TodoAllRoute
 import com.example.myfirstapp.feature.todo.api.TodoCompletedRoute
@@ -153,6 +154,22 @@ class AppNavigatorTest {
 
         assertThat(state.topLevelRoute).isEqualTo(CalendarRoute)
         assertThat(state.currentRoute).isEqualTo(CalendarRoute)
+    }
+
+    @Test
+    fun replaceTopLevelContent_replacesCurrentTabChildRoute() {
+        val state = testNavigationState(startTopLevelRoute = CalendarRoute)
+        val navigator = AppNavigator(state)
+
+        navigator.replaceTopLevelContent(CalendarDateRoute("2026-05-07"))
+        assertThat(state.currentRoute).isEqualTo(CalendarDateRoute("2026-05-07"))
+
+        navigator.replaceTopLevelContent(CalendarDateRoute("2026-05-08"))
+
+        assertThat(state.currentStack).containsExactly(
+            CalendarRoute,
+            CalendarDateRoute("2026-05-08")
+        ).inOrder()
     }
 
     private fun testNavigationState(

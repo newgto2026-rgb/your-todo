@@ -3,6 +3,7 @@ package com.example.myfirstapp.feature.todo.impl.ui.editor
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.myfirstapp.core.domain.scheduler.CalendarWidgetUpdater
 import com.example.myfirstapp.core.domain.scheduler.TodoReminderScheduler
 import com.example.myfirstapp.core.domain.usecase.AddTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.DeleteTodoUseCase
@@ -33,7 +34,8 @@ class TodoEditorViewModel @Inject constructor(
     private val updateTodoUseCase: UpdateTodoUseCase,
     private val deleteTodoUseCase: DeleteTodoUseCase,
     private val getTodoUseCase: GetTodoUseCase,
-    private val todoReminderScheduler: TodoReminderScheduler
+    private val todoReminderScheduler: TodoReminderScheduler,
+    private val calendarWidgetUpdater: CalendarWidgetUpdater
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TodoEditorUiState())
     val uiState = _uiState
@@ -72,6 +74,7 @@ class TodoEditorViewModel @Inject constructor(
         viewModelScope.launch {
             deleteTodoUseCase(id).onSuccess {
                 todoReminderScheduler.cancel(id)
+                notifyCalendarWidgetChanged()
                 sideEffects.emit(TodoEditorSideEffect.Exit)
             }
         }
@@ -115,6 +118,7 @@ class TodoEditorViewModel @Inject constructor(
             }
             result.onSuccess { id ->
                 syncTodoReminder(id)
+                notifyCalendarWidgetChanged()
                 sideEffects.emit(TodoEditorSideEffect.Exit)
             }.onFailure {
                 _uiState.update { current -> current.copy(errorMessageRes = R.string.todo_error_save_failed) }
@@ -129,6 +133,10 @@ class TodoEditorViewModel @Inject constructor(
         } else {
             todoReminderScheduler.cancel(todoId)
         }
+    }
+
+    private suspend fun notifyCalendarWidgetChanged() {
+        calendarWidgetUpdater.updateCalendarWidgets()
     }
 
     private fun validate(state: TodoEditorUiState): TodoEditorValidationResult {

@@ -12,12 +12,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -30,6 +30,9 @@ import java.time.temporal.WeekFields
 import java.util.Locale
 import kotlin.math.min
 
+private const val STATE_MONTH_KEY = "calendar_month"
+private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
+
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalendarViewModel @Inject constructor(
@@ -37,30 +40,8 @@ class CalendarViewModel @Inject constructor(
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase
 ) : ViewModel() {
-    private val monthState = savedStateHandle
-        .getStateFlow(
-            key = STATE_MONTH_KEY,
-            initialValue = savedStateHandle[STATE_MONTH_KEY] ?: YearMonth.now().toString()
-        )
-        .map(YearMonth::parse)
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = savedStateHandle.get<String>(STATE_MONTH_KEY)?.let(YearMonth::parse)
-                ?: YearMonth.now()
-        )
-    private val selectedDateState = savedStateHandle
-        .getStateFlow(
-            key = STATE_SELECTED_DATE_KEY,
-            initialValue = savedStateHandle[STATE_SELECTED_DATE_KEY] ?: LocalDate.now().toString()
-        )
-        .map(LocalDate::parse)
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = savedStateHandle.get<String>(STATE_SELECTED_DATE_KEY)?.let(LocalDate::parse)
-                ?: LocalDate.now()
-    )
+    private val monthState = MutableStateFlow(savedStateHandle.initialMonth())
+    private val selectedDateState = MutableStateFlow(savedStateHandle.initialSelectedDate())
     private val sideEffectMutable = MutableSharedFlow<CalendarSideEffect>()
 
     val sideEffect = sideEffectMutable.asSharedFlow()
@@ -114,9 +95,6 @@ class CalendarViewModel @Inject constructor(
         selectedDateTodos
     ) { currentMonth, selectedDate, summaries, dateTodos ->
         val adjustedSelectedDate = selectedDate.normalizeToMonth(currentMonth)
-        if (adjustedSelectedDate != selectedDate) {
-            savedStateHandle[STATE_SELECTED_DATE_KEY] = adjustedSelectedDate.toString()
-        }
         CalendarUiState(
             currentMonth = currentMonth,
             selectedDate = adjustedSelectedDate,
@@ -132,14 +110,10 @@ class CalendarViewModel @Inject constructor(
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = CalendarUiState(
+        started = SharingStarted.Eagerly,
+        initialValue = initialCalendarUiState(
             currentMonth = monthState.value,
-            selectedDate = selectedDateState.value.normalizeToMonth(monthState.value),
-            days = emptyList(),
-            summariesByDate = emptyMap(),
-            todayTaskCount = 0,
-            selectedDateTodos = emptyList()
+            selectedDate = selectedDateState.value
         )
     )
 
@@ -148,7 +122,7 @@ class CalendarViewModel @Inject constructor(
             CalendarAction.OnNextMonthClick -> moveMonthBy(1)
             CalendarAction.OnPreviousMonthClick -> moveMonthBy(-1)
             is CalendarAction.OnDateClick -> {
-                savedStateHandle[STATE_SELECTED_DATE_KEY] = action.date.toString()
+                updateSelectedDate(action.date)
             }
 
             is CalendarAction.OnTodoClick -> {
@@ -165,17 +139,68 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    private fun moveMonthBy(offsetMonths: Long) {
-        val newMonth = monthState.value.plusMonths(offsetMonths)
-        savedStateHandle[STATE_MONTH_KEY] = newMonth.toString()
-        savedStateHandle[STATE_SELECTED_DATE_KEY] =
-            selectedDateState.value.normalizeToMonth(newMonth).toString()
+    fun selectRouteDate(rawDate: String) {
+        val selectedDate = runCatching { LocalDate.parse(rawDate) }
+            .getOrDefault(LocalDate.now())
+        updateMonthAndSelectedDate(
+            month = YearMonth.from(selectedDate),
+            selectedDate = selectedDate
+        )
     }
 
-    companion object {
-        private const val STATE_MONTH_KEY = "calendar_month"
-        private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
+    private fun moveMonthBy(offsetMonths: Long) {
+        val newMonth = monthState.value.plusMonths(offsetMonths)
+        updateMonthAndSelectedDate(
+            month = newMonth,
+            selectedDate = selectedDateState.value.normalizeToMonth(newMonth)
+        )
     }
+
+    private fun updateSelectedDate(date: LocalDate) {
+        savedStateHandle[STATE_SELECTED_DATE_KEY] = date.toString()
+        selectedDateState.value = date
+    }
+
+    private fun updateMonthAndSelectedDate(
+        month: YearMonth,
+        selectedDate: LocalDate
+    ) {
+        savedStateHandle[STATE_MONTH_KEY] = month.toString()
+        savedStateHandle[STATE_SELECTED_DATE_KEY] = selectedDate.toString()
+        monthState.value = month
+        selectedDateState.value = selectedDate
+    }
+}
+
+internal fun SavedStateHandle.initialMonth(): YearMonth =
+    get<String>(STATE_MONTH_KEY)
+        ?.let { rawMonth -> runCatching { YearMonth.parse(rawMonth) }.getOrNull() }
+        ?: YearMonth.now()
+
+internal fun SavedStateHandle.initialSelectedDate(): LocalDate =
+    get<String>(STATE_SELECTED_DATE_KEY)
+        ?.let { rawDate -> runCatching { LocalDate.parse(rawDate) }.getOrNull() }
+        ?: LocalDate.now()
+
+internal fun initialCalendarUiState(
+    currentMonth: YearMonth,
+    selectedDate: LocalDate
+): CalendarUiState {
+    val today = LocalDate.now()
+    val adjustedSelectedDate = selectedDate.normalizeToMonth(currentMonth)
+    return CalendarUiState(
+        currentMonth = currentMonth,
+        selectedDate = adjustedSelectedDate,
+        days = buildMonthCells(
+            yearMonth = currentMonth,
+            selectedDate = adjustedSelectedDate,
+            today = today,
+            summariesByDate = emptyMap()
+        ),
+        summariesByDate = emptyMap(),
+        todayTaskCount = 0,
+        selectedDateTodos = emptyList()
+    )
 }
 
 internal fun buildMonthCells(

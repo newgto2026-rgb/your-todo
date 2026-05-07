@@ -1,4 +1,5 @@
 package com.example.myfirstapp.app
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -62,6 +63,16 @@ class AppNavigator(
 
         currentStack.removeLastOrNull()
         return true
+    }
+
+    fun replaceTopLevelContent(route: NavKey) {
+        clearTransientRoutes()
+        state.currentStack.apply {
+            if (size > 1) {
+                subList(1, size).clear()
+            }
+            add(route)
+        }
     }
 
     override fun setBackBlocked(blocked: Boolean) {

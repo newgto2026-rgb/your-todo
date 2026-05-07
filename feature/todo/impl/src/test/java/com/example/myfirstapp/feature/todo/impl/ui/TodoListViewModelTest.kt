@@ -1,6 +1,7 @@
 package com.example.myfirstapp.feature.todo.impl.ui
 
 import com.example.myfirstapp.core.domain.scheduler.TodoReminderScheduler
+import com.example.myfirstapp.core.domain.scheduler.CalendarWidgetUpdater
 import com.example.myfirstapp.core.domain.usecase.AddTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.DeleteTodoUseCase
 import com.example.myfirstapp.core.domain.usecase.GetTodoUseCase
@@ -41,6 +42,7 @@ class TodoListViewModelTest {
 
     private lateinit var repository: FakeTodoRepository
     private lateinit var reminderScheduler: RecordingReminderScheduler
+    private lateinit var calendarWidgetUpdater: RecordingCalendarWidgetUpdater
     private lateinit var viewModel: TodoListViewModel
     private lateinit var uiStateCollectionJob: Job
 
@@ -48,6 +50,7 @@ class TodoListViewModelTest {
     fun setUp() {
         repository = FakeTodoRepository()
         reminderScheduler = RecordingReminderScheduler()
+        calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
         viewModel = TodoListViewModel(
             observeTodosUseCase = ObserveTodosUseCase(repository),
             observeSelectedTodoPriorityFilterUseCase = ObserveSelectedTodoPriorityFilterUseCase(repository),
@@ -57,7 +60,8 @@ class TodoListViewModelTest {
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
-            todoReminderScheduler = reminderScheduler
+            todoReminderScheduler = reminderScheduler,
+            calendarWidgetUpdater = calendarWidgetUpdater
         )
         uiStateCollectionJob = CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()
@@ -494,5 +498,15 @@ class TodoListViewModelTest {
         }
 
         override suspend fun rescheduleAll() = Unit
+    }
+
+    private class RecordingCalendarWidgetUpdater : CalendarWidgetUpdater {
+        var updateCount: Int = 0
+            private set
+
+        override suspend fun updateCalendarWidgets(): Result<Unit> {
+            updateCount += 1
+            return Result.success(Unit)
+        }
     }
 }

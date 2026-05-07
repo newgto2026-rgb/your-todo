@@ -1,11 +1,15 @@
 package com.example.myfirstapp.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.myfirstapp.core.designsystem.theme.MyFirstAppTheme
@@ -19,17 +23,30 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var featureEntries: Set<@JvmSuppressWildcards AppFeatureEntry>
 
+    private var navigationRequestId = 0L
+    private var launchNavigationRequest by mutableStateOf<AppLaunchNavigationRequest?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        launchNavigationRequest = parseNavigationRequest(intent)
         if (!isRunningInstrumentationTest()) {
             ensureNotificationPermission()
         }
 
         setContent {
             MyFirstAppTheme {
-                AppNavHost(entries = featureEntries)
+                AppNavHost(
+                    entries = featureEntries,
+                    launchNavigationRequest = launchNavigationRequest
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        launchNavigationRequest = parseNavigationRequest(intent)
     }
 
     private fun ensureNotificationPermission() {
@@ -57,4 +74,10 @@ class MainActivity : ComponentActivity() {
         Class.forName("androidx.test.platform.app.InstrumentationRegistry")
         true
     }.getOrDefault(false)
+
+    private fun parseNavigationRequest(intent: Intent?): AppLaunchNavigationRequest? =
+        parseAppLaunchNavigationRequest(
+            intent = intent,
+            requestId = ++navigationRequestId
+        )
 }

@@ -53,6 +53,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":feature:calendar:api"))
     implementation(project(":feature:calendar:entry"))
+    implementation(project(":feature:calendar:widget"))
     implementation(project(":feature:todo:api"))
     implementation(project(":feature:todo:entry"))
 

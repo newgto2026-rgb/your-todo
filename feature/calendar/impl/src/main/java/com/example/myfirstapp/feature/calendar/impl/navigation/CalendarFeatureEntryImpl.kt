@@ -1,6 +1,7 @@
 package com.example.myfirstapp.feature.calendar.impl.navigation
 
 import com.example.myfirstapp.core.ui.navigation.AppRouteActions
+import com.example.myfirstapp.feature.calendar.api.CalendarDateRoute
 import com.example.myfirstapp.feature.calendar.api.CalendarFeatureEntry
 import com.example.myfirstapp.feature.calendar.api.CalendarRoute
 import com.example.myfirstapp.feature.calendar.impl.ui.screen.CalendarRouteScreen
@@ -17,6 +18,18 @@ class CalendarFeatureEntryImpl @Inject constructor() : CalendarFeatureEntry {
     ) {
         entryProviderScope.entry<CalendarRoute> {
             CalendarRouteScreen(
+                initialSelectedDate = null,
+                onNavigateToTodoEdit = { todoId ->
+                    routeActions.openTodoEdit(todoId)
+                },
+                onNavigateToTodoAdd = { dueDate ->
+                    routeActions.openTodoAdd(dueDate.toString())
+                }
+            )
+        }
+        entryProviderScope.entry<CalendarDateRoute> { route ->
+            CalendarRouteScreen(
+                initialSelectedDate = route.selectedDate,
                 onNavigateToTodoEdit = { todoId ->
                     routeActions.openTodoEdit(todoId)
                 },
