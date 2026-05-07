@@ -27,6 +27,9 @@ data class TodoListUiState(
     val draftReminderEnabled: Boolean = false,
     val draftReminderLeadMinutes: Int? = null,
     val draftReminderRepeatType: ReminderRepeatType = ReminderRepeatType.NONE,
+    val isQuickAddVisible: Boolean = false,
+    val quickAddTitle: String = "",
+    @StringRes val quickAddErrorMessageRes: Int? = null,
     val pendingUndoTodo: TodoItem? = null,
     @StringRes val errorMessageRes: Int? = null
 )

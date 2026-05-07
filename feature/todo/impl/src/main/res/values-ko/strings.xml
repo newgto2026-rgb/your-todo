@@ -52,6 +52,12 @@
     <string name="todo_today_section_high_priority">높은 우선순위</string>
     <string name="todo_quick_action_tomorrow">내일로 미루기</string>
     <string name="todo_quick_action_clear_date">날짜 제거</string>
+    <string name="todo_quick_add_open">빠른 추가</string>
+    <string name="todo_quick_add_placeholder_all">새 할 일 추가</string>
+    <string name="todo_quick_add_placeholder_today">오늘 할 일 추가</string>
+    <string name="todo_quick_add_submit">할 일 추가</string>
+    <string name="todo_quick_add_close">빠른 추가 닫기</string>
+    <string name="todo_quick_add_completed_unavailable">새 할 일은 전체 목록에서 추가할 수 있어요.</string>
     <string name="todo_action_undo">되돌리기</string>
     <string name="todo_action_deleted">할 일을 삭제했습니다.</string>
     <string name="todo_action_moved_to_tomorrow">내일로 미뤘습니다.</string>

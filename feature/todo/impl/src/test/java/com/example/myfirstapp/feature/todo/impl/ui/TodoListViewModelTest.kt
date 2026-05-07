@@ -16,8 +16,10 @@ import com.example.myfirstapp.core.model.TodoPriority
 import com.example.myfirstapp.core.model.TodoPriorityFilter
 import com.example.myfirstapp.core.testing.repository.FakeTodoRepository
 import com.example.myfirstapp.core.testing.rule.MainDispatcherRule
+import com.example.myfirstapp.feature.todo.impl.R
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
@@ -89,6 +91,116 @@ class TodoListViewModelTest {
         assertThat(state.isEditDialogVisible).isFalse()
         assertThat(state.items).hasSize(1)
         assertThat(state.items.first().priority).isEqualTo(TodoPriority.HIGH)
+    }
+
+    @Test
+    fun quickAddClickOpensQuickAddSlot() = runTest {
+        viewModel.onAction(TodoListAction.OnQuickAddClick)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isQuickAddVisible).isTrue()
+        assertThat(state.quickAddErrorMessageRes).isNull()
+    }
+
+    @Test
+    fun quickAddSubmitInAllCreatesUnscheduledTodoAndKeepsSlotOpen() = runTest {
+        viewModel.onAction(TodoListAction.OnQuickAddClick)
+        viewModel.onAction(TodoListAction.OnQuickAddTitleChange("  Buy milk  "))
+
+        viewModel.onAction(TodoListAction.OnQuickAddSubmit)
+        advanceUntilIdle()
+
+        val created = repository.observeTodos().first().single()
+        assertThat(created.title).isEqualTo("Buy milk")
+        assertThat(created.dueDate).isNull()
+        assertThat(created.priority).isEqualTo(TodoPriority.MEDIUM)
+
+        val state = viewModel.uiState.value
+        assertThat(state.isQuickAddVisible).isTrue()
+        assertThat(state.quickAddTitle).isEmpty()
+        assertThat(state.quickAddErrorMessageRes).isNull()
+    }
+
+    @Test
+    fun quickAddSubmitInTodayCreatesTodoDueToday() = runTest {
+        val today = LocalDate.now()
+        viewModel.setRouteFilter(TodoFilter.TODAY)
+        viewModel.onAction(TodoListAction.OnQuickAddClick)
+        viewModel.onAction(TodoListAction.OnQuickAddTitleChange("Plan lunch"))
+
+        viewModel.onAction(TodoListAction.OnQuickAddSubmit)
+        advanceUntilIdle()
+
+        val created = repository.observeTodos().first().single()
+        assertThat(created.title).isEqualTo("Plan lunch")
+        assertThat(created.dueDate).isEqualTo(today)
+        assertThat(viewModel.uiState.value.items.map { it.title }).containsExactly("Plan lunch")
+    }
+
+    @Test
+    fun quickAddSubmitUsesSelectedPriorityFilterForVisibility() = runTest {
+        viewModel.onAction(TodoListAction.OnPriorityFilterChange(TodoPriorityFilter.HIGH))
+        advanceUntilIdle()
+        viewModel.onAction(TodoListAction.OnQuickAddClick)
+        viewModel.onAction(TodoListAction.OnQuickAddTitleChange("Visible high task"))
+
+        viewModel.onAction(TodoListAction.OnQuickAddSubmit)
+        advanceUntilIdle()
+
+        val created = repository.observeTodos().first().single()
+        assertThat(created.priority).isEqualTo(TodoPriority.HIGH)
+        assertThat(viewModel.uiState.value.items.map { it.title }).containsExactly("Visible high task")
+    }
+
+    @Test
+    fun quickAddSubmitWithBlankTitleShowsErrorAndDoesNotCreateTodo() = runTest {
+        viewModel.onAction(TodoListAction.OnQuickAddClick)
+        viewModel.onAction(TodoListAction.OnQuickAddTitleChange("   "))
+
+        viewModel.onAction(TodoListAction.OnQuickAddSubmit)
+        advanceUntilIdle()
+
+        assertThat(repository.observeTodos().first()).isEmpty()
+        val state = viewModel.uiState.value
+        assertThat(state.isQuickAddVisible).isTrue()
+        assertThat(state.quickAddErrorMessageRes).isEqualTo(R.string.todo_error_title_required)
+    }
+
+    @Test
+    fun quickAddDismissClearsDraftAndError() = runTest {
+        viewModel.onAction(TodoListAction.OnQuickAddClick)
+        viewModel.onAction(TodoListAction.OnQuickAddTitleChange("Temp"))
+        viewModel.onAction(TodoListAction.OnQuickAddSubmit)
+        advanceUntilIdle()
+        viewModel.onAction(TodoListAction.OnQuickAddTitleChange("   "))
+        viewModel.onAction(TodoListAction.OnQuickAddSubmit)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnQuickAddDismiss)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isQuickAddVisible).isFalse()
+        assertThat(state.quickAddTitle).isEmpty()
+        assertThat(state.quickAddErrorMessageRes).isNull()
+    }
+
+    @Test
+    fun quickAddClickInCompletedShowsGuidanceSnackbar() = runTest {
+        val sideEffect = async { viewModel.sideEffect.first() }
+        viewModel.setRouteFilter(TodoFilter.COMPLETED)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnQuickAddClick)
+        advanceUntilIdle()
+
+        assertThat(sideEffect.await()).isEqualTo(
+            TodoListSideEffect.ShowSnackbar(
+                messageRes = R.string.todo_quick_add_completed_unavailable
+            )
+        )
+        assertThat(viewModel.uiState.value.isQuickAddVisible).isFalse()
     }
 
     @Test
