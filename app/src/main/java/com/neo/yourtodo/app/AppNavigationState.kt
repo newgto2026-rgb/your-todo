@@ -17,14 +17,19 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 @Composable
 fun rememberAppNavigationState(
     startRoute: NavKey,
-    topLevelRoutes: List<NavKey>
+    topLevelRoutes: List<NavKey>,
+    initialTopLevelContentRoute: NavKey? = null
 ): AppNavigationState {
     val topLevelStack = rememberNavBackStack(startRoute)
     val backStacks = linkedMapOf<NavKey, NavBackStack<NavKey>>()
     val entryStates = linkedMapOf<NavKey, AppNavEntryStackState>()
     topLevelRoutes.forEach { route ->
         key(route) {
-            backStacks[route] = rememberNavBackStack(route)
+            backStacks[route] = if (route == startRoute && initialTopLevelContentRoute != null) {
+                rememberNavBackStack(route, initialTopLevelContentRoute)
+            } else {
+                rememberNavBackStack(route)
+            }
             entryStates[route] = rememberAppNavEntryStackState("topLevel:$route")
         }
     }
@@ -32,7 +37,7 @@ fun rememberAppNavigationState(
     val transientStack = remember { mutableStateListOf<NavKey>() }
     val transientEntryState = rememberAppNavEntryStackState("transient")
 
-    return remember(startRoute, topLevelRoutes) {
+    return remember(startRoute, topLevelRoutes, initialTopLevelContentRoute) {
         AppNavigationState(
             startRoute = startRoute,
             orderedTopLevelRoutes = topLevelRoutes,
@@ -41,7 +46,8 @@ fun rememberAppNavigationState(
             backStacks = backStacks,
             transientStack = transientStack,
             entryStates = entryStates,
-            transientEntryState = transientEntryState
+            transientEntryState = transientEntryState,
+            initialTopLevelContentRoute = initialTopLevelContentRoute
         )
     }
 }
@@ -78,7 +84,8 @@ class AppNavigationState(
     val backStacks: Map<NavKey, NavBackStack<NavKey>>,
     val transientStack: SnapshotStateList<NavKey>,
     val entryStates: Map<NavKey, AppNavEntryStackState> = emptyMap(),
-    val transientEntryState: AppNavEntryStackState? = null
+    val transientEntryState: AppNavEntryStackState? = null,
+    val initialTopLevelContentRoute: NavKey? = null
 ) {
     var topLevelRoute: NavKey
         get() = topLevelStack.last()
@@ -104,6 +111,14 @@ class AppNavigationState(
             "Stack for $topLevelRoute not found"
         }
 
+    fun isAtInitialTopLevelContentRoot(): Boolean {
+        val initialContentRoute = initialTopLevelContentRoute ?: return false
+        val stack = currentStack
+        return topLevelRoute == startRoute &&
+            stack.size == 2 &&
+            stack.first() == topLevelRoute &&
+            stack.last() == initialContentRoute
+    }
 }
 
 @Composable

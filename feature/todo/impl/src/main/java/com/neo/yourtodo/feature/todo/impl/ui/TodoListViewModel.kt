@@ -7,7 +7,6 @@ import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
-import com.neo.yourtodo.core.domain.usecase.ObserveSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
@@ -32,7 +31,6 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class TodoListViewModel @Inject constructor(
     observeTodosUseCase: ObserveTodosUseCase,
-    observeSelectedTodoPriorityFilterUseCase: ObserveSelectedTodoPriorityFilterUseCase,
     private val addTodoUseCase: AddTodoUseCase,
     private val updateTodoUseCase: UpdateTodoUseCase,
     private val deleteTodoUseCase: DeleteTodoUseCase,
@@ -46,17 +44,15 @@ class TodoListViewModel @Inject constructor(
     private val uiLocalState = MutableStateFlow(TodoListUiState(isLoading = true))
     private val sideEffectMutable = MutableSharedFlow<TodoListSideEffect>()
     private val todoItems = observeTodosUseCase()
-    private val selectedPriorityFilter = observeSelectedTodoPriorityFilterUseCase()
     private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
 
     val sideEffect = sideEffectMutable.asSharedFlow()
 
     val uiState: StateFlow<TodoListUiState> = combine(
         todoItems,
-        selectedPriorityFilter,
         localPriorityFilter,
         uiLocalState
-    ) { items, _, localPriorityFilter, localState ->
+    ) { items, localPriorityFilter, localState ->
         buildTodoListUiState(
             localState = localState,
             items = items,
