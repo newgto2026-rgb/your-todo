@@ -615,6 +615,31 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun undoSnackbarDismissedClearsPendingUndo() = runTest {
+        val today = LocalDate.now()
+        val id = repository.addTodo(
+            title = "Plan review",
+            dueDate = today,
+            categoryId = null
+        ).getOrThrow()
+
+        viewModel.onAction(TodoListAction.OnMoveToTomorrow(id))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.pendingUndoTodo?.id).isEqualTo(id)
+
+        viewModel.onAction(TodoListAction.OnUndoSnackbarDismissed)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.pendingUndoTodo).isNull()
+
+        viewModel.onAction(TodoListAction.OnUndoLastQuickAction)
+        advanceUntilIdle()
+
+        assertThat(repository.getTodo(id)?.dueDate).isEqualTo(today.plusDays(1))
+    }
+
+    @Test
     fun clearScheduleClearsDateTimeAndReminder() = runTest {
         val id = repository.addTodo(
             title = "Timed reminder",

@@ -25,6 +25,7 @@ sealed interface TodoListAction {
     data class OnMoveToTomorrow(val id: Long) : TodoListAction
     data class OnClearSchedule(val id: Long) : TodoListAction
     data object OnUndoLastQuickAction : TodoListAction
+    data object OnUndoSnackbarDismissed : TodoListAction
     data class OnEditClick(val id: Long) : TodoListAction
     data class OnDeleteRequest(val id: Long) : TodoListAction
     data object OnDeleteCancel : TodoListAction
