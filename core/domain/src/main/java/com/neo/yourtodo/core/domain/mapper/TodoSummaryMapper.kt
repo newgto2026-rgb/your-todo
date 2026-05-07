@@ -7,5 +7,8 @@ fun TodoItem.toSummary(): TodoSummary =
     TodoSummary(
         id = id,
         title = title,
-        isDone = isDone
+        isDone = isDone,
+        dueTimeMinutes = dueTimeMinutes,
+        priority = priority,
+        createdAt = createdAt
     )

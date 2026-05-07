@@ -1,6 +1,9 @@
 <resources>
     <string name="calendar_widget_name">월간 캘린더</string>
+    <string name="calendar_widget_compact_name">월간 캘린더 3x3</string>
+    <string name="calendar_widget_expanded_name">월간 캘린더 4x4</string>
     <string name="calendar_widget_description">이번 달 할 일 캘린더를 보여줍니다.</string>
+    <string name="calendar_widget_expanded_description">4x4 월간 캘린더에 할 일 제목을 보여줍니다.</string>
     <string name="calendar_widget_error">캘린더를 불러올 수 없어요</string>
     <string name="calendar_widget_previous_month">이전 달</string>
     <string name="calendar_widget_next_month">다음 달</string>

@@ -23,6 +23,6 @@ class CalendarMonthWidgetMonthNavigationCallback : ActionCallback {
                 .moveByWidgetMonthDelta(monthDelta)
             preferences.setDisplayedMonth(displayedMonth)
         }
-        CalendarMonthWidget().update(context, glanceId)
+        CalendarMonthWidgetInstances.update(context, glanceId)
     }
 }

@@ -4,7 +4,8 @@
         <receiver
             android:name=".CalendarMonthWidgetReceiver"
             android:enabled="true"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/calendar_widget_compact_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -12,6 +13,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/calendar_month_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".CalendarMonthExpandedWidgetReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/calendar_widget_expanded_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_month_expanded_widget_info" />
         </receiver>
     </application>
 </manifest>

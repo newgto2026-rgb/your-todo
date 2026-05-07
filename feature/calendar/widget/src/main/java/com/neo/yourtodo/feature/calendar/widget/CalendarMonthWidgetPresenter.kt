@@ -1,5 +1,8 @@
 package com.neo.yourtodo.feature.calendar.widget
 
+import com.neo.yourtodo.core.model.DateTodoSummary
+import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.TodoSummary
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -37,6 +40,7 @@ internal class CalendarMonthWidgetPresenter @Inject constructor(
                             date = cell.date,
                             dayLabel = cell.date.dayOfMonth.toString(),
                             taskCountLabel = summary?.totalCount?.toTaskCountLabel(),
+                            todoChips = summary?.toTodoChips().orEmpty(),
                             isCurrentMonth = cell.isCurrentMonth,
                             isToday = cell.date == today
                         )
@@ -68,11 +72,53 @@ internal class CalendarMonthWidgetPresenter @Inject constructor(
         else -> toString()
     }
 
-    private val com.neo.yourtodo.core.model.DateTodoSummary.totalCount: Int
+    private fun DateTodoSummary.toTodoChips(): List<CalendarMonthWidgetTodoChip> {
+        val total = totalCount
+        if (total <= 0) return emptyList()
+
+        val sortedTodos = todos.sortedWith(todoPreviewComparator)
+        val visibleTodoCount = if (total > MAX_EXPANDED_TODO_LINES) {
+            MAX_EXPANDED_TODO_LINES - 1
+        } else {
+            MAX_EXPANDED_TODO_LINES
+        }
+        val todoChips = sortedTodos
+            .take(visibleTodoCount)
+            .map { todo ->
+                CalendarMonthWidgetTodoChip(
+                    label = todo.title,
+                    isDone = todo.isDone
+                )
+            }
+
+        return if (total > MAX_EXPANDED_TODO_LINES) {
+            todoChips + CalendarMonthWidgetTodoChip(
+                label = "+${total - todoChips.size}",
+                isOverflow = true
+            )
+        } else {
+            todoChips
+        }
+    }
+
+    private val DateTodoSummary.totalCount: Int
         get() = indicatorCount + overflowCount
+
+    private val todoPreviewComparator: Comparator<TodoSummary> =
+        compareBy<TodoSummary> { it.isDone }
+            .thenBy { it.dueTimeMinutes ?: Int.MAX_VALUE }
+            .thenByDescending { it.priority.sortRank() }
+            .thenByDescending { it.createdAt }
+
+    private fun TodoPriority.sortRank(): Int = when (this) {
+        TodoPriority.HIGH -> 3
+        TodoPriority.MEDIUM -> 2
+        TodoPriority.LOW -> 1
+    }
 
     private companion object {
         private const val WEEK_DAY_COUNT = 7
         private const val MAX_VISIBLE_TASK_COUNT = 9
+        private const val MAX_EXPANDED_TODO_LINES = 4
     }
 }

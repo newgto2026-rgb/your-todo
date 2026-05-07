@@ -139,10 +139,8 @@ class TodoUiTest {
         composeTestRule.onNodeWithTag("quick_add_title_input").performClick().performTextInput(title)
         composeTestRule.onNodeWithTag("quick_add_submit").performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
-            composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(title).assertIsDisplayed()
+        composeTestRule.waitUntilDisplayedTodoScreenText("all", title)
+        composeTestRule.onDisplayedTodoScreenText("all", title).assertIsDisplayed()
         composeTestRule.onNodeWithTag("quick_add_slot").assertIsDisplayed()
     }
 
@@ -1135,7 +1133,9 @@ class TodoUiTest {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(agendaDateLabel(targetDate)).assertIsDisplayed()
-        composeTestRule.onNodeWithText(title).assertIsDisplayed()
+        composeTestRule.onNode(
+            hasText(title) and hasAnyAncestor(hasTestTag("calendar_day_todo_sheet"))
+        ).assertIsDisplayed()
     }
 
     @Test
