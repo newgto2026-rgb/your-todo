@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -46,9 +49,21 @@ fun CalendarRouteScreen(
     val uiState by routeUiState.collectAsStateWithLifecycle(
         minActiveState = Lifecycle.State.CREATED
     )
+    var isWaitingForRouteDate by remember(routeDate) {
+        mutableStateOf(routeDate != null)
+    }
+    LaunchedEffect(routeDate, uiState.currentMonth, uiState.selectedDate) {
+        if (
+            routeDate == null ||
+            uiState.currentMonth == YearMonth.from(routeDate) &&
+            uiState.selectedDate == routeDate
+        ) {
+            isWaitingForRouteDate = false
+        }
+    }
     val displayedUiState = if (
         routeDate != null &&
-        uiState.selectedDate != routeDate
+        isWaitingForRouteDate
     ) {
         initialCalendarUiState(
             currentMonth = YearMonth.from(routeDate),
@@ -60,7 +75,10 @@ fun CalendarRouteScreen(
 
     CalendarScreen(
         uiState = displayedUiState,
-        onAction = viewModel::onAction,
+        onAction = { action ->
+            isWaitingForRouteDate = false
+            viewModel.onAction(action)
+        },
         onTodoClick = onNavigateToTodoEdit,
         onAddTodoClick = onNavigateToTodoAdd
     )

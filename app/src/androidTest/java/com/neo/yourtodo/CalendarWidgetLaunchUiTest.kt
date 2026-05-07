@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -101,6 +102,14 @@ class CalendarWidgetLaunchUiTest {
             "Widget launch date should be marked selected. Description was: $selectedDescription",
             selectedDescription.contains(selectedCopy)
         )
+
+        val changedDate = selectedDate.plusDays(1)
+        composeTestRule.onNodeWithTag("calendar_day_$changedDate")
+            .performClick()
+        composeTestRule.onNodeWithText(changedDate.agendaLabel())
+            .assertIsDisplayed()
+        composeTestRule.onNodeWithTag("calendar_day_$changedDate")
+            .assertIsDisplayed()
 
         pressBackUnconditionally()
         assertTrue(
