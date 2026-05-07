@@ -3,7 +3,7 @@
 ## 1. 문서 정보
 - 문서명: 기술 요구사항 문서 - Todo 빠른 추가 v1
 - 기준 기획: planner-agent 논의 기반 빠른 추가/상세 추가 분리안
-- 대상 프로젝트: `MyFirstApp` (Kotlin, Compose, Room, Hilt, Navigation 3, UDF)
+- 대상 프로젝트: `YourTodo` (Kotlin, Compose, Room, Hilt, Navigation 3, UDF)
 - 작성일: 2026-05-07
 - 범위: Todo 목록 화면에서 제목만으로 Todo를 즉시 추가하는 빠른 입력 UX
 

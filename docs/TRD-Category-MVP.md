@@ -3,7 +3,7 @@
 ## 1. 문서 정보
 - 문서명: 기술 요구사항 문서 — 카테고리 기능 (MVP)
 - 기준 PRD: "PRD — TODO App Category 기능 (MVP)"
-- 대상 프로젝트: `MyFirstApp` (Kotlin, Compose, Room, DataStore, Hilt, UDF)
+- 대상 프로젝트: `YourTodo` (Kotlin, Compose, Room, DataStore, Hilt, UDF)
 - 작성일: 2026-04-09
 - 범위: 로컬 단말 저장 기반 카테고리 기능 추가 (서버 동기화 없음)
 

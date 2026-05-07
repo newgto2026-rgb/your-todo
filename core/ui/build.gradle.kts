@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.ui"
+    namespace = "com.neo.yourtodo.core.ui"
     compileSdk = 36
 
     defaultConfig {

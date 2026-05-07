@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.data"
+    namespace = "com.neo.yourtodo.core.data"
     compileSdk = 36
 
     defaultConfig {

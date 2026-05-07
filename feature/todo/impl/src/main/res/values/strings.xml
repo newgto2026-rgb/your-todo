@@ -1,5 +1,5 @@
 <resources>
-    <string name="todo_app_header_title">TODO</string>
+    <string name="todo_app_header_title">니가할일</string>
 
     <string name="todo_filter_all">All</string>
     <string name="todo_filter_today">Today</string>

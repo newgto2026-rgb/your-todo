@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.datastore"
+    namespace = "com.neo.yourtodo.core.datastore"
     compileSdk = 36
 
     defaultConfig {

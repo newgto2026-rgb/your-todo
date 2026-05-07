@@ -7,17 +7,17 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp"
+    namespace = "com.neo.yourtodo"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.myfirstapp"
+        applicationId = "com.neo.yourtodo"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "com.example.myfirstapp.HiltTestRunner"
+        testInstrumentationRunner = "com.neo.yourtodo.HiltTestRunner"
     }
 
     buildTypes {

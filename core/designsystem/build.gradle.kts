@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.designsystem"
+    namespace = "com.neo.yourtodo.core.designsystem"
     compileSdk = 36
 
     defaultConfig {
