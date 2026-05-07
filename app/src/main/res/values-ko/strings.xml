@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MyFirstApp</string>
+    <string name="app_name">니가할일</string>
     <string name="todo_reminder_notification_title">할 일 리마인더</string>
     <string name="tab_all">전체</string>
     <string name="tab_today">오늘</string>

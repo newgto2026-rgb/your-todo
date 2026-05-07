@@ -15,11 +15,11 @@
 
 핵심 파일:
 
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/MyFirstApp/app/src/main/java/com/example/myfirstapp/app/AppNavigationGraph.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/MyFirstApp/app/src/main/java/com/example/myfirstapp/app/AppNavHost.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/MyFirstApp/app/src/main/java/com/example/myfirstapp/app/AppNavigationState.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/MyFirstApp/app/src/main/java/com/example/myfirstapp/app/AppNavigator.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/MyFirstApp/core/ui/src/main/java/com/example/myfirstapp/core/ui/navigation/AppFeatureEntry.kt`
+- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavigationGraph.kt`
+- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavHost.kt`
+- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavigationState.kt`
+- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavigator.kt`
+- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/core/ui/src/main/java/com/neo/yourtodo/core/ui/navigation/AppFeatureEntry.kt`
 
 ## 확장 계약
 
@@ -112,7 +112,7 @@ Transient stack은 `NavBackStack`이 아니라 별도 state list로 관리되므
 ```bash
 ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :feature:todo:impl:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest
 ./gradlew :app:lintDebug :feature:todo:impl:lintDebug :feature:calendar:impl:lintDebug
-./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class='com.example.myfirstapp.TodoUiTest#calendar_closeButton_afterAddTaskForDate_keepsSelectedDate,com.example.myfirstapp.TodoUiTest#calendar_dateSelection_afterBottomSheetDismiss_updatesAgendaLabel,com.example.myfirstapp.TodoUiTest#calendar_dateSelection_afterBottomSheetOpenAndTabSwitch_updatesAgendaLabel,com.example.myfirstapp.TodoUiTest#calendar_dateSelection_afterRepeatedTabRoundTrips_updatesAgendaLabel,com.example.myfirstapp.TodoUiTest#bottomSheet_openThenSwitchTab_closesOverlayAndDoesNotReappear,com.example.myfirstapp.TodoUiTest#bottomSheet_afterRepeatedTabRoundTrips_opensAndCloses'
+./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class='com.neo.yourtodo.TodoUiTest#calendar_closeButton_afterAddTaskForDate_keepsSelectedDate,com.neo.yourtodo.TodoUiTest#calendar_dateSelection_afterBottomSheetDismiss_updatesAgendaLabel,com.neo.yourtodo.TodoUiTest#calendar_dateSelection_afterBottomSheetOpenAndTabSwitch_updatesAgendaLabel,com.neo.yourtodo.TodoUiTest#calendar_dateSelection_afterRepeatedTabRoundTrips_updatesAgendaLabel,com.neo.yourtodo.TodoUiTest#bottomSheet_openThenSwitchTab_closesOverlayAndDoesNotReappear,com.neo.yourtodo.TodoUiTest#bottomSheet_afterRepeatedTabRoundTrips_opensAndCloses'
 ./gradlew :app:connectedDebugAndroidTest
 ```
 

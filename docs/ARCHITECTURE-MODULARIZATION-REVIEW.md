@@ -35,52 +35,52 @@
 
 ## 실행된 변경 사항 (P1~P2)
 - 명시적 API 계약 추가:
-  - `feature/todo/api/src/main/java/com/example/myfirstapp/feature/todo/api/TodoFeatureEntry.kt`
+  - `feature/todo/api/src/main/java/com/neo/yourtodo/feature/todo/api/TodoFeatureEntry.kt`
 - 앱 기능 계약에 범용 시작 목적지 플래그 추가:
-  - `core/ui/src/main/java/com/example/myfirstapp/core/ui/navigation/AppFeatureEntry.kt`
+  - `core/ui/src/main/java/com/neo/yourtodo/core/ui/navigation/AppFeatureEntry.kt`
 - Todo 기능 진입 구현을 API 계약 + 시작 목적지 플래그 기반으로 업데이트:
-  - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/navigation/TodoFeatureEntryImpl.kt`
+  - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/navigation/TodoFeatureEntryImpl.kt`
 - 신규 연결 모듈 추가:
   - `feature/todo/entry/build.gradle.kts`
   - `feature/todo/entry/src/main/AndroidManifest.xml`
-  - `feature/todo/entry/src/main/java/com/example/myfirstapp/feature/todo/entry/di/TodoFeatureEntryModule.kt`
+  - `feature/todo/entry/src/main/java/com/neo/yourtodo/feature/todo/entry/di/TodoFeatureEntryModule.kt`
 - 기존 impl 내부 바인딩 모듈 제거:
-  - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/di/TodoFeatureModule.kt`
+  - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/di/TodoFeatureModule.kt`
 - 모듈 그래프 업데이트:
   - `settings.gradle.kts`
   - `app/build.gradle.kts`
 - app 하드코딩 라우트 의존 제거:
-  - `app/src/main/java/com/example/myfirstapp/app/AppNavHost.kt`
+  - `app/src/main/java/com/neo/yourtodo/app/AppNavHost.kt`
 
 ## 실행된 변경 사항 (P3~P4)
 - P3. 사용자 노출 문자열 리소스 이관
   - todo 기능 문자열 리소스 추가:
     - `feature/todo/impl/src/main/res/values/strings.xml`
   - 하드코딩 UI 라벨/메시지를 다음 파일에서 리소스로 전환:
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoListScreen.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoFilterBar.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/components/TodoPriorityFilterBar.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/editor/TodoEditorPrioritySection.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoEditorReminderSection.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoEditBottomSheet.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoHeader.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoEmptyState.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/CategoryManagerBottomSheet.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoListScreen.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoFilterBar.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/components/TodoPriorityFilterBar.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/editor/TodoEditorPrioritySection.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoEditorReminderSection.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoEditBottomSheet.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoHeader.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoEmptyState.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/CategoryManagerBottomSheet.kt`
   - validation/snackbar 메시지를 raw 문자열에서 `@StringRes` id 기반으로 전환:
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoListInputValidator.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoListSideEffect.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoListUiState.kt`
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/ui/TodoListViewModel.kt`
-    - `feature/todo/impl/src/test/java/com/example/myfirstapp/feature/todo/impl/ui/TodoListViewModelTest.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoListInputValidator.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoListSideEffect.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoListUiState.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/ui/TodoListViewModel.kt`
+    - `feature/todo/impl/src/test/java/com/neo/yourtodo/feature/todo/impl/ui/TodoListViewModelTest.kt`
   - 앱 레벨 리마인더 알림 제목 리소스 추가:
     - `app/src/main/res/values/strings.xml`
-    - `app/src/main/java/com/example/myfirstapp/app/todo/reminder/TodoReminderNotificationHelper.kt`
+    - `app/src/main/java/com/neo/yourtodo/app/todo/reminder/TodoReminderNotificationHelper.kt`
 
 - P4. Todo 기능 진입에 타입 안전 내비게이션 적용
   - 직렬화 가능한 typed route 계약 추가:
-    - `feature/todo/api/src/main/java/com/example/myfirstapp/feature/todo/api/TodoFeatureEntry.kt`
+    - `feature/todo/api/src/main/java/com/neo/yourtodo/feature/todo/api/TodoFeatureEntry.kt`
   - Todo 기능 등록을 `composable<TodoRoute>`로 전환:
-    - `feature/todo/impl/src/main/java/com/example/myfirstapp/feature/todo/impl/navigation/TodoFeatureEntryImpl.kt`
+    - `feature/todo/impl/src/main/java/com/neo/yourtodo/feature/todo/impl/navigation/TodoFeatureEntryImpl.kt`
   - 라우트 계약 모듈에 Kotlin serialization 플러그인/의존 추가:
     - `feature/todo/api/build.gradle.kts`
     - `gradle/libs.versions.toml` (`kotlinx.serialization` 버전을 Kotlin 2.0.21과 정렬)

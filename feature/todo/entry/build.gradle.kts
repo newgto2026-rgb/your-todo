@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.feature.todo.entry"
+    namespace = "com.neo.yourtodo.feature.todo.entry"
     compileSdk = 36
 
     defaultConfig {
