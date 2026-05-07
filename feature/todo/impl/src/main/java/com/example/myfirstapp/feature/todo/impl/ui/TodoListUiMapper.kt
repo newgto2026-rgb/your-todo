@@ -17,11 +17,7 @@ internal fun buildTodoListUiState(
     val filteredItems = items
         .filterBy(selectedFilter)
         .filterByPriority(selectedPriorityFilter)
-        .sortedWith(
-            compareBy<TodoItem> { it.isDone }
-                .thenByDescending { it.priority.sortRank() }
-                .thenBy { it.id }
-        )
+        .sortedWith(localState.selectedSortOption.comparatorFor(selectedFilter))
 
     return localState.copy(
         items = filteredItems.map { it.toUiModel() },
@@ -52,6 +48,43 @@ private fun List<TodoItem>.filterByPriority(filter: TodoPriorityFilter): List<To
     TodoPriorityFilter.MEDIUM -> filter { it.priority == TodoPriority.MEDIUM }
     TodoPriorityFilter.HIGH -> filter { it.priority == TodoPriority.HIGH }
 }
+
+private fun TodoSortOption.comparatorFor(filter: TodoFilter): Comparator<TodoItem> =
+    if (filter == TodoFilter.ALL) {
+        when (this) {
+            TodoSortOption.DEFAULT -> defaultTodoComparator()
+            TodoSortOption.DUE_DATE -> dueDateTodoComparator()
+            TodoSortOption.PRIORITY -> priorityTodoComparator()
+        }
+    } else {
+        contextualTodoComparator()
+    }
+
+private fun defaultTodoComparator(): Comparator<TodoItem> =
+    compareBy<TodoItem> { it.isDone }
+        .thenByDescending { it.createdAt }
+        .thenByDescending { it.id }
+
+private fun contextualTodoComparator(): Comparator<TodoItem> =
+    compareBy<TodoItem> { it.isDone }
+        .thenByDescending { it.priority.sortRank() }
+        .thenBy { it.id }
+
+private fun dueDateTodoComparator(): Comparator<TodoItem> =
+    compareBy<TodoItem> { it.isDone }
+        .thenBy { it.dueDate == null }
+        .thenBy { it.dueDate ?: LocalDate.MAX }
+        .thenBy { it.dueTimeMinutes ?: Int.MAX_VALUE }
+        .thenByDescending { it.priority.sortRank() }
+        .thenBy { it.id }
+
+private fun priorityTodoComparator(): Comparator<TodoItem> =
+    compareBy<TodoItem> { it.isDone }
+        .thenByDescending { it.priority.sortRank() }
+        .thenBy { it.dueDate == null }
+        .thenBy { it.dueDate ?: LocalDate.MAX }
+        .thenBy { it.dueTimeMinutes ?: Int.MAX_VALUE }
+        .thenBy { it.id }
 
 private fun TodoPriority.sortRank(): Int = when (this) {
     TodoPriority.HIGH -> 3

@@ -16,6 +16,7 @@ data class TodoListUiState(
     val completedTodoIds: List<Long> = emptyList(),
     val selectedFilter: TodoFilter = TodoFilter.ALL,
     val selectedPriorityFilter: TodoPriorityFilter = TodoPriorityFilter.ALL,
+    val selectedSortOption: TodoSortOption = TodoSortOption.DEFAULT,
     val isLoading: Boolean = false,
     val isEditDialogVisible: Boolean = false,
     val deleteConfirmation: TodoDeleteConfirmation? = null,
@@ -43,4 +44,10 @@ sealed interface TodoDeleteConfirmation {
     }
 
     data class Completed(override val ids: List<Long>) : TodoDeleteConfirmation
+}
+
+enum class TodoSortOption {
+    DEFAULT,
+    DUE_DATE,
+    PRIORITY
 }

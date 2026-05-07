@@ -6,7 +6,9 @@
     <string name="todo_filter_completed">완료</string>
 
     <string name="todo_header_all_title">모든 할 일</string>
-    <string name="todo_header_all_subtitle">마감일 순 정렬</string>
+    <string name="todo_header_all_subtitle">미완료 우선</string>
+    <string name="todo_header_all_subtitle_due_date">마감일 순 정렬</string>
+    <string name="todo_header_all_subtitle_priority">중요도 순 정렬</string>
     <string name="todo_header_completed_title">완료 목록</string>
     <string name="todo_header_completed_subtitle">완료한 할 일</string>
     <string name="todo_header_profile_icon">👤</string>
@@ -17,6 +19,9 @@
     <string name="todo_priority_low">낮음</string>
     <string name="todo_priority_medium">중간</string>
     <string name="todo_priority_high">높음</string>
+    <string name="todo_sort_default">기본</string>
+    <string name="todo_sort_due_date">마감일순</string>
+    <string name="todo_sort_priority">중요도순</string>
 
     <string name="todo_editor_title_new_task">새 할 일</string>
     <string name="todo_editor_title_edit_task">할 일 수정</string>
