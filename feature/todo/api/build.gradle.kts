@@ -10,6 +10,7 @@ android {
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -24,4 +25,6 @@ android {
 dependencies {
     api(project(":core:ui"))
     implementation(libs.kotlinx.serialization.json)
+
+    androidTestImplementation(libs.androidx.test.runner)
 }

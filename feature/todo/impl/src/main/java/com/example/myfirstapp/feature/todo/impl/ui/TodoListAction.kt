@@ -32,5 +32,6 @@ sealed interface TodoListAction {
     data object OnClearCompletedClick : TodoListAction
     data class OnFilterChange(val filter: TodoFilter) : TodoListAction
     data class OnPriorityFilterChange(val filter: TodoPriorityFilter) : TodoListAction
+    data class OnSortOptionChange(val option: TodoSortOption) : TodoListAction
     data object OnDismissDialog : TodoListAction
 }

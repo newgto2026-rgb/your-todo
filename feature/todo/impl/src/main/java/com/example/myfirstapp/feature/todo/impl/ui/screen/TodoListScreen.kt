@@ -1,6 +1,7 @@
 package com.example.myfirstapp.feature.todo.impl.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,10 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -146,7 +149,7 @@ private fun TodoListScreen(
     val (title, subtitle) = headerTextFor(
         filter = uiState.selectedFilter,
         allTitle = stringResource(R.string.todo_header_all_title),
-        allSubtitle = stringResource(R.string.todo_header_all_subtitle),
+        allSubtitle = stringResource(uiState.selectedSortOption.subtitleRes()),
         todayTitle = stringResource(R.string.todo_filter_today),
         todaySubtitle = formatDateLabel(LocalDate.now(), todayHeaderDateFormat),
         completedTitle = stringResource(R.string.todo_header_completed_title),
@@ -157,6 +160,15 @@ private fun TodoListScreen(
     val rowTodayText = stringResource(R.string.todo_row_subtitle_today)
     val shouldShowQuickAdd = uiState.selectedFilter != TodoFilter.COMPLETED
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(
+        uiState.selectedFilter,
+        uiState.selectedPriorityFilter,
+        uiState.selectedSortOption
+    ) {
+        listState.scrollToItem(0)
+    }
 
     Scaffold(
         containerColor = Color(0xFFF5F6FB),
@@ -222,6 +234,14 @@ private fun TodoListScreen(
                 selectedPriorityFilter = uiState.selectedPriorityFilter,
                 onPrioritySelected = { onAction(TodoListAction.OnPriorityFilterChange(it)) }
             )
+            if (uiState.selectedFilter == TodoFilter.ALL) {
+                Spacer(Modifier.height(10.dp))
+                TodoSortMenu(
+                    selectedSortOption = uiState.selectedSortOption,
+                    onSortOptionSelected = { onAction(TodoListAction.OnSortOptionChange(it)) },
+                    modifier = Modifier.align(Alignment.End)
+                )
+            }
             Spacer(Modifier.height(12.dp))
 
             if (shouldShowQuickAdd) {
@@ -242,6 +262,7 @@ private fun TodoListScreen(
 
             if (uiState.items.isNotEmpty()) {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag("todo_list"),
@@ -398,6 +419,53 @@ private fun QuickAddSlot(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = stringResource(R.string.todo_quick_add_close)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodoSortMenu(
+    selectedSortOption: TodoSortOption,
+    onSortOptionSelected: (TodoSortOption) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        TextButton(
+            onClick = { isExpanded = true },
+            modifier = Modifier.testTag("todo_sort_menu_button")
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Sort,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.size(6.dp))
+            Text(stringResource(selectedSortOption.labelRes()))
+        }
+        DropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false }
+        ) {
+            TodoSortOption.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.labelRes())) },
+                    leadingIcon = {
+                        if (option == selectedSortOption) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null
+                            )
+                        }
+                    },
+                    onClick = {
+                        isExpanded = false
+                        onSortOptionSelected(option)
+                    },
+                    modifier = Modifier.testTag(option.testTag())
                 )
             }
         }
@@ -670,6 +738,26 @@ private fun headerTextFor(
     TodoFilter.ALL -> allTitle to allSubtitle
     TodoFilter.TODAY -> todayTitle to todaySubtitle
     TodoFilter.COMPLETED -> completedTitle to completedSubtitle
+}
+
+@StringRes
+private fun TodoSortOption.labelRes(): Int = when (this) {
+    TodoSortOption.DEFAULT -> R.string.todo_sort_default
+    TodoSortOption.DUE_DATE -> R.string.todo_sort_due_date
+    TodoSortOption.PRIORITY -> R.string.todo_sort_priority
+}
+
+@StringRes
+private fun TodoSortOption.subtitleRes(): Int = when (this) {
+    TodoSortOption.DEFAULT -> R.string.todo_header_all_subtitle
+    TodoSortOption.DUE_DATE -> R.string.todo_header_all_subtitle_due_date
+    TodoSortOption.PRIORITY -> R.string.todo_header_all_subtitle_priority
+}
+
+private fun TodoSortOption.testTag(): String = when (this) {
+    TodoSortOption.DEFAULT -> "todo_sort_option_default"
+    TodoSortOption.DUE_DATE -> "todo_sort_option_due_date"
+    TodoSortOption.PRIORITY -> "todo_sort_option_priority"
 }
 
 private fun completionProgress(uiState: TodoListUiState): Float {

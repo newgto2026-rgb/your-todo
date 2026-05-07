@@ -45,19 +45,21 @@ class TodoListViewModel @Inject constructor(
     private val sideEffectMutable = MutableSharedFlow<TodoListSideEffect>()
     private val todoItems = observeTodosUseCase()
     private val selectedPriorityFilter = observeSelectedTodoPriorityFilterUseCase()
+    private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
 
     val sideEffect = sideEffectMutable.asSharedFlow()
 
     val uiState: StateFlow<TodoListUiState> = combine(
         todoItems,
         selectedPriorityFilter,
+        localPriorityFilter,
         uiLocalState
-    ) { items, selectedPriorityFilter, localState ->
+    ) { items, _, localPriorityFilter, localState ->
         buildTodoListUiState(
             localState = localState,
             items = items,
             selectedFilter = localState.selectedFilter,
-            selectedPriorityFilter = selectedPriorityFilter
+            selectedPriorityFilter = localPriorityFilter
         )
     }.stateIn(
         scope = viewModelScope,
@@ -130,6 +132,8 @@ class TodoListViewModel @Inject constructor(
             TodoListAction.OnClearCompletedClick -> requestCompletedTodoDelete()
             is TodoListAction.OnFilterChange -> updateFilter(action.filter)
             is TodoListAction.OnPriorityFilterChange -> updatePriorityFilter(action.filter)
+            is TodoListAction.OnSortOptionChange -> updateSortOption(action.option)
+
             TodoListAction.OnDismissDialog -> updateLocalState { dismissTodoEditor() }
         }
     }
@@ -446,8 +450,28 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun updatePriorityFilter(filter: TodoPriorityFilter) {
+        val previousFilter = uiState.value.selectedPriorityFilter
+        localPriorityFilter.value = filter
         viewModelScope.launch {
             updateSelectedTodoPriorityFilterUseCase(filter)
+                .onFailure {
+                    localPriorityFilter.value = previousFilter
+                    sideEffectMutable.emit(
+                        TodoListSideEffect.ShowSnackbar(
+                            R.string.todo_error_priority_filter_change_failed
+                        )
+                    )
+                }
+        }
+    }
+
+    private fun updateSortOption(option: TodoSortOption) {
+        if (uiState.value.selectedSortOption == option) return
+
+        localPriorityFilter.value = TodoPriorityFilter.ALL
+        updateLocalState { copy(selectedSortOption = option) }
+        viewModelScope.launch {
+            updateSelectedTodoPriorityFilterUseCase(TodoPriorityFilter.ALL)
                 .onFailure {
                     sideEffectMutable.emit(
                         TodoListSideEffect.ShowSnackbar(

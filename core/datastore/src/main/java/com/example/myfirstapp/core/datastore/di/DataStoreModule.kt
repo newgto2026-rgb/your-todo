@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.example.myfirstapp.core.datastore.source.UserPreferencesDataSource
 import com.example.myfirstapp.core.datastore.source.UserPreferencesDataSourceImpl
+import com.example.myfirstapp.core.datastore.source.UserPreferencesMigrations
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -27,7 +28,9 @@ abstract class DataStoreModule {
         @Provides
         @Singleton
         fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
-            PreferenceDataStoreFactory.create {
+            PreferenceDataStoreFactory.create(
+                migrations = listOf(UserPreferencesMigrations.resetLegacyTodoPriorityFilter)
+            ) {
                 context.preferencesDataStoreFile("user_preferences.pb")
             }
     }

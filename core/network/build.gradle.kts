@@ -9,6 +9,7 @@ android {
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -21,4 +22,5 @@ android {
 }
 
 dependencies {
+    androidTestImplementation(libs.androidx.test.runner)
 }

@@ -58,6 +58,8 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(project(":core:testing"))
+
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 kapt {

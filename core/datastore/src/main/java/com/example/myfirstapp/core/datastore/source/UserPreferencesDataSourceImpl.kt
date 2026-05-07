@@ -3,8 +3,9 @@ package com.example.myfirstapp.core.datastore.source
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
+import com.example.myfirstapp.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_CATEGORY_FILTER
+import com.example.myfirstapp.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_FILTER
+import com.example.myfirstapp.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_PRIORITY_FILTER
 import com.example.myfirstapp.core.model.TodoFilter
 import com.example.myfirstapp.core.model.TodoPriorityFilter
 import kotlinx.coroutines.flow.Flow
@@ -53,9 +54,4 @@ class UserPreferencesDataSourceImpl @Inject constructor(
         }
     }
 
-    private companion object {
-        val SELECTED_TODO_FILTER = stringPreferencesKey("selected_todo_filter")
-        val SELECTED_TODO_CATEGORY_FILTER = longPreferencesKey("selected_todo_category_filter")
-        val SELECTED_TODO_PRIORITY_FILTER = stringPreferencesKey("selected_todo_priority_filter")
-    }
 }

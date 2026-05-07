@@ -2,6 +2,9 @@ package com.example.myfirstapp
 
 import android.Manifest
 import android.os.Build
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
@@ -12,6 +15,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -159,6 +163,409 @@ class TodoUiTest {
     }
 
     @Test
+    fun allTabSortMenu_dueDateSortOrdersRowsByNearestDueDate() {
+        val timestamp = System.currentTimeMillis()
+        val today = LocalDate.now()
+        val noDateTitle = "Sort no date $timestamp"
+        val futureTitle = "Sort future $timestamp"
+        val todayTitle = "Sort today $timestamp"
+        var noDateId = -1L
+        var futureId = -1L
+        var todayId = -1L
+
+        runBlocking {
+            noDateId = addTodoUseCase(
+                title = noDateTitle,
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            futureId = addTodoUseCase(
+                title = futureTitle,
+                dueDate = today.plusDays(4),
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            todayId = addTodoUseCase(
+                title = todayTitle,
+                dueDate = today,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.LOW
+            ).getOrThrow()
+        }
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(noDateTitle).fetchSemanticsNodes().isNotEmpty() &&
+                composeTestRule.onAllNodesWithText(futureTitle).fetchSemanticsNodes().isNotEmpty() &&
+                composeTestRule.onAllNodesWithText(todayTitle).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("todo_sort_option_due_date")
+        composeTestRule.onNodeWithTag("todo_sort_option_due_date", useUnmergedTree = true).performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            rowTop("todo_row_$todayId") < rowTop("todo_row_$futureId") &&
+                rowTop("todo_row_$futureId") < rowTop("todo_row_$noDateId")
+        }
+        assertRowsInVerticalOrder("todo_row_$todayId", "todo_row_$futureId", "todo_row_$noDateId")
+    }
+
+    @Test
+    fun allTabSortMenu_prioritySortOrdersRowsByHighMediumLow() {
+        val timestamp = System.currentTimeMillis()
+        var lowId = -1L
+        var mediumId = -1L
+        var highId = -1L
+
+        runBlocking {
+            highId = addTodoUseCase(
+                title = "Priority high $timestamp",
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            mediumId = addTodoUseCase(
+                title = "Priority medium $timestamp",
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            lowId = addTodoUseCase(
+                title = "Priority low $timestamp",
+                dueDate = null,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.LOW
+            ).getOrThrow()
+        }
+
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$lowId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$mediumId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$highId")
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            rowTop("todo_row_$lowId") < rowTop("todo_row_$mediumId") &&
+                rowTop("todo_row_$mediumId") < rowTop("todo_row_$highId")
+        }
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("todo_sort_option_priority")
+        composeTestRule.onNodeWithTag("todo_sort_option_priority", useUnmergedTree = true).performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            rowTop("todo_row_$highId") < rowTop("todo_row_$mediumId") &&
+                rowTop("todo_row_$mediumId") < rowTop("todo_row_$lowId")
+        }
+        assertRowsInVerticalOrder("todo_row_$highId", "todo_row_$mediumId", "todo_row_$lowId")
+    }
+
+    @Test
+    fun allTabSortMenu_clearsPriorityFilterBeforeSorting() {
+        val timestamp = System.currentTimeMillis()
+        val lowLabel = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_priority_low)
+        var lowId = -1L
+        var mediumId = -1L
+        var highId = -1L
+
+        runBlocking {
+            highId = addTodoUseCase(
+                title = "Filter reset high $timestamp",
+                dueDate = LocalDate.now(),
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            mediumId = addTodoUseCase(
+                title = "Filter reset medium $timestamp",
+                dueDate = LocalDate.now(),
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            lowId = addTodoUseCase(
+                title = "Filter reset low $timestamp",
+                dueDate = LocalDate.now().plusDays(1),
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.LOW
+            ).getOrThrow()
+        }
+
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$highId")
+        composeTestRule.onTodoScreenTag("all", "priority_filter_chip_$lowLabel")
+            .performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$lowId")
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_$highId")
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_$mediumId")
+
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("todo_sort_option_due_date")
+        composeTestRule.onNodeWithTag("todo_sort_option_due_date", useUnmergedTree = true).performClick()
+
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$highId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$mediumId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$lowId")
+        assertRowsInVerticalOrder("todo_row_$highId", "todo_row_$mediumId", "todo_row_$lowId")
+    }
+
+    @Test
+    fun allTabSortMenu_reselectKeepsPriorityFilter() {
+        val timestamp = System.currentTimeMillis()
+        val highLabel = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_priority_high)
+        val today = LocalDate.now()
+        var highTodayId = -1L
+        var highFutureId = -1L
+        var mediumTodayId = -1L
+
+        runBlocking {
+            highFutureId = addTodoUseCase(
+                title = "Reselect high future $timestamp",
+                dueDate = today.plusDays(2),
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            mediumTodayId = addTodoUseCase(
+                title = "Reselect medium today $timestamp",
+                dueDate = today,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            highTodayId = addTodoUseCase(
+                title = "Reselect high today $timestamp",
+                dueDate = today,
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+        }
+
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$mediumTodayId")
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("todo_sort_option_due_date")
+        composeTestRule.onNodeWithTag("todo_sort_option_due_date", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            rowTop("todo_row_$highTodayId") < rowTop("todo_row_$highFutureId")
+        }
+
+        composeTestRule.onTodoScreenTag("all", "priority_filter_chip_$highLabel").performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$highTodayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$highFutureId")
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_$mediumTodayId")
+
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("todo_sort_option_due_date")
+        composeTestRule.onNodeWithTag("todo_sort_option_due_date", useUnmergedTree = true).performClick()
+
+        composeTestRule.assertTodoScreenRowCount("all", 2)
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$highTodayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$highFutureId")
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_$mediumTodayId")
+        assertRowsInVerticalOrder("todo_row_$highTodayId", "todo_row_$highFutureId")
+    }
+
+    @Test
+    fun allTabFilters_keepTodayFutureAndCompletedItemsAvailable() {
+        val timestamp = System.currentTimeMillis()
+        val today = LocalDate.now()
+        val todayTitle = "Exact today medium $timestamp"
+        val futureTitle = "Exact future high $timestamp"
+        val completedTitle = "Exact completed medium $timestamp"
+        var todayId = -1L
+        var futureId = -1L
+        var completedId = -1L
+
+        runBlocking {
+            todayId = addTodoUseCase(
+                title = todayTitle,
+                dueDate = today,
+                categoryId = null,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            futureId = addTodoUseCase(
+                title = futureTitle,
+                dueDate = today.plusDays(2),
+                categoryId = null,
+                dueTimeMinutes = 2 * 60,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            completedId = addTodoUseCase(
+                title = completedTitle,
+                dueDate = null,
+                categoryId = null,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            todoItemRepository.toggleTodoDone(completedId)
+        }
+
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$completedId")
+        composeTestRule.assertTodoScreenRowCount("all", 3)
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$completedId")
+
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("todo_sort_option_due_date")
+        composeTestRule.onNodeWithTag("todo_sort_option_due_date", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$completedId")
+        composeTestRule.assertTodoScreenRowCount("all", 3)
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$completedId")
+        assertRowsInVerticalOrder("todo_row_$todayId", "todo_row_$futureId", "todo_row_$completedId")
+
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilNodeExists("todo_sort_option_priority")
+        composeTestRule.onNodeWithTag("todo_sort_option_priority", useUnmergedTree = true).performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$completedId")
+        composeTestRule.assertTodoScreenRowCount("all", 3)
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$completedId")
+        assertRowsInVerticalOrder("todo_row_$futureId", "todo_row_$todayId", "todo_row_$completedId")
+
+        tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
+        composeTestRule.waitUntilTodoScreenTag("today", "todo_row_$todayId")
+        composeTestRule.assertNoTodoScreenTag("today", "todo_row_$futureId")
+        composeTestRule.assertNoTodoScreenTag("today", "todo_row_$completedId")
+
+        tabNode("completed").performClick()
+        tabNode("completed").assertIsSelected()
+        composeTestRule.waitUntilTodoScreenTag("completed", "todo_row_$completedId")
+        composeTestRule.assertNoTodoScreenTag("completed", "todo_row_$todayId")
+        composeTestRule.assertNoTodoScreenTag("completed", "todo_row_$futureId")
+
+        tabNode("all").performClick()
+        tabNode("all").assertIsSelected()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$completedId")
+        composeTestRule.assertTodoScreenRowCount("all", 3)
+    }
+
+    @Test
+    fun priorityFilters_restoreAllExactTodayFutureAndCompletedItems() {
+        val timestamp = System.currentTimeMillis()
+        val today = LocalDate.now()
+        val allLabel = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_filter_all)
+        val mediumLabel = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_priority_medium)
+        val highLabel = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_priority_high)
+        var todayId = -1L
+        var futureId = -1L
+        var completedId = -1L
+
+        runBlocking {
+            todayId = addTodoUseCase(
+                title = "Priority exact today medium $timestamp",
+                dueDate = today,
+                categoryId = null,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            futureId = addTodoUseCase(
+                title = "Priority exact future high $timestamp",
+                dueDate = today.plusDays(2),
+                categoryId = null,
+                dueTimeMinutes = 2 * 60,
+                priority = TodoPriority.HIGH
+            ).getOrThrow()
+            completedId = addTodoUseCase(
+                title = "Priority exact completed medium $timestamp",
+                dueDate = null,
+                categoryId = null,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            todoItemRepository.toggleTodoDone(completedId)
+        }
+
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$completedId")
+
+        composeTestRule.onTodoScreenTag("all", "priority_filter_chip_$mediumLabel").performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$completedId")
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_$futureId")
+
+        composeTestRule.onTodoScreenTag("all", "priority_filter_chip_$highLabel").performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_$completedId")
+
+        composeTestRule.onTodoScreenTag("all", "priority_filter_chip_$allLabel").performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$todayId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$futureId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$completedId")
+    }
+
+    @Test
+    fun sortMenu_isScopedToAllTabAndHiddenOnTodayPlanner() {
+        composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true)
+            .assertIsDisplayed()
+
+        tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
+
+        composeTestRule.assertNoTodoScreenTag("today", "todo_sort_menu_button")
+    }
+
+    @Test
     fun completedTab_hidesQuickAddAndFabOpensDetailAdd() {
         tabNode("completed").performClick()
         tabNode("completed").assertIsSelected()
@@ -298,6 +705,7 @@ class TodoUiTest {
         val todayTitle = "Tab Today $timestamp"
         val completedTitle = "Tab Done $timestamp"
         val allOnlyTitle = "Tab All $timestamp"
+        var allOnlyId = -1L
 
         val todayId = runBlocking {
             val todayTodoId = addTodoUseCase(
@@ -319,7 +727,7 @@ class TodoUiTest {
                 reminderRepeatType = ReminderRepeatType.NONE,
                 reminderRepeatDaysMask = 0
             ).getOrThrow()
-            addTodoUseCase(
+            allOnlyId = addTodoUseCase(
                 title = allOnlyTitle,
                 dueDate = null,
                 categoryId = null,
@@ -347,8 +755,8 @@ class TodoUiTest {
 
             tabNode("all").performClick()
             tabNode("all").assertIsSelected()
-            composeTestRule.waitUntilTodoScreenText("all", allOnlyTitle)
-            composeTestRule.onTodoScreenText("all", allOnlyTitle).assertIsDisplayed()
+            composeTestRule.waitUntilDisplayedTodoScreenTag("all", "todo_row_$allOnlyId")
+            composeTestRule.onTodoScreenTag("all", "todo_row_$allOnlyId").assertIsDisplayed()
             composeTestRule.assertNoTodoScreenTag("all", "clear_completed_button")
             composeTestRule.assertNoTodoScreenTag("all", "todo_quick_tomorrow_$todayId")
         }
@@ -1045,6 +1453,20 @@ class TodoUiTest {
         composeTestRule.onAllNodesWithText(oldLabel).assertCountEquals(0)
     }
 
+    private fun rowTop(tag: String): Float =
+        composeTestRule.onNodeWithTag(tag)
+            .getUnclippedBoundsInRoot()
+            .top
+            .value
+
+    private fun assertRowsInVerticalOrder(vararg tags: String) {
+        val tops = tags.map(::rowTop)
+        assertTrue(
+            "Expected rows to appear in order: ${tags.joinToString()}",
+            tops.zipWithNext().all { (upper, lower) -> upper < lower }
+        )
+    }
+
     private fun agendaDateLabel(date: LocalDate): String {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         return context.getString(
@@ -1093,6 +1515,38 @@ class TodoUiTest {
         useUnmergedTree = true
     )
 
+    private fun ComposeTestRule.waitUntilDisplayedTodoScreenText(
+        filterName: String,
+        text: String,
+        timeoutMillis: Long = UiTimeoutMillis
+    ) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            displayedTodoScreenTextIndex(filterName, text) != null
+        }
+    }
+
+    private fun ComposeTestRule.onDisplayedTodoScreenText(
+        filterName: String,
+        text: String
+    ) = onAllNodes(
+        hasText(text) and hasAnyAncestor(hasTestTag("todo_screen_$filterName")),
+        useUnmergedTree = true
+    )[displayedTodoScreenTextIndex(filterName, text)
+        ?: error("No displayed todo screen text found for $filterName: $text")]
+
+    private fun ComposeTestRule.displayedTodoScreenTextIndex(
+        filterName: String,
+        text: String
+    ): Int? {
+        val matcher = hasText(text) and hasAnyAncestor(hasTestTag("todo_screen_$filterName"))
+        val nodes = onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes()
+        return nodes.indices.firstOrNull { index ->
+            runCatching {
+                onAllNodes(matcher, useUnmergedTree = true)[index].isDisplayed()
+            }.getOrDefault(false)
+        }
+    }
+
     private fun ComposeTestRule.assertNoTodoScreenText(
         filterName: String,
         text: String
@@ -1124,6 +1578,18 @@ class TodoUiTest {
         useUnmergedTree = true
     )
 
+    private fun ComposeTestRule.waitUntilDisplayedTodoScreenTag(
+        filterName: String,
+        tag: String,
+        timeoutMillis: Long = UiTimeoutMillis
+    ) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            runCatching {
+                onTodoScreenTag(filterName, tag).isDisplayed()
+            }.getOrDefault(false)
+        }
+    }
+
     private fun ComposeTestRule.assertNoTodoScreenTag(
         filterName: String,
         tag: String
@@ -1132,6 +1598,21 @@ class TodoUiTest {
             hasTestTag(tag) and hasAnyAncestor(hasTestTag("todo_screen_$filterName")),
             useUnmergedTree = true
         ).assertCountEquals(0)
+    }
+
+    private fun ComposeTestRule.assertTodoScreenRowCount(
+        filterName: String,
+        expectedCount: Int
+    ) {
+        val rowMatcher = SemanticsMatcher("Todo row") { node ->
+            node.config.getOrNull(SemanticsProperties.TestTag)
+                ?.removePrefix("todo_row_")
+                ?.toLongOrNull() != null
+        }
+        onAllNodes(
+            rowMatcher and hasAnyAncestor(hasTestTag("todo_screen_$filterName")),
+            useUnmergedTree = false
+        ).assertCountEquals(expectedCount)
     }
 
     private fun ComposeTestRule.waitUntilNodeDoesNotExist(
