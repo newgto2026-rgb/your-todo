@@ -466,6 +466,8 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun updateSortOption(option: TodoSortOption) {
+        if (uiState.value.selectedSortOption == option) return
+
         localPriorityFilter.value = TodoPriorityFilter.ALL
         updateLocalState { copy(selectedSortOption = option) }
         viewModelScope.launch {

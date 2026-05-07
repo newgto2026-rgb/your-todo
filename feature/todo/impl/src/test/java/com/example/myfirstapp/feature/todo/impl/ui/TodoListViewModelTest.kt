@@ -439,6 +439,45 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun sortOptionReselectKeepsPriorityFilter() = runTest {
+        val today = LocalDate.now()
+        repository.addTodo(
+            title = "High future",
+            dueDate = today.plusDays(2),
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        )
+        repository.addTodo(
+            title = "Medium today",
+            dueDate = today,
+            categoryId = null,
+            priority = TodoPriority.MEDIUM
+        )
+        repository.addTodo(
+            title = "High today",
+            dueDate = today,
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        )
+
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        advanceUntilIdle()
+        viewModel.onAction(TodoListAction.OnPriorityFilterChange(TodoPriorityFilter.HIGH))
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
+        assertThat(state.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.HIGH)
+        assertThat(state.items.map { it.title }).containsExactly(
+            "High today",
+            "High future"
+        ).inOrder()
+    }
+
+    @Test
     fun sortOptionsKeepAllThreeItemsVisibleWhenPriorityAndDueDateDiffer() = runTest {
         val today = LocalDate.now()
         repository.addTodo(
