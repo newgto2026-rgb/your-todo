@@ -8,6 +8,8 @@
     <string name="calendar_agenda_date_label">%1$s</string>
     <string name="calendar_bottom_sheet_empty">선택한 날짜에 예정된 일정이 없습니다.</string>
     <string name="calendar_bottom_sheet_all_day">종일</string>
+    <string name="calendar_mark_task_complete">할 일 완료</string>
+    <string name="calendar_mark_task_incomplete">할 일 미완료로 변경</string>
     <string name="calendar_reminder_lead_at_time">정시</string>
     <string name="calendar_reminder_lead_5m">5분 전</string>
     <string name="calendar_reminder_lead_10m">10분 전</string>

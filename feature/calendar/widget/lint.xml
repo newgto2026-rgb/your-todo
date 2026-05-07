@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="ConvertToWebp">
+        <ignore path="src/main/res/drawable-nodpi/calendar_month_widget_preview_compact_image.png" />
+        <ignore path="src/main/res/drawable-nodpi/calendar_month_widget_preview_expanded_image.png" />
+    </issue>
+</lint>

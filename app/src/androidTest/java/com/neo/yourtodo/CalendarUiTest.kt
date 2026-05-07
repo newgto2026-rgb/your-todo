@@ -3,6 +3,9 @@ package com.neo.yourtodo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -17,6 +20,7 @@ import com.neo.yourtodo.app.MainActivity
 import com.neo.yourtodo.core.database.AppDatabase
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
@@ -45,6 +49,9 @@ class CalendarUiTest {
 
     @Inject
     lateinit var addTodoUseCase: AddTodoUseCase
+
+    @Inject
+    lateinit var getTodoUseCase: GetTodoUseCase
 
     @Inject
     lateinit var appDatabase: AppDatabase
@@ -150,6 +157,20 @@ class CalendarUiTest {
     }
 
     @Test
+    fun todoToggleInAgenda_marksTodoCompleted() {
+        openCalendarTab()
+
+        composeTestRule.onNodeWithTag("calendar_day_$today").performClick()
+        composeTestRule.waitUntilNodeExists("calendar_day_todo_toggle_$todayTodoId")
+        composeTestRule.onNodeWithTag("calendar_day_todo_toggle_$todayTodoId", useUnmergedTree = true)
+            .performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            runBlocking { getTodoUseCase(todayTodoId)?.isDone == true }
+        }
+    }
+
+    @Test
     fun todoEditSheetDismiss_returnsToCalendarContext() {
         openCalendarTab()
 
@@ -185,7 +206,9 @@ class CalendarUiTest {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithTag("calendar_month_label").assertIsDisplayed()
-        composeTestRule.onNodeWithText(title).assertIsDisplayed()
+        composeTestRule.onNode(
+            hasText(title) and hasAnyAncestor(hasTestTag("calendar_day_todo_sheet"))
+        ).assertIsDisplayed()
     }
 
     private fun openCalendarTab() {

@@ -13,6 +13,7 @@ android {
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -52,6 +53,7 @@ dependencies {
     testImplementation(libs.androidx.glance.testing)
     testImplementation(libs.androidx.glance.appwidget.testing)
     testImplementation(libs.robolectric)
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 kapt {

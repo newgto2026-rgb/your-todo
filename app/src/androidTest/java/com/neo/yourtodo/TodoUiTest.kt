@@ -139,10 +139,8 @@ class TodoUiTest {
         composeTestRule.onNodeWithTag("quick_add_title_input").performClick().performTextInput(title)
         composeTestRule.onNodeWithTag("quick_add_submit").performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
-            composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(title).assertIsDisplayed()
+        composeTestRule.waitUntilDisplayedTodoScreenText("all", title)
+        composeTestRule.onDisplayedTodoScreenText("all", title).assertIsDisplayed()
         composeTestRule.onNodeWithTag("quick_add_slot").assertIsDisplayed()
     }
 
@@ -1135,7 +1133,9 @@ class TodoUiTest {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(agendaDateLabel(targetDate)).assertIsDisplayed()
-        composeTestRule.onNodeWithText(title).assertIsDisplayed()
+        composeTestRule.onNode(
+            hasText(title) and hasAnyAncestor(hasTestTag("calendar_day_todo_sheet"))
+        ).assertIsDisplayed()
     }
 
     @Test
@@ -1371,6 +1371,35 @@ class TodoUiTest {
             composeTestRule.onAllNodesWithText("QA move tomorrow").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("QA move tomorrow").assertIsDisplayed()
+    }
+
+    @Test
+    fun todayPlanner_moveToTomorrow_undoSnackbarDisappearsAfterTimeout() {
+        val id = runBlocking {
+            addTodoUseCase(
+                title = "QA snackbar timeout",
+                dueDate = LocalDate.now(),
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0
+            ).getOrThrow()
+        }
+
+        tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
+        composeTestRule.onNodeWithText("QA snackbar timeout").assertIsDisplayed()
+
+        composeTestRule.waitUntilNodeExists("todo_quick_tomorrow_$id")
+        composeTestRule.onNodeWithTag("todo_quick_tomorrow_$id", useUnmergedTree = true).performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.waitUntil(timeoutMillis = 8_000) {
+            composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isEmpty()
+        }
     }
 
     @Test

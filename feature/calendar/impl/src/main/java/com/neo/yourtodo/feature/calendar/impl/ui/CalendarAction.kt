@@ -7,5 +7,6 @@ sealed interface CalendarAction {
     data object OnNextMonthClick : CalendarAction
     data class OnDateClick(val date: LocalDate) : CalendarAction
     data class OnTodoClick(val todoId: Long) : CalendarAction
+    data class OnToggleTodoDone(val todoId: Long) : CalendarAction
     data object OnAddTodoClick : CalendarAction
 }

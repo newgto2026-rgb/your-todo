@@ -123,6 +123,7 @@ class TodoListViewModel @Inject constructor(
             is TodoListAction.OnMoveToTomorrow -> moveToTomorrow(action.id)
             is TodoListAction.OnClearSchedule -> clearSchedule(action.id)
             TodoListAction.OnUndoLastQuickAction -> undoLastQuickAction()
+            TodoListAction.OnUndoSnackbarDismissed -> clearPendingUndo()
             is TodoListAction.OnEditClick -> openEditDialog(action.id)
             is TodoListAction.OnDeleteRequest -> requestTodoDelete(action.id)
             TodoListAction.OnDeleteCancel -> updateLocalState { copy(deleteConfirmation = null) }
@@ -455,6 +456,10 @@ class TodoListViewModel @Inject constructor(
                     sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_error_undo_failed))
                 }
         }
+    }
+
+    private fun clearPendingUndo() {
+        updateLocalState { copy(pendingUndoTodo = null) }
     }
 
     private fun updateFilter(filter: TodoFilter) {

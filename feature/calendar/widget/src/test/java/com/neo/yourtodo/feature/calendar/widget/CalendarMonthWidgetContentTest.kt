@@ -23,6 +23,7 @@ class CalendarMonthWidgetContentTest {
         val selectedDate = LocalDate.of(2026, 5, 7)
 
         setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Compact)
         provideComposable {
             CalendarMonthWidgetContent(
                 state = CalendarMonthWidgetState(
@@ -51,11 +52,55 @@ class CalendarMonthWidgetContentTest {
             .assertHasTextEqualTo("7")
         onNode(hasTestTag(CalendarMonthWidgetTestTags.dayTaskCount(selectedDate.toString())))
             .assertHasTextEqualTo("3")
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.dayTodoChip(selectedDate.toString(), 0)))
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun content_expandedStateRendersTodoChips() = runGlanceAppWidgetUnitTest {
+        val selectedDate = LocalDate.of(2026, 5, 7)
+
+        setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Expanded)
+        provideComposable {
+            CalendarMonthWidgetContent(
+                state = CalendarMonthWidgetState(
+                    monthLabel = "2026 May",
+                    weekdayLabels = listOf("S", "M", "T", "W", "T", "F", "S"),
+                    weeks = listOf(
+                        listOf(
+                            CalendarMonthWidgetDay(
+                                date = selectedDate,
+                                dayLabel = "7",
+                                taskCountLabel = "4",
+                                todoChips = listOf(
+                                    CalendarMonthWidgetTodoChip(label = "Breakfast with team"),
+                                    CalendarMonthWidgetTodoChip(label = "Finalize presentation"),
+                                    CalendarMonthWidgetTodoChip(label = "Project update"),
+                                    CalendarMonthWidgetTodoChip(label = "Dinner")
+                                ),
+                                isCurrentMonth = true,
+                                isToday = true
+                            )
+                        )
+                    ),
+                    isError = false
+                )
+            )
+        }
+
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.dayTodoChip(selectedDate.toString(), 0)))
+            .assertHasTextEqualTo("Breakfast with team")
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.dayTodoChip(selectedDate.toString(), 3)))
+            .assertHasTextEqualTo("Dinner")
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.dayTaskCount(selectedDate.toString())))
+            .assertDoesNotExist()
     }
 
     @Test
     fun content_monthNavigationButtonsRunCallbacks() = runGlanceAppWidgetUnitTest {
         setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Compact)
         provideComposable {
             CalendarMonthWidgetContent(
                 state = CalendarMonthWidgetState(
@@ -82,6 +127,7 @@ class CalendarMonthWidgetContentTest {
         val selectedDate = LocalDate.of(2026, 5, 7)
 
         setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Compact)
         provideComposable {
             CalendarMonthWidgetContent(
                 state = CalendarMonthWidgetState(
@@ -114,6 +160,7 @@ class CalendarMonthWidgetContentTest {
         val adjacentMonthDate = LocalDate.of(2026, 4, 30)
 
         setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Expanded)
         provideComposable {
             CalendarMonthWidgetContent(
                 state = CalendarMonthWidgetState(
@@ -125,6 +172,7 @@ class CalendarMonthWidgetContentTest {
                                 date = adjacentMonthDate,
                                 dayLabel = "30",
                                 taskCountLabel = "2",
+                                todoChips = listOf(CalendarMonthWidgetTodoChip(label = "Hidden")),
                                 isCurrentMonth = false,
                                 isToday = false
                             )
@@ -137,11 +185,14 @@ class CalendarMonthWidgetContentTest {
 
         onNode(hasTestTag(CalendarMonthWidgetTestTags.day(adjacentMonthDate.toString())))
             .assertHasNoClickAction()
+        onNode(hasTestTag(CalendarMonthWidgetTestTags.dayTodoChip(adjacentMonthDate.toString(), 0)))
+            .assertDoesNotExist()
     }
 
     @Test
     fun content_errorStateShowsFallbackCopy() = runGlanceAppWidgetUnitTest {
         setContext(context)
+        setAppWidgetSize(CalendarMonthWidgetSizes.Compact)
         provideComposable {
             CalendarMonthWidgetContent(
                 state = CalendarMonthWidgetState(

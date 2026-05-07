@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -77,6 +78,8 @@ import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun TodoListRoute(
@@ -111,10 +114,24 @@ fun TodoListRoute(
         viewModel.sideEffect.collect { sideEffect ->
             when (sideEffect) {
                 is TodoListSideEffect.ShowSnackbar -> {
+                    val dismissJob = if (sideEffect.action == TodoListSnackbarAction.UndoLastQuickAction) {
+                        launch {
+                            delay(UndoSnackbarDurationMillis)
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                        }
+                    } else {
+                        null
+                    }
                     val result = snackbarHostState.showSnackbar(
                         message = context.getString(sideEffect.messageRes),
-                        actionLabel = sideEffect.actionLabelRes?.let(context::getString)
+                        actionLabel = sideEffect.actionLabelRes?.let(context::getString),
+                        duration = if (sideEffect.actionLabelRes == null) {
+                            SnackbarDuration.Short
+                        } else {
+                            SnackbarDuration.Long
+                        }
                     )
+                    dismissJob?.cancel()
                     if (result == SnackbarResult.ActionPerformed) {
                         when (sideEffect.action) {
                             TodoListSnackbarAction.UndoLastQuickAction -> {
@@ -123,6 +140,8 @@ fun TodoListRoute(
 
                             null -> Unit
                         }
+                    } else if (sideEffect.action == TodoListSnackbarAction.UndoLastQuickAction) {
+                        viewModel.onAction(TodoListAction.OnUndoSnackbarDismissed)
                     }
                 }
             }
@@ -141,6 +160,8 @@ fun TodoListRoute(
         onEditRequested = onEditRequested
     )
 }
+
+private const val UndoSnackbarDurationMillis = 5_000L
 
 @Composable
 private fun TodoListLoadingScreen() {

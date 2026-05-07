@@ -34,6 +34,7 @@ internal fun CalendarAgendaSection(
     selectedDate: LocalDate,
     selectedDateTodos: List<CalendarSelectedTodoUiModel>,
     onTodoClick: (Long) -> Unit,
+    onToggleTodoDone: (Long) -> Unit,
     onAddTodoClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -103,7 +104,8 @@ internal fun CalendarAgendaSection(
                 items(items = selectedDateTodos, key = { it.id }) { todo ->
                     CalendarAgendaItem(
                         todo = todo,
-                        onClick = { onTodoClick(todo.id) }
+                        onClick = { onTodoClick(todo.id) },
+                        onToggleDone = { onToggleTodoDone(todo.id) }
                     )
                 }
                 item { Spacer(modifier = Modifier.height(20.dp)) }

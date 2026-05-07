@@ -10,6 +10,6 @@ internal class GlanceCalendarWidgetUpdater @Inject constructor(
     @ApplicationContext private val context: Context
 ) : CalendarWidgetUpdater {
     override suspend fun updateCalendarWidgets(): Result<Unit> = runCatching {
-        CalendarMonthWidget().updateAll(context)
+        CalendarMonthWidgetInstances.updateAll(context)
     }
 }
