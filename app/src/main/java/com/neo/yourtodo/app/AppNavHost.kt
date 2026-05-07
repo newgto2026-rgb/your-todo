@@ -3,23 +3,21 @@ package com.neo.yourtodo.app
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Today
-import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import com.neo.yourtodo.app.navigation.ImmediateNavDisplay
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
@@ -120,19 +118,32 @@ private fun AppBottomBar(
     selectedTab: AppTabDestination?,
     onTabSelected: (AppTabDestination) -> Unit
 ) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = Color(0xFFFAF7FF),
+        tonalElevation = 0.dp
+    ) {
         AppTabDestination.tabs.forEach { tab ->
-            val icon = when (tab) {
-                AppTabDestination.ALL -> Icons.Default.GridView
-                AppTabDestination.TODAY -> Icons.Default.Today
-                AppTabDestination.COMPLETED -> Icons.Default.CheckCircle
-                AppTabDestination.CALENDAR -> Icons.Default.DateRange
-            }
+            val selected = selectedTab == tab
             NavigationBarItem(
-                selected = selectedTab == tab,
+                selected = selected,
                 onClick = { onTabSelected(tab) },
-                icon = { Icon(imageVector = icon, contentDescription = null) },
-                label = { Text(text = stringResource(tab.labelRes)) },
+                icon = {
+                    AppTabIcon(
+                        tab = tab,
+                        selected = selected
+                    )
+                },
+                label = {
+                    Text(
+                        text = stringResource(tab.labelRes),
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = Color(0xFFECEFF8),
+                    selectedTextColor = Color(0xFF303440),
+                    unselectedTextColor = Color(0xFF57515F)
+                ),
                 modifier = Modifier.testTag("app_tab_${tab.name.lowercase()}")
             )
         }

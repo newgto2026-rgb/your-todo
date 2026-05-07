@@ -1,5 +1,5 @@
 <resources>
-    <string name="todo_app_header_title">니가할일</string>
+    <string name="todo_app_header_title">Your Todo</string>
 
     <string name="todo_filter_all">All</string>
     <string name="todo_filter_today">Today</string>
@@ -11,7 +11,7 @@
     <string name="todo_header_all_subtitle_priority">Sorted by priority</string>
     <string name="todo_header_completed_title">Done Tasks</string>
     <string name="todo_header_completed_subtitle">Finished tasks</string>
-    <string name="todo_header_profile_icon">👤</string>
+    <string name="todo_header_profile_icon">Profile</string>
     <string name="todo_header_completed_symbol">✓</string>
     <string name="todo_today_header_date_format">MMMM d</string>
     <string name="todo_due_date_format">MMM d</string>
@@ -38,7 +38,6 @@
     <string name="todo_reminder_lead_30m">30m before</string>
     <string name="todo_reminder_lead_60m">1h before</string>
     <string name="todo_editor_delete">Delete</string>
-    <string name="todo_row_more_actions">More actions</string>
     <string name="todo_delete_confirm_title">Delete task?</string>
     <string name="todo_delete_confirm_message">Deleted tasks cannot be restored.</string>
     <string name="todo_clear_completed_action">Clear completed</string>

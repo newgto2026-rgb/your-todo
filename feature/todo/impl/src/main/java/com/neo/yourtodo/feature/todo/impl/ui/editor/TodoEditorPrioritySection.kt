@@ -39,21 +39,21 @@ internal fun TodoEditorPrioritySection(
         PriorityOptionChip(
             label = stringResource(R.string.todo_priority_low),
             selected = selectedPriority == TodoPriority.LOW,
-            color = Color(0xFF6E8E72),
+            color = Color(0xFF6FA58C),
             testTag = "priority_low_option",
             onClick = { onPrioritySelected(TodoPriority.LOW) }
         )
         PriorityOptionChip(
             label = stringResource(R.string.todo_priority_medium),
             selected = selectedPriority == TodoPriority.MEDIUM,
-            color = Color(0xFF8B7A4E),
+            color = Color(0xFF6F86C9),
             testTag = "priority_medium_option",
             onClick = { onPrioritySelected(TodoPriority.MEDIUM) }
         )
         PriorityOptionChip(
             label = stringResource(R.string.todo_priority_high),
             selected = selectedPriority == TodoPriority.HIGH,
-            color = Color(0xFF9B4B4B),
+            color = Color(0xFFC76B7D),
             testTag = "priority_high_option",
             onClick = { onPrioritySelected(TodoPriority.HIGH) }
         )

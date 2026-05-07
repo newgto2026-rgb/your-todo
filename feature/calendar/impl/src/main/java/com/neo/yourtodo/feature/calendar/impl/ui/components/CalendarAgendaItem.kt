@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.feature.calendar.impl.R
@@ -75,15 +76,15 @@ internal fun CalendarAgendaItem(
                 Box(
                     modifier = Modifier
                         .padding(start = 2.dp)
-                        .size(width = 2.dp, height = 64.dp)
+                        .size(width = 2.dp, height = 56.dp)
                         .background(Color(0xFF6C63FF).copy(alpha = 0.85f), RoundedCornerShape(999.dp))
                 )
             }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -128,7 +129,9 @@ internal fun CalendarAgendaItem(
                             } else {
                                 Color(0xFF2D3338)
                             },
-                            textDecoration = if (todo.isDone) TextDecoration.LineThrough else TextDecoration.None
+                            textDecoration = if (todo.isDone) TextDecoration.LineThrough else TextDecoration.None,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.size(6.dp))
                         Surface(

@@ -3,12 +3,14 @@ package com.neo.yourtodo.feature.todo.impl.ui
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,7 +28,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -36,13 +37,13 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -73,6 +74,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.ui.TodoItemRow
+import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
 import java.time.LocalDate
@@ -205,37 +207,39 @@ private fun TodoListScreen(
         listState.scrollToItem(0)
     }
 
-    Scaffold(
-        containerColor = Color(0xFFF5F6FB),
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    onAddRequested(
-                        if (uiState.selectedFilter == TodoFilter.TODAY) LocalDate.now() else null
-                    )
-                },
-                containerColor = Color(0xFF4A6697),
-                contentColor = Color.White,
+    YourTodoScreenBackground {
+        Scaffold(
+            containerColor = Color.Transparent,
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        onAddRequested(
+                            if (uiState.selectedFilter == TodoFilter.TODAY) LocalDate.now() else null
+                        )
+                    },
+                    containerColor = Color(0xFF676CB4),
+                    contentColor = Color.White,
+                    modifier = Modifier
+                        .size(58.dp)
+                        .testTag("add_fab")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                }
+            },
+            floatingActionButtonPosition = FabPosition.End,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            contentWindowInsets = WindowInsets(0.dp)
+        ) { innerPadding ->
+            Column(
                 modifier = Modifier
-                    .size(58.dp)
-                    .testTag("add_fab")
+                    .fillMaxSize()
+                    .testTag("todo_screen_${uiState.selectedFilter.name.lowercase()}")
+                    .padding(innerPadding)
+                    .padding(horizontal = 20.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-            }
-        },
-        floatingActionButtonPosition = FabPosition.End,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("todo_screen_${uiState.selectedFilter.name.lowercase()}")
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp)
-        ) {
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             AppHeader()
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(12.dp))
 
             HeaderSummary(
                 title = title,
@@ -265,19 +269,25 @@ private fun TodoListScreen(
                     }
                 }
             }
-            PriorityFilterBar(
-                selectedPriorityFilter = uiState.selectedPriorityFilter,
-                onPrioritySelected = { onAction(TodoListAction.OnPriorityFilterChange(it)) }
-            )
-            if (uiState.selectedFilter == TodoFilter.ALL) {
-                Spacer(Modifier.height(10.dp))
-                TodoSortMenu(
-                    selectedSortOption = uiState.selectedSortOption,
-                    onSortOptionSelected = { onAction(TodoListAction.OnSortOptionChange(it)) },
-                    modifier = Modifier.align(Alignment.End)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PriorityFilterBar(
+                    selectedPriorityFilter = uiState.selectedPriorityFilter,
+                    onPrioritySelected = { onAction(TodoListAction.OnPriorityFilterChange(it)) },
+                    modifier = Modifier.weight(1f)
                 )
+                if (uiState.selectedFilter == TodoFilter.ALL) {
+                    TodoSortMenu(
+                        selectedSortOption = uiState.selectedSortOption,
+                        onSortOptionSelected = { onAction(TodoListAction.OnSortOptionChange(it)) },
+                        showLabel = uiState.selectedSortOption != TodoSortOption.DEFAULT
+                    )
+                }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
 
             if (shouldShowQuickAdd) {
                 if (uiState.isQuickAddVisible) {
@@ -292,7 +302,7 @@ private fun TodoListScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
             }
 
             if (uiState.items.isNotEmpty()) {
@@ -302,7 +312,7 @@ private fun TodoListScreen(
                         .fillMaxSize()
                         .testTag("todo_list"),
                     contentPadding = PaddingValues(bottom = 120.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (uiState.selectedFilter == TodoFilter.TODAY) {
                         todayPlannerSections(uiState.items).forEach { section ->
@@ -361,6 +371,8 @@ private fun TodoListScreen(
         }
     }
 
+    }
+
     BackHandler(enabled = uiState.isQuickAddVisible && shouldShowQuickAdd) {
         onAction(TodoListAction.OnQuickAddDismiss)
     }
@@ -379,18 +391,43 @@ private fun QuickAddLauncher(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    OutlinedButton(
+    Surface(
         onClick = onClick,
-        modifier = modifier.testTag("quick_add_open")
+        modifier = modifier
+            .height(44.dp)
+            .testTag("quick_add_open"),
+        shape = RoundedCornerShape(14.dp),
+        color = Color.White.copy(alpha = 0.82f),
+        border = BorderStroke(1.dp, Color(0xFFD4DEEC))
     ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(Modifier.size(8.dp))
-        Text(stringResource(R.string.todo_quick_add_open))
-    }
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFE5EDF8)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = Color(0xFF4A6697),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = stringResource(R.string.todo_quick_add_open),
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = Color(0xFF51607A)
+            )
+            }
+        }
 }
 
 @Composable
@@ -412,11 +449,11 @@ private fun QuickAddSlot(
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .testTag("quick_add_slot"),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
             verticalAlignment = Alignment.Top,
@@ -464,22 +501,40 @@ private fun QuickAddSlot(
 private fun TodoSortMenu(
     selectedSortOption: TodoSortOption,
     onSortOptionSelected: (TodoSortOption) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showLabel: Boolean = false
 ) {
     var isExpanded by remember { mutableStateOf(false) }
+    val selectedLabel = stringResource(selectedSortOption.labelRes())
 
     Box(modifier = modifier) {
-        TextButton(
+        Surface(
             onClick = { isExpanded = true },
-            modifier = Modifier.testTag("todo_sort_menu_button")
+            modifier = Modifier
+                .height(34.dp)
+                .testTag("todo_sort_menu_button"),
+            shape = RoundedCornerShape(999.dp),
+            color = Color.White.copy(alpha = 0.82f)
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.Sort,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.size(6.dp))
-            Text(stringResource(selectedSortOption.labelRes()))
+            Row(
+                modifier = Modifier.padding(horizontal = if (showLabel) 10.dp else 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                    contentDescription = selectedLabel,
+                    tint = Color(0xFF5F5391),
+                    modifier = Modifier.size(18.dp)
+                )
+                if (showLabel) {
+                    Text(
+                        text = selectedLabel,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color(0xFF5F5391)
+                    )
+                }
+            }
         }
         DropdownMenu(
             expanded = isExpanded,
@@ -637,53 +692,8 @@ private fun DeletableTodoItemRow(
             modifier = Modifier.testTag("todo_row_$itemId"),
             priorityLabel = priorityLabel,
             priorityColor = priorityColor,
-            toggleTestTag = "todo_row_toggle_$itemId",
-            content = {
-                TodoRowOverflowMenu(
-                    itemId = itemId,
-                    onDeleteRequest = onDeleteRequest
-                )
-            }
+            toggleTestTag = "todo_row_toggle_$itemId"
         )
-    }
-}
-
-@Composable
-private fun TodoRowOverflowMenu(
-    itemId: Long,
-    onDeleteRequest: () -> Unit
-) {
-    var isExpanded by remember { mutableStateOf(false) }
-
-    Box {
-        IconButton(
-            onClick = { isExpanded = true },
-            modifier = Modifier.testTag("todo_row_more_$itemId")
-        ) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = stringResource(R.string.todo_row_more_actions)
-            )
-        }
-        DropdownMenu(
-            expanded = isExpanded,
-            onDismissRequest = { isExpanded = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.todo_editor_delete)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = null
-                    )
-                },
-                onClick = {
-                    isExpanded = false
-                    onDeleteRequest()
-                },
-                modifier = Modifier.testTag("todo_row_delete_$itemId")
-            )
-        }
     }
 }
 
@@ -756,9 +766,9 @@ private fun priorityLabel(priority: TodoPriority): String = when (priority) {
 }
 
 private fun priorityColor(priority: TodoPriority): Color = when (priority) {
-    TodoPriority.LOW -> Color(0xFF6E8E72)
-    TodoPriority.MEDIUM -> Color(0xFF8B7A4E)
-    TodoPriority.HIGH -> Color(0xFF9B4B4B)
+    TodoPriority.LOW -> Color(0xFF6FA58C)
+    TodoPriority.MEDIUM -> Color(0xFF6F86C9)
+    TodoPriority.HIGH -> Color(0xFFC76B7D)
 }
 
 private fun headerTextFor(

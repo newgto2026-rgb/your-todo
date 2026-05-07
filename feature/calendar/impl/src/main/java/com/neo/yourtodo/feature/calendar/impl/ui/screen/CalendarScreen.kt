@@ -16,10 +16,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.neo.yourtodo.core.ui.YourTodoBrandHeader
+import com.neo.yourtodo.core.ui.YourTodoScreenBackground
+import com.neo.yourtodo.feature.calendar.impl.R
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarAction
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarUiState
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarViewModel
@@ -91,15 +95,21 @@ private fun CalendarScreen(
     onTodoClick: (Long) -> Unit,
     onAddTodoClick: (LocalDate) -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Color(0xFFF8F9FC)
-    ) {
+    YourTodoScreenBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 24.dp, end = 30.dp, top = 14.dp, bottom = 12.dp)
+                .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
         ) {
+            Spacer(modifier = Modifier.height(10.dp))
+
+            YourTodoBrandHeader(
+                wordmarkContentDescription = stringResource(R.string.calendar_app_header_title),
+                profileContentDescription = stringResource(R.string.calendar_header_profile_icon)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             CalendarTopHeader(
                 currentMonth = uiState.currentMonth,
                 todayCount = uiState.todayTaskCount,
@@ -107,21 +117,21 @@ private fun CalendarScreen(
                 onNextMonthClick = { onAction(CalendarAction.OnNextMonthClick) }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Surface(
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(20.dp),
                 color = Color.White.copy(alpha = 0.82f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 CalendarMonthGrid(
                     days = uiState.days,
                     onDateClick = { date -> onAction(CalendarAction.OnDateClick(date)) },
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             CalendarAgendaSection(
                 selectedDate = uiState.selectedDate,
