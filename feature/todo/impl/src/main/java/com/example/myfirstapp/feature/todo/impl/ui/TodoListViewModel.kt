@@ -78,6 +78,18 @@ class TodoListViewModel @Inject constructor(
                 updateLocalState { openNewTodoEditorForDate(action.dueDate) }
             }
 
+            TodoListAction.OnQuickAddClick -> openQuickAdd()
+            is TodoListAction.OnQuickAddTitleChange -> {
+                updateLocalState {
+                    copy(
+                        quickAddTitle = action.value,
+                        quickAddErrorMessageRes = null
+                    )
+                }
+            }
+
+            TodoListAction.OnQuickAddSubmit -> saveQuickAdd()
+            TodoListAction.OnQuickAddDismiss -> updateLocalState { dismissQuickAdd() }
             is TodoListAction.OnTitleChange -> {
                 updateLocalState { copy(draftTitle = action.value) }
             }
@@ -169,6 +181,77 @@ class TodoListViewModel @Inject constructor(
         }
     }
 
+    private fun openQuickAdd() {
+        val current = uiLocalState.value
+        if (current.selectedFilter == TodoFilter.COMPLETED) {
+            showCompletedQuickAddGuidance()
+            return
+        }
+        updateLocalState {
+            copy(
+                isQuickAddVisible = true,
+                quickAddErrorMessageRes = null,
+                deleteConfirmation = null
+            )
+        }
+    }
+
+    private fun saveQuickAdd() {
+        val current = uiLocalState.value
+        val normalizedTitle = current.quickAddTitle.trim()
+        if (normalizedTitle.isBlank()) {
+            updateLocalState { copy(quickAddErrorMessageRes = R.string.todo_error_title_required) }
+            return
+        }
+
+        val dueDate = if (current.selectedFilter == TodoFilter.TODAY) {
+            LocalDate.now()
+        } else {
+            null
+        }
+        val priority = when (uiState.value.selectedPriorityFilter) {
+            TodoPriorityFilter.LOW -> com.example.myfirstapp.core.model.TodoPriority.LOW
+            TodoPriorityFilter.MEDIUM -> com.example.myfirstapp.core.model.TodoPriority.MEDIUM
+            TodoPriorityFilter.HIGH -> com.example.myfirstapp.core.model.TodoPriority.HIGH
+            TodoPriorityFilter.ALL -> com.example.myfirstapp.core.model.TodoPriority.MEDIUM
+        }
+
+        viewModelScope.launch {
+            addTodoUseCase(
+                title = normalizedTitle,
+                dueDate = dueDate,
+                categoryId = null,
+                dueTimeMinutes = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0,
+                reminderLeadMinutes = null,
+                priority = priority
+            ).onSuccess {
+                updateLocalState {
+                    copy(
+                        isQuickAddVisible = true,
+                        quickAddTitle = "",
+                        quickAddErrorMessageRes = null
+                    )
+                }
+            }.onFailure {
+                sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_error_save_failed))
+            }
+        }
+    }
+
+    private fun showCompletedQuickAddGuidance() {
+        viewModelScope.launch {
+            sideEffectMutable.emit(
+                TodoListSideEffect.ShowSnackbar(
+                    messageRes = R.string.todo_quick_add_completed_unavailable
+                )
+            )
+        }
+    }
+
     private fun toggleDone(id: Long) {
         viewModelScope.launch {
             toggleTodoDoneUseCase(id)
@@ -241,7 +324,8 @@ class TodoListViewModel @Inject constructor(
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
                         messageRes = R.string.todo_action_deleted,
-                        actionLabelRes = R.string.todo_action_undo
+                        actionLabelRes = R.string.todo_action_undo,
+                        action = TodoListSnackbarAction.UndoLastQuickAction
                     )
                 )
             }
@@ -271,7 +355,8 @@ class TodoListViewModel @Inject constructor(
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
                         messageRes = R.string.todo_action_moved_to_tomorrow,
-                        actionLabelRes = R.string.todo_action_undo
+                        actionLabelRes = R.string.todo_action_undo,
+                        action = TodoListSnackbarAction.UndoLastQuickAction
                     )
                 )
             }.onFailure {
@@ -303,7 +388,8 @@ class TodoListViewModel @Inject constructor(
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
                         messageRes = R.string.todo_action_schedule_cleared,
-                        actionLabelRes = R.string.todo_action_undo
+                        actionLabelRes = R.string.todo_action_undo,
+                        action = TodoListSnackbarAction.UndoLastQuickAction
                     )
                 )
             }.onFailure {

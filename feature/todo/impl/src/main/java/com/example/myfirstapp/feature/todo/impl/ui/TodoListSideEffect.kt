@@ -5,6 +5,11 @@ import androidx.annotation.StringRes
 sealed interface TodoListSideEffect {
     data class ShowSnackbar(
         @StringRes val messageRes: Int,
-        @StringRes val actionLabelRes: Int? = null
+        @StringRes val actionLabelRes: Int? = null,
+        val action: TodoListSnackbarAction? = null
     ) : TodoListSideEffect
+}
+
+enum class TodoListSnackbarAction {
+    UndoLastQuickAction
 }

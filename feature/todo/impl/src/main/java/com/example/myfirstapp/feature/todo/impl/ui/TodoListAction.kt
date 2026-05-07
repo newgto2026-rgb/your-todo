@@ -9,6 +9,10 @@ import java.time.LocalDate
 sealed interface TodoListAction {
     data object OnAddClick : TodoListAction
     data class OnAddForDateClick(val dueDate: LocalDate) : TodoListAction
+    data object OnQuickAddClick : TodoListAction
+    data class OnQuickAddTitleChange(val value: String) : TodoListAction
+    data object OnQuickAddSubmit : TodoListAction
+    data object OnQuickAddDismiss : TodoListAction
     data class OnTitleChange(val value: String) : TodoListAction
     data class OnDueDateInputChange(val value: String) : TodoListAction
     data class OnDueTimeInputChange(val value: String) : TodoListAction

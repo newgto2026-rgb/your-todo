@@ -125,21 +125,49 @@ class TodoUiTest {
     }
 
     @Test
-    fun addTaskFlow_opensBottomSheet_andAddsItem() {
-        val title = "UI Test ${System.currentTimeMillis()}"
+    fun quickAddFlow_addsItemWithoutOpeningBottomSheet() {
+        val title = "Quick Add UI ${System.currentTimeMillis()}"
 
-        composeTestRule.onNodeWithTag("add_fab").performClick()
-        composeTestRule.waitUntilNodeExists("task_title_input")
-        composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("quick_add_open").performClick()
+        composeTestRule.waitUntilNodeExists("quick_add_title_input")
+        composeTestRule.onAllNodesWithText(newTaskTitle).assertCountEquals(0)
 
-        composeTestRule.onNodeWithTag("task_title_input").performClick().performTextInput(title)
-        composeTestRule.onNodeWithTag("task_title_input").assertTextContains(title)
-        composeTestRule.onNodeWithTag("save_button").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("quick_add_title_input").performClick().performTextInput(title)
+        composeTestRule.onNodeWithTag("quick_add_submit").performClick()
 
         composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText(title).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("quick_add_slot").assertIsDisplayed()
+    }
+
+    @Test
+    fun quickAddFlow_onToday_addsItemToTodayList() {
+        val title = "Quick Add Today ${System.currentTimeMillis()}"
+
+        tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
+        composeTestRule.onNodeWithTag("quick_add_open").performClick()
+        composeTestRule.waitUntilNodeExists("quick_add_title_input")
+
+        composeTestRule.onNodeWithTag("quick_add_title_input").performClick().performTextInput(title)
+        composeTestRule.onNodeWithTag("quick_add_submit").performClick()
+
+        composeTestRule.waitUntilTodoScreenText("today", title)
+        composeTestRule.onTodoScreenText("today", title).assertIsDisplayed()
+    }
+
+    @Test
+    fun completedTab_hidesQuickAddAndFabOpensDetailAdd() {
+        tabNode("completed").performClick()
+        tabNode("completed").assertIsSelected()
+
+        composeTestRule.onAllNodesWithTag("quick_add_open").assertCountEquals(0)
+        composeTestRule.onAllNodesWithTag("quick_add_slot").assertCountEquals(0)
+
+        openDetailAddFromFab()
+        composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
     }
 
     @Test
@@ -176,8 +204,7 @@ class TodoUiTest {
 
     @Test
     fun backPress_whenBottomSheetOpen_closesBottomSheetFirst() {
-        composeTestRule.onNodeWithTag("add_fab").performClick()
-        composeTestRule.waitUntilNodeExists("task_edit_close")
+        openDetailAddFromFab()
         composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
         composeTestRule.waitForIdle()
 
@@ -191,8 +218,7 @@ class TodoUiTest {
 
     @Test
     fun closeButton_whenBottomSheetOpen_closesBottomSheet() {
-        composeTestRule.onNodeWithTag("add_fab").performClick()
-        composeTestRule.waitUntilNodeExists("task_edit_close")
+        openDetailAddFromFab()
         composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
 
         composeTestRule.onNodeWithTag("task_edit_close").performClick()
@@ -205,7 +231,7 @@ class TodoUiTest {
 
     @Test
     fun bottomSheet_open_wrapsContentHeightAndShowsEntireEditor() {
-        composeTestRule.onNodeWithTag("add_fab").performClick()
+        openDetailAddFromFab()
         composeTestRule.waitUntilNodeExists("todo_editor_sheet")
 
         composeTestRule.onNodeWithTag("task_edit_close").assertIsDisplayed()
@@ -239,8 +265,7 @@ class TodoUiTest {
             tabNode("calendar").performClick()
             tabNode("all").performClick()
 
-            composeTestRule.onNodeWithTag("add_fab").performClick()
-            composeTestRule.waitUntilNodeExists("task_edit_close")
+            openDetailAddFromFab()
             composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
 
             composeTestRule.onNodeWithTag("task_edit_close").performClick()
@@ -253,8 +278,7 @@ class TodoUiTest {
 
     @Test
     fun bottomSheet_openThenSwitchTab_closesOverlayAndDoesNotReappear() {
-        composeTestRule.onNodeWithTag("add_fab").performClick()
-        composeTestRule.waitUntilNodeExists("task_edit_close")
+        openDetailAddFromFab()
         composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
 
         tabNode("calendar").performClick()
@@ -264,8 +288,7 @@ class TodoUiTest {
         tabNode("all").performClick()
         composeTestRule.onAllNodesWithText(newTaskTitle).assertCountEquals(0)
 
-        composeTestRule.onNodeWithTag("add_fab").performClick()
-        composeTestRule.waitUntilNodeExists("task_edit_close")
+        openDetailAddFromFab()
         composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
     }
 
@@ -977,6 +1000,11 @@ class TodoUiTest {
 
     private fun tabNode(name: String) =
         composeTestRule.onNodeWithTag("app_tab_$name", useUnmergedTree = true)
+
+    private fun openDetailAddFromFab() {
+        composeTestRule.onNodeWithTag("add_fab").performClick()
+        composeTestRule.waitUntilNodeExists("task_edit_close")
+    }
 
     private fun nextSelectableDate(): LocalDate {
         val today = LocalDate.now()

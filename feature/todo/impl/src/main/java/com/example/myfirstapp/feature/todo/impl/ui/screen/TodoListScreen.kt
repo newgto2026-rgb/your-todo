@@ -1,5 +1,6 @@
 package com.example.myfirstapp.feature.todo.impl.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,8 +16,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -28,6 +33,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -47,11 +54,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -96,7 +106,13 @@ fun TodoListRoute(
                         actionLabel = sideEffect.actionLabelRes?.let(context::getString)
                     )
                     if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.onAction(TodoListAction.OnUndoLastQuickAction)
+                        when (sideEffect.action) {
+                            TodoListSnackbarAction.UndoLastQuickAction -> {
+                                viewModel.onAction(TodoListAction.OnUndoLastQuickAction)
+                            }
+
+                            null -> Unit
+                        }
                     }
                 }
             }
@@ -135,12 +151,17 @@ private fun TodoListScreen(
     val completionProgress = completionProgress(uiState)
     val rowCompletedText = stringResource(R.string.todo_row_subtitle_completed)
     val rowTodayText = stringResource(R.string.todo_row_subtitle_today)
+    val shouldShowQuickAdd = uiState.selectedFilter != TodoFilter.COMPLETED
 
     Scaffold(
         containerColor = Color(0xFFF5F6FB),
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { onAddRequested(null) },
+                onClick = {
+                    onAddRequested(
+                        if (uiState.selectedFilter == TodoFilter.TODAY) LocalDate.now() else null
+                    )
+                },
                 containerColor = Color(0xFF4A6697),
                 contentColor = Color.White,
                 modifier = Modifier
@@ -198,6 +219,22 @@ private fun TodoListScreen(
             )
             Spacer(Modifier.height(12.dp))
 
+            if (shouldShowQuickAdd) {
+                if (uiState.isQuickAddVisible) {
+                    QuickAddSlot(
+                        uiState = uiState,
+                        onAction = onAction,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    QuickAddLauncher(
+                        onClick = { onAction(TodoListAction.OnQuickAddClick) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
             if (uiState.items.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier
@@ -250,7 +287,7 @@ private fun TodoListScreen(
                         }
                     }
                 }
-            } else {
+            } else if (!uiState.isQuickAddVisible) {
                 EmptyState(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -261,12 +298,102 @@ private fun TodoListScreen(
         }
     }
 
+    BackHandler(enabled = uiState.isQuickAddVisible && shouldShowQuickAdd) {
+        onAction(TodoListAction.OnQuickAddDismiss)
+    }
+
     uiState.deleteConfirmation?.let { confirmation ->
         DeleteConfirmationDialog(
             confirmation = confirmation,
             onConfirm = { onAction(TodoListAction.OnDeleteConfirm) },
             onDismiss = { onAction(TodoListAction.OnDeleteCancel) }
         )
+    }
+}
+
+@Composable
+private fun QuickAddLauncher(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.testTag("quick_add_open")
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.size(8.dp))
+        Text(stringResource(R.string.todo_quick_add_open))
+    }
+}
+
+@Composable
+private fun QuickAddSlot(
+    uiState: TodoListUiState,
+    onAction: (TodoListAction) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val focusRequester = remember { FocusRequester() }
+    val placeholderRes = when (uiState.selectedFilter) {
+        TodoFilter.TODAY -> R.string.todo_quick_add_placeholder_today
+        else -> R.string.todo_quick_add_placeholder_all
+    }
+    val errorText = uiState.quickAddErrorMessageRes?.let { stringResource(it) }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .testTag("quick_add_slot"),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = uiState.quickAddTitle,
+                onValueChange = { onAction(TodoListAction.OnQuickAddTitleChange(it)) },
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+                    .testTag("quick_add_title_input"),
+                placeholder = { Text(stringResource(placeholderRes)) },
+                isError = uiState.quickAddErrorMessageRes != null,
+                supportingText = errorText?.let { { Text(it) } },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = { onAction(TodoListAction.OnQuickAddSubmit) }
+                )
+            )
+            IconButton(
+                onClick = { onAction(TodoListAction.OnQuickAddSubmit) },
+                modifier = Modifier.testTag("quick_add_submit")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = stringResource(R.string.todo_quick_add_submit)
+                )
+            }
+            IconButton(
+                onClick = { onAction(TodoListAction.OnQuickAddDismiss) },
+                modifier = Modifier.testTag("quick_add_close")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.todo_quick_add_close)
+                )
+            }
+        }
     }
 }
 

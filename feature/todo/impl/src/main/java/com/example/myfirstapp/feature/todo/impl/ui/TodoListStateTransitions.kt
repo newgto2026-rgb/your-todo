@@ -37,6 +37,12 @@ internal fun TodoListUiState.dismissTodoEditor(): TodoListUiState = copy(
     errorMessageRes = null
 )
 
+internal fun TodoListUiState.dismissQuickAdd(): TodoListUiState = copy(
+    isQuickAddVisible = false,
+    quickAddTitle = "",
+    quickAddErrorMessageRes = null
+)
+
 internal fun TodoItemUiModel.toTodoEditModel(): TodoEditModel =
     TodoEditModel(
         id = id,
