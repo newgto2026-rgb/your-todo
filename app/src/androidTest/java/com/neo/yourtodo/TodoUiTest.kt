@@ -1374,6 +1374,35 @@ class TodoUiTest {
     }
 
     @Test
+    fun todayPlanner_moveToTomorrow_undoSnackbarDisappearsAfterTimeout() {
+        val id = runBlocking {
+            addTodoUseCase(
+                title = "QA snackbar timeout",
+                dueDate = LocalDate.now(),
+                categoryId = null,
+                reminderAtEpochMillis = null,
+                isReminderEnabled = false,
+                reminderRepeatType = ReminderRepeatType.NONE,
+                reminderRepeatDaysMask = 0
+            ).getOrThrow()
+        }
+
+        tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
+        composeTestRule.onNodeWithText("QA snackbar timeout").assertIsDisplayed()
+
+        composeTestRule.waitUntilNodeExists("todo_quick_tomorrow_$id")
+        composeTestRule.onNodeWithTag("todo_quick_tomorrow_$id", useUnmergedTree = true).performClick()
+
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.waitUntil(timeoutMillis = 8_000) {
+            composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    @Test
     fun todayPlanner_clearDate_removesTaskAndUndoRestoresIt() {
         val id = runBlocking {
             addTodoUseCase(
