@@ -164,7 +164,7 @@ CalendarDateRoute(selectedDate) -> CalendarRouteScreen(initialSelectedDate = sel
 위젯 날짜 탭은 앱 launch intent에 calendar action/extra를 실어 보낸다.
 
 ```text
-action = com.example.myfirstapp.action.OPEN_CALENDAR_DATE
+action = com.neo.yourtodo.action.OPEN_CALENDAR_DATE
 extra  = selected_date: yyyy-MM-dd
 ```
 

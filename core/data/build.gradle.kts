@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.data"
+    namespace = "com.neo.yourtodo.core.data"
     compileSdk = 36
 
     defaultConfig {
@@ -43,6 +43,8 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 kapt {

@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.database"
+    namespace = "com.neo.yourtodo.core.database"
     compileSdk = 36
 
     defaultConfig {
@@ -43,6 +43,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation("androidx.room:room-testing:2.8.4")
     testImplementation("org.robolectric:robolectric:4.16")
+
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 kapt {

@@ -20,7 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MyFirstApp"
+rootProject.name = "YourTodo"
 
 include(":app")
 include(":core:model")

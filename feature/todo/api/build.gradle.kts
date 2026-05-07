@@ -5,11 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.feature.todo.api"
+    namespace = "com.neo.yourtodo.feature.todo.api"
     compileSdk = 36
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -24,4 +25,6 @@ android {
 dependencies {
     api(project(":core:ui"))
     implementation(libs.kotlinx.serialization.json)
+
+    androidTestImplementation(libs.androidx.test.runner)
 }

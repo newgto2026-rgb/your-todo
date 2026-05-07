@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.feature.calendar.widget"
+    namespace = "com.neo.yourtodo.feature.calendar.widget"
     compileSdk = 36
 
     defaultConfig {

@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.feature.todo.impl"
+    namespace = "com.neo.yourtodo.feature.todo.impl"
     compileSdk = 36
 
     defaultConfig {
@@ -58,6 +58,8 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(project(":core:testing"))
+
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 kapt {

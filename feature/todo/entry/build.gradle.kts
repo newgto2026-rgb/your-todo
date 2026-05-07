@@ -6,14 +6,16 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.feature.todo.entry"
+    namespace = "com.neo.yourtodo.feature.todo.entry"
     compileSdk = 36
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -29,6 +31,9 @@ dependencies {
 
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 kapt {

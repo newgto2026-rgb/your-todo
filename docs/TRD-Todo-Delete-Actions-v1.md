@@ -3,7 +3,7 @@
 ## 1. 문서 정보
 - 문서명: 기술 요구사항 문서 - Todo 삭제 및 완료 항목 정리 v1
 - 기준 PRD: Todo 삭제 및 완료 항목 정리 1차 구현
-- 대상 프로젝트: `MyFirstApp` (Kotlin, Compose, Room, Hilt, UDF)
+- 대상 프로젝트: `YourTodo` (Kotlin, Compose, Room, Hilt, UDF)
 - 작성일: 2026-05-06
 - 범위: 로컬 Todo 개별 삭제, 완료 항목 전체 정리, 삭제 확인 UX
 

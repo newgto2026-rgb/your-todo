@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.datastore"
+    namespace = "com.neo.yourtodo.core.datastore"
     compileSdk = 36
 
     defaultConfig {
@@ -31,6 +31,12 @@ dependencies {
 
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
+    testImplementation(libs.kotlinx.coroutines.test)
+
+    androidTestImplementation(libs.androidx.test.runner)
 }
 
 kapt {

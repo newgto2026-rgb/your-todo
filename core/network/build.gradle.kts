@@ -4,11 +4,12 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstapp.core.network"
+    namespace = "com.neo.yourtodo.core.network"
     compileSdk = 36
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -21,4 +22,5 @@ android {
 }
 
 dependencies {
+    androidTestImplementation(libs.androidx.test.runner)
 }
