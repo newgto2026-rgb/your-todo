@@ -19,7 +19,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -52,20 +51,20 @@ internal fun CalendarTopHeader(
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 modifier = Modifier
                     .testTag("calendar_month_label")
                     .semantics { contentDescription = monthLabel }
             ) {
                 Text(
                     text = currentMonth.format(monthFormatter),
-                    style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black),
-                    color = Color(0xFF5044E3)
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = currentMonth.format(yearFormatter),
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Light),
-                    color = Color(0xFF5A6065)
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
@@ -76,14 +75,14 @@ internal fun CalendarTopHeader(
                     todayCount
                 ),
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = Color(0xFF5A6065)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Surface(
                 shape = CircleShape,
-                color = Color.White.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
             ) {
                 IconButton(
                     modifier = Modifier
@@ -94,13 +93,13 @@ internal fun CalendarTopHeader(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                         contentDescription = stringResource(R.string.calendar_month_navigation_previous),
-                        tint = Color(0xFF5A6065)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             Surface(
                 shape = CircleShape,
-                color = Color.White.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
             ) {
                 IconButton(
                     modifier = Modifier
@@ -111,7 +110,7 @@ internal fun CalendarTopHeader(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = stringResource(R.string.calendar_month_navigation_next),
-                        tint = Color(0xFF5A6065)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
