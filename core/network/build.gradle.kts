@@ -6,19 +6,34 @@ plugins {
     alias(libs.plugins.kotlin.kapt)
 }
 
+val serverBaseUrlProperty = providers.gradleProperty("yourtodo.serverBaseUrl")
+
+fun quotedBuildConfigString(value: String) = "\"$value\""
+
 android {
     namespace = "com.neo.yourtodo.core.network"
     compileSdk = 36
 
-    val serverBaseUrl = providers
-        .gradleProperty("yourtodo.serverBaseUrl")
-        .orElse("http://10.0.2.2:8080/")
-
     defaultConfig {
         minSdk = 24
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 
-        buildConfigField("String", "YOURTODO_SERVER_BASE_URL", "\"${serverBaseUrl.get()}\"")
+    buildTypes {
+        debug {
+            buildConfigField(
+                "String",
+                "YOURTODO_SERVER_BASE_URL",
+                quotedBuildConfigString(serverBaseUrlProperty.orElse("http://10.0.2.2:8080/").get())
+            )
+        }
+        release {
+            buildConfigField(
+                "String",
+                "YOURTODO_SERVER_BASE_URL",
+                quotedBuildConfigString(serverBaseUrlProperty.orElse("").get())
+            )
+        }
     }
 
     buildFeatures {
@@ -53,4 +68,12 @@ dependencies {
 
 kapt {
     correctErrorTypes = true
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    doFirst {
+        check(serverBaseUrlProperty.isPresent) {
+            "Release builds require -Pyourtodo.serverBaseUrl=https://<server-host>/"
+        }
+    }
 }
