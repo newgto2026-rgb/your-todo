@@ -216,6 +216,18 @@ class AuthRepositoryImplTest {
             )
         }
 
+        override suspend fun refreshSession(refreshToken: String): NetworkAuthSession =
+            NetworkAuthSession(
+                accessToken = "refreshed-access-token",
+                refreshToken = "refreshed-refresh-token",
+                user = NetworkAuthUser(
+                    id = "user-id",
+                    nickname = "neo",
+                    email = "neo@example.com",
+                    onboardingRequired = false
+                )
+            )
+
         override suspend fun completeNicknameOnboarding(
             accessToken: String,
             nickname: String

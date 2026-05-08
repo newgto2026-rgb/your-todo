@@ -12,6 +12,10 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoCategoryFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
+import com.neo.yourtodo.core.network.auth.NetworkAuthSession
+import com.neo.yourtodo.core.network.auth.NetworkAuthUser
+import com.neo.yourtodo.core.network.auth.NetworkAuthUserResponse
 import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPullResponse
 import com.neo.yourtodo.core.network.sync.NetworkTodo
 import com.neo.yourtodo.core.network.sync.NetworkTodoMutationResult
@@ -490,6 +494,54 @@ class TodoRepositoryImplTest {
         assertThat(prefs.todoSyncHaltReason.first()).isEqualTo("AUTH_REQUIRED")
     }
 
+    @Test
+    fun `auth required sync refreshes session and retries pending outbox`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource().apply {
+            authFailuresRemaining = 1
+            nextPushResponse = NetworkTodoSyncPushResponse(
+                results = listOf(
+                    NetworkTodoMutationResult(
+                        clientMutationId = "mutation",
+                        status = "APPLIED",
+                        todo = networkTodo(
+                            id = "server-id",
+                            clientId = "client-id",
+                            title = "after refresh",
+                            revision = "1"
+                        ),
+                        error = null
+                    )
+                ),
+                nextCursor = "1"
+            )
+        }
+        val authNetwork = FakeAuthNetworkDataSource()
+        val repository = repository(
+            todoDao = todoDao,
+            outboxDao = outboxDao,
+            prefs = prefs,
+            network = network,
+            authNetwork = authNetwork
+        )
+        val id = repository.addTodo("after refresh", null, null).getOrThrow()
+        val local = todoDao.getTodoById(id)!!
+        outboxDao.update(outboxDao.items.single().copy(clientMutationId = "mutation"))
+        todoDao.update(local.copy(clientId = "client-id"))
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(authNetwork.lastRefreshToken).isEqualTo("refresh-token")
+        assertThat(prefs.authSession.first()?.accessToken).isEqualTo("refreshed-access-token")
+        assertThat(prefs.authSession.first()?.refreshToken).isEqualTo("refreshed-refresh-token")
+        assertThat(prefs.todoSyncHaltReason.first()).isNull()
+        assertThat(outboxDao.items).isEmpty()
+        assertThat(todoDao.getTodoById(id)?.syncStatus).isEqualTo("SYNCED")
+    }
+
     private fun authSession(): AuthSessionData =
         AuthSessionData(
             accessToken = "access-token",
@@ -524,14 +576,16 @@ class TodoRepositoryImplTest {
         categoryDao: FakeCategoryDao = FakeCategoryDao(),
         outboxDao: FakeTodoOutboxDao = FakeTodoOutboxDao(),
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
-        network: FakeTodoSyncNetworkDataSource = FakeTodoSyncNetworkDataSource()
+        network: FakeTodoSyncNetworkDataSource = FakeTodoSyncNetworkDataSource(),
+        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource()
     ): TodoRepositoryImpl =
         TodoRepositoryImpl(
             todoDao = todoDao,
             categoryDao = categoryDao,
             todoOutboxDao = outboxDao,
             userPreferencesDataSource = prefs,
-            todoSyncNetworkDataSource = network
+            todoSyncNetworkDataSource = network,
+            authNetworkDataSource = authNetwork
         )
 
     private class FakePreferencesDataSource : UserPreferencesDataSource {
@@ -716,13 +770,46 @@ class TodoRepositoryImplTest {
         }
     }
 
+    private class FakeAuthNetworkDataSource : AuthNetworkDataSource {
+        var lastRefreshToken: String? = null
+
+        override suspend fun signInWithGoogle(idToken: String): NetworkAuthSession =
+            refreshedSession()
+
+        override suspend fun refreshSession(refreshToken: String): NetworkAuthSession {
+            lastRefreshToken = refreshToken
+            return refreshedSession()
+        }
+
+        override suspend fun completeNicknameOnboarding(
+            accessToken: String,
+            nickname: String
+        ): NetworkAuthUserResponse =
+            NetworkAuthUserResponse(
+                user = refreshedSession().user.copy(nickname = nickname)
+            )
+
+        private fun refreshedSession() =
+            NetworkAuthSession(
+                accessToken = "refreshed-access-token",
+                refreshToken = "refreshed-refresh-token",
+                user = NetworkAuthUser(
+                    id = "user-id",
+                    nickname = "neo",
+                    email = "neo@example.com",
+                    onboardingRequired = false
+                )
+            )
+    }
+
     private class FakeTodoSyncNetworkDataSource : TodoSyncNetworkDataSource {
         var nextPullResponse = NetworkTodoSyncPullResponse(todos = emptyList(), nextCursor = "0")
         var nextPushResponse = NetworkTodoSyncPushResponse(results = emptyList(), nextCursor = "0")
         var authRequired = false
+        var authFailuresRemaining = 0
 
         override suspend fun pullTodos(accessToken: String, cursor: String?): NetworkTodoSyncPullResponse {
-            if (authRequired) throw TodoSyncAuthRequiredException()
+            if (shouldFailAuth()) throw TodoSyncAuthRequiredException()
             return if (nextPullResponse.todos.isEmpty()) {
                 nextPullResponse.copy(nextCursor = cursor ?: nextPullResponse.nextCursor)
             } else {
@@ -734,8 +821,15 @@ class TodoRepositoryImplTest {
             accessToken: String,
             request: NetworkTodoSyncPushRequest
         ): NetworkTodoSyncPushResponse {
-            if (authRequired) throw TodoSyncAuthRequiredException()
+            if (shouldFailAuth()) throw TodoSyncAuthRequiredException()
             return nextPushResponse
+        }
+
+        private fun shouldFailAuth(): Boolean {
+            if (authRequired) return true
+            if (authFailuresRemaining <= 0) return false
+            authFailuresRemaining -= 1
+            return true
         }
     }
 }

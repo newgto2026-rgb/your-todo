@@ -9,6 +9,7 @@ import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.entity.CategoryEntity
 import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
+import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.repository.TodoCategoryRepository
 import com.neo.yourtodo.core.domain.repository.TodoFilterRepository
@@ -22,6 +23,8 @@ import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSyncStatus
+import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
+import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import com.neo.yourtodo.core.network.sync.NetworkTodo
 import com.neo.yourtodo.core.network.sync.NetworkTodoMutation
 import com.neo.yourtodo.core.network.sync.NetworkTodoMutationPayload
@@ -31,6 +34,7 @@ import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -45,13 +49,16 @@ class TodoRepositoryImpl @Inject constructor(
     private val categoryDao: CategoryDao,
     private val todoOutboxDao: TodoOutboxDao,
     private val userPreferencesDataSource: UserPreferencesDataSource,
-    private val todoSyncNetworkDataSource: TodoSyncNetworkDataSource
+    private val todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
+    private val authNetworkDataSource: AuthNetworkDataSource
 ) : TodoItemRepository, TodoCategoryRepository, TodoFilterRepository, TodoReminderRepository {
 
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
     }
+
+    private val syncMutex = Mutex()
 
     override fun observeTodos(): Flow<List<TodoItem>> =
         todoDao.observeTodos().map { entities -> entities.map { it.toDomain() } }
@@ -169,20 +176,38 @@ class TodoRepositoryImpl @Inject constructor(
         logError("toggleTodoDone", throwable)
     }
 
-    override suspend fun syncTodos(): Result<Unit> = runCatching {
-        val session = currentSessionForSync() ?: return@runCatching
-        try {
-            userPreferencesDataSource.setTodoSyncHaltReason(null)
-            pullTodos(session.accessToken, session.userId)
-            pushTodos(session.accessToken, session.userId)
-            pullTodos(session.accessToken, session.userId)
-        } catch (throwable: TodoSyncAuthRequiredException) {
-            userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
-            throw throwable
+    override suspend fun syncTodos(): Result<Unit> =
+        if (!syncMutex.tryLock()) {
+            Result.success(Unit)
+        } else {
+            try {
+                runCatching {
+                    val session = currentSessionForSync() ?: return@runCatching
+                    userPreferencesDataSource.setTodoSyncHaltReason(null)
+                    try {
+                        syncTodosWithSession(session.accessToken, session.userId)
+                    } catch (throwable: TodoSyncAuthRequiredException) {
+                        val refreshedSession = refreshSessionOrNull(session.refreshToken)
+                        if (refreshedSession == null) {
+                            userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
+                            throw throwable
+                        }
+
+                        try {
+                            userPreferencesDataSource.setTodoSyncHaltReason(null)
+                            syncTodosWithSession(refreshedSession.accessToken, refreshedSession.user.id)
+                        } catch (retryThrowable: TodoSyncAuthRequiredException) {
+                            userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
+                            throw retryThrowable
+                        }
+                    }
+                }.onFailure { throwable ->
+                    logError("syncTodos", throwable)
+                }
+            } finally {
+                syncMutex.unlock()
+            }
         }
-    }.onFailure { throwable ->
-        logError("syncTodos", throwable)
-    }
 
     override fun observeSelectedFilter(): Flow<TodoFilter> = userPreferencesDataSource.selectedTodoFilter
 
@@ -269,6 +294,19 @@ class TodoRepositoryImpl @Inject constructor(
     private suspend fun currentSessionForSync() =
         userPreferencesDataSource.authSession.first()
             ?.takeUnless { it.onboardingRequired }
+
+    private suspend fun syncTodosWithSession(accessToken: String, ownerUserId: String) {
+        pullTodos(accessToken, ownerUserId)
+        pushTodos(accessToken, ownerUserId)
+        pullTodos(accessToken, ownerUserId)
+    }
+
+    private suspend fun refreshSessionOrNull(refreshToken: String): NetworkAuthSession? =
+        runCatching {
+            authNetworkDataSource.refreshSession(refreshToken)
+        }.getOrNull()?.also { networkSession ->
+            userPreferencesDataSource.saveAuthSession(networkSession.toAuthSessionData())
+        }
 
     private suspend fun updateTodoWithOutbox(existing: TodoEntity, updated: TodoEntity) {
         when (syncStatusOf(existing)) {
@@ -506,6 +544,16 @@ class TodoRepositoryImpl @Inject constructor(
             serverRevision = revision,
             deletedAt = deletedAt?.let(::parseInstantMillis),
             lastSyncError = null
+        )
+
+    private fun NetworkAuthSession.toAuthSessionData() =
+        AuthSessionData(
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            userId = user.id,
+            nickname = user.nickname,
+            email = user.email,
+            onboardingRequired = user.onboardingRequired
         )
 
     private fun parseInstantMillis(value: String): Long =
