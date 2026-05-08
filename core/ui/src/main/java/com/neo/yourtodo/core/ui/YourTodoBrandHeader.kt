@@ -12,19 +12,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun YourTodoBrandHeader(
     wordmarkContentDescription: String,
     profileContentDescription: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    profileInitial: String? = null
 ) {
+    val displayInitial = profileInitial.toProfileInitial()
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -42,15 +49,31 @@ fun YourTodoBrandHeader(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF1F3A56)),
+                .background(Color(0xFF1F3A56))
+                .semantics { contentDescription = profileContentDescription },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = profileContentDescription,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
-            )
+            if (displayInitial == null) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            } else {
+                Text(
+                    text = displayInitial,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White
+                )
+            }
         }
     }
 }
+
+private fun String?.toProfileInitial(): String? =
+    this
+        ?.trim()
+        ?.firstOrNull()
+        ?.uppercaseChar()
+        ?.toString()

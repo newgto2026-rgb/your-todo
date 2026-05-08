@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -51,6 +52,9 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(project(":core:domain"))
     implementation(project(":core:model"))
+    implementation(project(":core:ui"))
+    implementation(project(":feature:auth:api"))
+    implementation(project(":feature:auth:entry"))
     implementation(project(":feature:calendar:api"))
     implementation(project(":feature:calendar:entry"))
     implementation(project(":feature:calendar:widget"))
@@ -63,6 +67,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.work.runtime.ktx)
@@ -80,6 +85,9 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
+    testImplementation(project(":core:testing"))
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

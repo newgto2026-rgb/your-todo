@@ -28,10 +28,11 @@ import com.neo.yourtodo.core.ui.YourTodoBrandHeader
 import com.neo.yourtodo.feature.todo.impl.R
 
 @Composable
-internal fun AppHeader() {
+internal fun AppHeader(profileInitial: String?) {
     YourTodoBrandHeader(
         wordmarkContentDescription = stringResource(R.string.todo_app_header_title),
-        profileContentDescription = stringResource(R.string.todo_header_profile_icon)
+        profileContentDescription = stringResource(R.string.todo_header_profile_icon),
+        profileInitial = profileInitial
     )
 }
 

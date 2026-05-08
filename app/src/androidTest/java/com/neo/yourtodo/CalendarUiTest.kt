@@ -96,6 +96,7 @@ class CalendarUiTest {
 
         activityScenario = ActivityScenario.launch(MainActivity::class.java)
         composeTestRule.waitForIdle()
+        composeTestRule.waitUntilNodeExists("app_tab_all")
     }
 
     @After

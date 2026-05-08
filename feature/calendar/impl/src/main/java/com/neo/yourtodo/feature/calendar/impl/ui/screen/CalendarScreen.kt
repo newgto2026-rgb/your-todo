@@ -105,7 +105,8 @@ private fun CalendarScreen(
 
             YourTodoBrandHeader(
                 wordmarkContentDescription = stringResource(R.string.calendar_app_header_title),
-                profileContentDescription = stringResource(R.string.calendar_header_profile_icon)
+                profileContentDescription = stringResource(R.string.calendar_header_profile_icon),
+                profileInitial = uiState.profileInitial
             )
 
             Spacer(modifier = Modifier.height(10.dp))

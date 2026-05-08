@@ -1,11 +1,15 @@
 package com.neo.yourtodo.feature.calendar.impl.ui
 
+import com.neo.yourtodo.core.domain.repository.AuthRepository
+import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import androidx.lifecycle.SavedStateHandle
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.ReminderRepeatType
+import com.neo.yourtodo.core.model.auth.AuthSession
+import com.neo.yourtodo.core.model.auth.AuthUser
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
@@ -13,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -39,6 +44,20 @@ class CalendarViewModelTest {
     fun tearDown() {
         uiStateCollectionJobs.forEach { job -> job.cancel() }
         uiStateCollectionJobs.clear()
+    }
+
+    @Test
+    fun profileInitialComesFromAuthSessionNickname() = runTest {
+        val authRepository = FakeAuthRepository()
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            authRepository = authRepository
+        )
+
+        authRepository.authSession.value = testAuthSession(nickname = "taeyunlive")
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.profileInitial).isEqualTo("taeyunlive")
     }
 
     @Test
@@ -329,9 +348,13 @@ class CalendarViewModelTest {
         assertThat(uiState.todayTaskCount).isEqualTo(5)
     }
 
-    private fun createViewModel(repository: FakeTodoRepository): CalendarViewModel {
+    private fun createViewModel(
+        repository: FakeTodoRepository,
+        authRepository: FakeAuthRepository = FakeAuthRepository()
+    ): CalendarViewModel {
         val viewModel = CalendarViewModel(
             savedStateHandle = SavedStateHandle(),
+            observeAuthSessionUseCase = ObserveAuthSessionUseCase(authRepository),
             observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
                 observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
             ),
@@ -342,5 +365,29 @@ class CalendarViewModelTest {
             viewModel.uiState.collect()
         }
         return viewModel
+    }
+
+    private fun testAuthSession(nickname: String): AuthSession =
+        AuthSession(
+            accessToken = "access-token",
+            refreshToken = "refresh-token",
+            user = AuthUser(
+                id = "user-id",
+                nickname = nickname,
+                email = "user@example.com",
+                onboardingRequired = false
+            )
+        )
+
+    private class FakeAuthRepository : AuthRepository {
+        override val authSession = MutableStateFlow<AuthSession?>(null)
+
+        override suspend fun signInWithGoogle(idToken: String): Result<AuthSession> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun completeNicknameOnboarding(nickname: String): Result<AuthSession> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun signOut() = Unit
     }
 }

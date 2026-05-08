@@ -1,0 +1,27 @@
+<resources>
+    <string name="auth_title">Sign in to YourTodo</string>
+    <string name="auth_description">Sync new tasks with your Google account and share them with friends.</string>
+    <string name="auth_value_title">Tasks, Together Anywhere</string>
+    <string name="auth_value_description">Save tasks on the server and manage requests from friends separately.</string>
+    <string name="auth_sync_chip">Server sync</string>
+    <string name="auth_share_chip">Friend sharing</string>
+    <string name="auth_wordmark_content_description">YourTodo</string>
+    <string name="auth_google_sign_in">Continue with Google</string>
+    <string name="auth_error_google_credential">Google sign-in could not be started. Please try again.</string>
+    <string name="auth_error_server_sign_in">Server sign-in failed. Please check the server connection.</string>
+    <string name="auth_error_nickname_onboarding">Nickname could not be saved. Please try again.</string>
+    <string name="auth_onboarding_search_chip">Friend search</string>
+    <string name="auth_onboarding_share_chip">Shared display name</string>
+    <string name="auth_onboarding_title">Choose a nickname</string>
+    <string name="auth_onboarding_description">Friends can find you by this name when they share tasks.</string>
+    <string name="auth_nickname_label">Nickname</string>
+    <string name="auth_nickname_placeholder">e.g. Taeyun</string>
+    <string name="auth_nickname_helper">Between 2 and 12 characters. Korean letters, English letters, numbers, and _ are allowed.</string>
+    <string name="auth_nickname_error_too_short">Enter at least 2 characters.</string>
+    <string name="auth_nickname_error_invalid_characters">Use only Korean letters, English letters, numbers, and _.</string>
+    <string name="auth_nickname_ready">Looks good. Friends can find you by this name.</string>
+    <string name="auth_onboarding_next">Get started</string>
+    <string name="auth_nickname_note_title">Used for friend search</string>
+    <string name="auth_nickname_note_description">You can change it later from your profile.</string>
+    <string name="auth_retry_sign_in">Use another account</string>
+</resources>

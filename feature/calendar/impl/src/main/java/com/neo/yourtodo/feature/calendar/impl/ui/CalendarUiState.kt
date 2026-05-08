@@ -8,6 +8,7 @@ import java.time.YearMonth
 
 @Immutable
 data class CalendarUiState(
+    val profileInitial: String? = null,
     val currentMonth: YearMonth,
     val selectedDate: LocalDate,
     val days: List<CalendarDayUiModel>,
