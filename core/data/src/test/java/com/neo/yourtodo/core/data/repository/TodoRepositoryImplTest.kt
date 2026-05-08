@@ -4,6 +4,7 @@ import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.entity.CategoryEntity
 import com.neo.yourtodo.core.database.entity.TodoEntity
+import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
@@ -188,13 +189,23 @@ class TodoRepositoryImplTest {
     }
 
     private class FakePreferencesDataSource : UserPreferencesDataSource {
+        private val authSessionFlow = MutableStateFlow<AuthSessionData?>(null)
         private val filterFlow = MutableStateFlow(TodoFilter.ALL)
         private val categoryFilterFlow = MutableStateFlow<Long?>(null)
         private val priorityFilterFlow = MutableStateFlow(TodoPriorityFilter.ALL)
 
+        override val authSession: Flow<AuthSessionData?> = authSessionFlow.asStateFlow()
         override val selectedTodoFilter: Flow<TodoFilter> = filterFlow.asStateFlow()
         override val selectedTodoCategoryFilter: Flow<Long?> = categoryFilterFlow.asStateFlow()
         override val selectedTodoPriorityFilter: Flow<TodoPriorityFilter> = priorityFilterFlow.asStateFlow()
+
+        override suspend fun saveAuthSession(session: AuthSessionData) {
+            authSessionFlow.value = session
+        }
+
+        override suspend fun clearAuthSession() {
+            authSessionFlow.value = null
+        }
 
         override suspend fun setSelectedTodoFilter(filter: TodoFilter) {
             filterFlow.value = filter

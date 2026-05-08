@@ -12,6 +12,7 @@ import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
 
 @Immutable
 data class TodoListUiState(
+    val profileInitial: String? = null,
     val items: List<TodoItemUiModel> = emptyList(),
     val completedTodoIds: List<Long> = emptyList(),
     val selectedFilter: TodoFilter = TodoFilter.ALL,

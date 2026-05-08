@@ -14,6 +14,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.neo.yourtodo.core.designsystem.theme.YourTodoTheme
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
+import com.neo.yourtodo.feature.auth.api.AuthGateEntry
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -22,6 +23,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var featureEntries: Set<@JvmSuppressWildcards AppFeatureEntry>
+
+    @Inject
+    lateinit var authGateEntry: AuthGateEntry
 
     private var navigationRequestId = 0L
     private var launchNavigationRequest by mutableStateOf<AppLaunchNavigationRequest?>(null)
@@ -35,10 +39,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             YourTodoTheme {
-                AppNavHost(
-                    entries = featureEntries,
-                    launchNavigationRequest = launchNavigationRequest
-                )
+                authGateEntry.Content {
+                    AppNavHost(
+                        entries = featureEntries,
+                        launchNavigationRequest = launchNavigationRequest
+                    )
+                }
             }
         }
     }

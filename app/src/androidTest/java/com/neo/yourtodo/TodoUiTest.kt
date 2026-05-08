@@ -20,12 +20,15 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.pressBack
@@ -110,6 +113,7 @@ class TodoUiTest {
         grantNotificationPermissionIfNeeded()
         activityScenario = ActivityScenario.launch(MainActivity::class.java)
         composeTestRule.waitForIdle()
+        composeTestRule.waitUntilNodeExists("app_tab_all")
     }
 
     @After
@@ -121,7 +125,7 @@ class TodoUiTest {
 
     @Test
     fun mainScreen_showsCoreUi() {
-        composeTestRule.onNodeWithText("Your Todo").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Your Todo").assertIsDisplayed()
         tabNode("all").assertIsSelected()
         tabNode("today").assertIsNotSelected()
         tabNode("completed").assertIsNotSelected()
@@ -980,7 +984,7 @@ class TodoUiTest {
     }
 
     @Test
-    fun listOverflowDelete_confirmsAndDeletesItem() {
+    fun listSwipeDelete_confirmsAndDeletesItem() {
         val title = "Delete UI ${System.currentTimeMillis()}"
         val id = runBlocking {
             addTodoUseCase(
@@ -999,8 +1003,8 @@ class TodoUiTest {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
 
-        composeTestRule.onNodeWithTag("todo_row_more_$id", useUnmergedTree = true).performClick()
-        composeTestRule.onNodeWithTag("todo_row_delete_$id", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("todo_row_$id", useUnmergedTree = true)
+            .performTouchInput { swipeLeft() }
         composeTestRule.waitUntilNodeExists("delete_confirmation_dialog")
         composeTestRule.onNodeWithTag("confirm_delete_button").performClick()
 

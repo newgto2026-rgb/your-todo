@@ -1,7 +1,9 @@
 package com.neo.yourtodo.core.data.di
 
+import com.neo.yourtodo.core.data.repository.AuthRepositoryImpl
 import com.neo.yourtodo.core.data.repository.ReminderRepositoryImpl
 import com.neo.yourtodo.core.data.repository.TodoRepositoryImpl
+import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.ReminderRepository
 import com.neo.yourtodo.core.domain.repository.TodoCategoryRepository
 import com.neo.yourtodo.core.domain.repository.TodoFilterRepository
@@ -16,6 +18,10 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+
     @Binds
     @Singleton
     abstract fun bindTodoItemRepository(impl: TodoRepositoryImpl): TodoItemRepository

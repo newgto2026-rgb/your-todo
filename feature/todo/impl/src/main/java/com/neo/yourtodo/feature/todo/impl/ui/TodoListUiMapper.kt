@@ -12,7 +12,8 @@ internal fun buildTodoListUiState(
     localState: TodoListUiState,
     items: List<TodoItem>,
     selectedFilter: TodoFilter,
-    selectedPriorityFilter: TodoPriorityFilter
+    selectedPriorityFilter: TodoPriorityFilter,
+    profileInitial: String?
 ): TodoListUiState {
     val filteredItems = items
         .filterBy(selectedFilter)
@@ -20,6 +21,7 @@ internal fun buildTodoListUiState(
         .sortedWith(localState.selectedSortOption.comparatorFor(selectedFilter))
 
     return localState.copy(
+        profileInitial = profileInitial,
         items = filteredItems.map { it.toUiModel() },
         completedTodoIds = items.filter { it.isDone }.map { it.id },
         selectedFilter = selectedFilter,

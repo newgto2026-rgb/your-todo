@@ -3,6 +3,7 @@ package com.neo.yourtodo.feature.calendar.impl.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
@@ -38,6 +39,7 @@ private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
 @OptIn(ExperimentalCoroutinesApi::class)
 class CalendarViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
+    observeAuthSessionUseCase: ObserveAuthSessionUseCase,
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase
@@ -94,10 +96,12 @@ class CalendarViewModel @Inject constructor(
         monthState,
         selectedDateState,
         summariesByDate,
-        selectedDateTodos
-    ) { currentMonth, selectedDate, summaries, dateTodos ->
+        selectedDateTodos,
+        observeAuthSessionUseCase()
+    ) { currentMonth, selectedDate, summaries, dateTodos, authSession ->
         val adjustedSelectedDate = selectedDate.normalizeToMonth(currentMonth)
         CalendarUiState(
+            profileInitial = authSession?.user?.nickname,
             currentMonth = currentMonth,
             selectedDate = adjustedSelectedDate,
             days = buildMonthCells(

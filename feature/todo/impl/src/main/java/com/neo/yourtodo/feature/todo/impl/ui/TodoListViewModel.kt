@@ -7,6 +7,7 @@ import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class TodoListViewModel @Inject constructor(
     observeTodosUseCase: ObserveTodosUseCase,
+    observeAuthSessionUseCase: ObserveAuthSessionUseCase,
     private val addTodoUseCase: AddTodoUseCase,
     private val updateTodoUseCase: UpdateTodoUseCase,
     private val deleteTodoUseCase: DeleteTodoUseCase,
@@ -44,20 +46,23 @@ class TodoListViewModel @Inject constructor(
     private val uiLocalState = MutableStateFlow(TodoListUiState(isLoading = true))
     private val sideEffectMutable = MutableSharedFlow<TodoListSideEffect>()
     private val todoItems = observeTodosUseCase()
+    private val authSession = observeAuthSessionUseCase()
     private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
 
     val sideEffect = sideEffectMutable.asSharedFlow()
 
     val uiState: StateFlow<TodoListUiState> = combine(
         todoItems,
+        authSession,
         localPriorityFilter,
         uiLocalState
-    ) { items, localPriorityFilter, localState ->
+    ) { items, session, localPriorityFilter, localState ->
         buildTodoListUiState(
             localState = localState,
             items = items,
             selectedFilter = localState.selectedFilter,
-            selectedPriorityFilter = localPriorityFilter
+            selectedPriorityFilter = localPriorityFilter,
+            profileInitial = session?.user?.nickname
         )
     }.stateIn(
         scope = viewModelScope,

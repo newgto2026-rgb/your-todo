@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -78,6 +79,7 @@ class CalendarWidgetLaunchUiTest {
 
         activityScenario = ActivityScenario.launch(widgetDateIntent(selectedDate))
         composeTestRule.waitForIdle()
+        waitUntilNodeExists("app_tab_calendar")
 
         composeTestRule.onNodeWithTag("app_tab_calendar", useUnmergedTree = true)
             .assertIsSelected()
@@ -136,5 +138,16 @@ class CalendarWidgetLaunchUiTest {
             "yyyy MMM d (E)"
         }
         return DateTimeFormatter.ofPattern(pattern, locale)
+    }
+
+    private fun waitUntilNodeExists(
+        tag: String,
+        timeoutMillis: Long = 15_000
+    ) {
+        composeTestRule.waitUntil(timeoutMillis = timeoutMillis) {
+            composeTestRule.onAllNodesWithTag(tag, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
     }
 }

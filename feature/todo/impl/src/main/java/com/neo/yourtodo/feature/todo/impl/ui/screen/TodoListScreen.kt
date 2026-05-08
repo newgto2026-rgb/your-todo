@@ -238,7 +238,7 @@ private fun TodoListScreen(
                     .padding(horizontal = 20.dp)
             ) {
             Spacer(Modifier.height(10.dp))
-            AppHeader()
+            AppHeader(profileInitial = uiState.profileInitial)
             Spacer(Modifier.height(12.dp))
 
             HeaderSummary(
