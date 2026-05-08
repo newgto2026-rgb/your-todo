@@ -2,14 +2,23 @@ package com.neo.yourtodo.core.data.repository
 
 import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.dao.TodoDao
+import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.entity.CategoryEntity
 import com.neo.yourtodo.core.database.entity.TodoEntity
+import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoCategoryFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPullResponse
+import com.neo.yourtodo.core.network.sync.NetworkTodo
+import com.neo.yourtodo.core.network.sync.NetworkTodoMutationResult
+import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPushRequest
+import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPushResponse
+import com.neo.yourtodo.core.network.sync.TodoSyncAuthRequiredException
+import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +39,7 @@ class TodoRepositoryImplTest {
                 TodoEntity(2L, "b", true, null, 2L, 2L, null)
             )
         }
-        val repository = TodoRepositoryImpl(todoDao, FakeCategoryDao(), FakePreferencesDataSource())
+        val repository = repository(todoDao = todoDao)
 
         val items = repository.observeTodos().first()
 
@@ -51,7 +60,7 @@ class TodoRepositoryImplTest {
                 TodoEntity(5L, "out-after", false, LocalDate.of(2026, 5, 1).toEpochDay(), 500L, 500L, null)
             )
         }
-        val repository = TodoRepositoryImpl(todoDao, FakeCategoryDao(), FakePreferencesDataSource())
+        val repository = repository(todoDao = todoDao)
 
         val items = repository.observeTodosByDueDateRange(
             startDate = LocalDate.of(2026, 4, 1),
@@ -71,7 +80,7 @@ class TodoRepositoryImplTest {
         val categoryDao = FakeCategoryDao().apply {
             seed(CategoryEntity(id = 5L, name = "Work", colorHex = null, icon = null, createdAt = 1L, updatedAt = 1L))
         }
-        val repository = TodoRepositoryImpl(todoDao, categoryDao, FakePreferencesDataSource())
+        val repository = repository(todoDao = todoDao, categoryDao = categoryDao)
 
         val result = repository.addTodo(
             title = "new",
@@ -97,7 +106,7 @@ class TodoRepositoryImplTest {
 
     @Test
     fun `addTodo fails when category not found`() = runTest {
-        val repository = TodoRepositoryImpl(FakeTodoDao(), FakeCategoryDao(), FakePreferencesDataSource())
+        val repository = repository()
 
         val result = repository.addTodo(
             title = "new",
@@ -122,7 +131,7 @@ class TodoRepositoryImplTest {
         val categoryDao = FakeCategoryDao().apply {
             seed(CategoryEntity(id = 9L, name = "Personal", colorHex = null, icon = null, createdAt = 1L, updatedAt = 1L))
         }
-        val repository = TodoRepositoryImpl(todoDao, categoryDao, FakePreferencesDataSource())
+        val repository = repository(todoDao = todoDao, categoryDao = categoryDao)
 
         val result = repository.updateTodo(
             id = 5L,
@@ -147,7 +156,7 @@ class TodoRepositoryImplTest {
     @Test
     fun `observe and set selected todo filter works`() = runTest {
         val prefs = FakePreferencesDataSource()
-        val repository = TodoRepositoryImpl(FakeTodoDao(), FakeCategoryDao(), prefs)
+        val repository = repository(prefs = prefs)
 
         repository.setSelectedFilter(TodoFilter.TODAY)
 
@@ -158,7 +167,7 @@ class TodoRepositoryImplTest {
     fun `category crud and selected category filter works`() = runTest {
         val prefs = FakePreferencesDataSource()
         val categoryDao = FakeCategoryDao()
-        val repository = TodoRepositoryImpl(FakeTodoDao(), categoryDao, prefs)
+        val repository = repository(categoryDao = categoryDao, prefs = prefs)
 
         val categoryId = repository.addCategory("Work", "#112233", "briefcase").getOrNull()!!
         assertThat(repository.observeCategories().first()).hasSize(1)
@@ -179,7 +188,7 @@ class TodoRepositoryImplTest {
 
     @Test
     fun `setSelectedCategoryFilter supports uncategorized sentinel`() = runTest {
-        val repository = TodoRepositoryImpl(FakeTodoDao(), FakeCategoryDao(), FakePreferencesDataSource())
+        val repository = repository()
 
         val result = repository.setSelectedCategoryFilter(TodoCategoryFilter.UNCATEGORIZED_FILTER_ID)
 
@@ -188,16 +197,357 @@ class TodoRepositoryImplTest {
             .isEqualTo(TodoCategoryFilter.UNCATEGORIZED_FILTER_ID)
     }
 
+    @Test
+    fun `addTodo with auth creates pending todo and create outbox`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+
+        val id = repository.addTodo(
+            title = "sync me",
+            dueDate = LocalDate.of(2026, 5, 10),
+            categoryId = null
+        ).getOrThrow()
+
+        val saved = todoDao.getTodoById(id)!!
+        assertThat(saved.syncStatus).isEqualTo("PENDING_CREATE")
+        assertThat(saved.ownerUserId).isEqualTo("user-id")
+        assertThat(saved.clientId).isNotNull()
+        assertThat(outboxDao.items).hasSize(1)
+        assertThat(outboxDao.items.single().type).isEqualTo("CREATE")
+        assertThat(outboxDao.items.single().payloadJson).contains("sync me")
+    }
+
+    @Test
+    fun `pendingCreate edit merges create payload`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+        val id = repository.addTodo("before", null, null).getOrThrow()
+
+        repository.updateTodo(id, "after", LocalDate.of(2026, 5, 11), null)
+
+        val saved = todoDao.getTodoById(id)!!
+        assertThat(saved.title).isEqualTo("after")
+        assertThat(saved.syncStatus).isEqualTo("PENDING_CREATE")
+        assertThat(outboxDao.items).hasSize(1)
+        assertThat(outboxDao.items.single().type).isEqualTo("CREATE")
+        assertThat(outboxDao.items.single().payloadJson).contains("after")
+        assertThat(outboxDao.items.single().payloadJson).doesNotContain("before")
+    }
+
+    @Test
+    fun `pendingCreate delete removes todo and outbox`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+        val id = repository.addTodo("temp", null, null).getOrThrow()
+
+        val result = repository.deleteTodo(id)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(todoDao.getTodoById(id)).isNull()
+        assertThat(outboxDao.items).isEmpty()
+    }
+
+    @Test
+    fun `pendingUpdate delete replaces update with delete outbox`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 7L,
+                    title = "server todo",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    serverId = "server-1",
+                    clientId = "client-1",
+                    ownerUserId = "user-id",
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+
+        repository.updateTodo(7L, "edited", null, null)
+        repository.deleteTodo(7L)
+
+        val saved = todoDao.getTodoById(7L)!!
+        assertThat(saved.syncStatus).isEqualTo("PENDING_DELETE")
+        assertThat(outboxDao.items).hasSize(1)
+        assertThat(outboxDao.items.single().type).isEqualTo("DELETE")
+    }
+
+    @Test
+    fun `synced update creates single update outbox`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 9L,
+                    title = "server todo",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    serverId = "server-9",
+                    clientId = "client-9",
+                    ownerUserId = "user-id",
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+
+        val result = repository.updateTodo(9L, "edited once", LocalDate.of(2026, 5, 12), null)
+
+        assertThat(result.isSuccess).isTrue()
+        val saved = todoDao.getTodoById(9L)!!
+        assertThat(saved.title).isEqualTo("edited once")
+        assertThat(saved.syncStatus).isEqualTo("PENDING_UPDATE")
+        assertThat(outboxDao.items).hasSize(1)
+        assertThat(outboxDao.items.single().type).isEqualTo("UPDATE")
+        assertThat(outboxDao.items.single().payloadJson).contains("edited once")
+    }
+
+    @Test
+    fun `pendingUpdate second update merges update payload`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 10L,
+                    title = "server todo",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    serverId = "server-10",
+                    clientId = "client-10",
+                    ownerUserId = "user-id",
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+
+        repository.updateTodo(10L, "first edit", null, null)
+        repository.updateTodo(10L, "second edit", null, null)
+
+        assertThat(todoDao.getTodoById(10L)?.title).isEqualTo("second edit")
+        assertThat(outboxDao.items).hasSize(1)
+        assertThat(outboxDao.items.single().type).isEqualTo("UPDATE")
+        assertThat(outboxDao.items.single().payloadJson).contains("second edit")
+        assertThat(outboxDao.items.single().payloadJson).doesNotContain("first edit")
+    }
+
+    @Test
+    fun `pendingDelete update is blocked and keeps delete outbox`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 11L,
+                    title = "deleting",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    serverId = "server-11",
+                    clientId = "client-11",
+                    ownerUserId = "user-id",
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+        repository.deleteTodo(11L)
+
+        val result = repository.updateTodo(11L, "should not apply", null, null)
+
+        assertThat(result.isFailure).isTrue()
+        val saved = todoDao.getTodoById(11L)!!
+        assertThat(saved.title).isEqualTo("deleting")
+        assertThat(saved.syncStatus).isEqualTo("PENDING_DELETE")
+        assertThat(outboxDao.items).hasSize(1)
+        assertThat(outboxDao.items.single().type).isEqualTo("DELETE")
+    }
+
+    @Test
+    fun `duplicate client id sync result converges and clears outbox`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource()
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs, network = network)
+        val id = repository.addTodo("retry create", null, null).getOrThrow()
+        val clientId = todoDao.getTodoById(id)!!.clientId!!
+        network.nextPushResponse = NetworkTodoSyncPushResponse(
+            results = listOf(
+                NetworkTodoMutationResult(
+                    clientMutationId = outboxDao.items.single().clientMutationId,
+                    status = "DUPLICATE_CLIENT_ID",
+                    todo = networkTodo(id = "server-1", clientId = clientId, title = "retry create", revision = "2")
+                )
+            ),
+            nextCursor = "2"
+        )
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isSuccess).isTrue()
+        val saved = todoDao.getTodoById(id)!!
+        assertThat(saved.syncStatus).isEqualTo("SYNCED")
+        assertThat(saved.serverId).isEqualTo("server-1")
+        assertThat(saved.serverRevision).isEqualTo("2")
+        assertThat(outboxDao.items).isEmpty()
+        assertThat(prefs.todoSyncCursor.first()).isEqualTo("2")
+    }
+
+    @Test
+    fun `rejected deleted sync result applies tombstone and clears outbox`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 8L,
+                    title = "stale server todo",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    serverId = "server-deleted",
+                    clientId = "client-deleted",
+                    ownerUserId = "user-id",
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource()
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs, network = network)
+        repository.updateTodo(8L, "edited stale todo", null, null)
+        network.nextPushResponse = NetworkTodoSyncPushResponse(
+            results = listOf(
+                NetworkTodoMutationResult(
+                    clientMutationId = outboxDao.items.single().clientMutationId,
+                    status = "REJECTED_DELETED",
+                    todo = networkTodo(
+                        id = "server-deleted",
+                        clientId = "client-deleted",
+                        title = "stale server todo",
+                        revision = "3",
+                        status = "DELETED"
+                    )
+                )
+            ),
+            nextCursor = "3"
+        )
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isSuccess).isTrue()
+        val saved = todoDao.getTodoById(8L)!!
+        assertThat(saved.serverRevision).isEqualTo("3")
+        assertThat(saved.deletedAt).isNotNull()
+        assertThat(saved.syncStatus).isEqualTo("SYNCED")
+        assertThat(outboxDao.items).isEmpty()
+    }
+
+    @Test
+    fun `auth required sync preserves outbox and records halt reason`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource().apply { authRequired = true }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs, network = network)
+        val id = repository.addTodo("offline after token expiry", null, null).getOrThrow()
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(todoDao.getTodoById(id)?.syncStatus).isEqualTo("PENDING_CREATE")
+        assertThat(outboxDao.items).hasSize(1)
+        assertThat(prefs.todoSyncHaltReason.first()).isEqualTo("AUTH_REQUIRED")
+    }
+
+    private fun authSession(): AuthSessionData =
+        AuthSessionData(
+            accessToken = "access-token",
+            refreshToken = "refresh-token",
+            userId = "user-id",
+            nickname = "neo",
+            email = "neo@example.com",
+            onboardingRequired = false
+        )
+
+    private fun networkTodo(
+        id: String,
+        clientId: String,
+        title: String,
+        revision: String,
+        status: String = "ACTIVE"
+    ): NetworkTodo =
+        NetworkTodo(
+            id = id,
+            clientId = clientId,
+            title = title,
+            dueDate = null,
+            status = status,
+            revision = revision,
+            createdAt = "2026-05-08T00:00:00.000Z",
+            updatedAt = "2026-05-08T00:00:00.000Z",
+            deletedAt = if (status == "DELETED") "2026-05-08T00:00:00.000Z" else null
+        )
+
+    private fun repository(
+        todoDao: FakeTodoDao = FakeTodoDao(),
+        categoryDao: FakeCategoryDao = FakeCategoryDao(),
+        outboxDao: FakeTodoOutboxDao = FakeTodoOutboxDao(),
+        prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
+        network: FakeTodoSyncNetworkDataSource = FakeTodoSyncNetworkDataSource()
+    ): TodoRepositoryImpl =
+        TodoRepositoryImpl(
+            todoDao = todoDao,
+            categoryDao = categoryDao,
+            todoOutboxDao = outboxDao,
+            userPreferencesDataSource = prefs,
+            todoSyncNetworkDataSource = network
+        )
+
     private class FakePreferencesDataSource : UserPreferencesDataSource {
         private val authSessionFlow = MutableStateFlow<AuthSessionData?>(null)
         private val filterFlow = MutableStateFlow(TodoFilter.ALL)
         private val categoryFilterFlow = MutableStateFlow<Long?>(null)
         private val priorityFilterFlow = MutableStateFlow(TodoPriorityFilter.ALL)
+        private val syncCursorFlow = MutableStateFlow<String?>(null)
+        private val syncHaltReasonFlow = MutableStateFlow<String?>(null)
 
         override val authSession: Flow<AuthSessionData?> = authSessionFlow.asStateFlow()
         override val selectedTodoFilter: Flow<TodoFilter> = filterFlow.asStateFlow()
         override val selectedTodoCategoryFilter: Flow<Long?> = categoryFilterFlow.asStateFlow()
         override val selectedTodoPriorityFilter: Flow<TodoPriorityFilter> = priorityFilterFlow.asStateFlow()
+        override val todoSyncCursor: Flow<String?> = syncCursorFlow.asStateFlow()
+        override val todoSyncHaltReason: Flow<String?> = syncHaltReasonFlow.asStateFlow()
 
         override suspend fun saveAuthSession(session: AuthSessionData) {
             authSessionFlow.value = session
@@ -217,6 +567,19 @@ class TodoRepositoryImplTest {
 
         override suspend fun setSelectedTodoPriorityFilter(filter: TodoPriorityFilter) {
             priorityFilterFlow.value = filter
+        }
+
+        override suspend fun setTodoSyncCursor(cursor: String?) {
+            syncCursorFlow.value = cursor
+        }
+
+        override suspend fun setTodoSyncHaltReason(reason: String?) {
+            syncHaltReasonFlow.value = reason
+        }
+
+        override suspend fun clearTodoSyncState() {
+            syncCursorFlow.value = null
+            syncHaltReasonFlow.value = null
         }
     }
 
@@ -260,6 +623,18 @@ class TodoRepositoryImplTest {
 
         override suspend fun getTodoById(id: Long): TodoEntity? = itemsFlow.value.firstOrNull { it.id == id }
 
+        override suspend fun getTodoByServerId(ownerUserId: String, serverId: String): TodoEntity? =
+            itemsFlow.value.firstOrNull { it.ownerUserId == ownerUserId && it.serverId == serverId }
+
+        override suspend fun getTodoByClientId(ownerUserId: String, clientId: String): TodoEntity? =
+            itemsFlow.value.firstOrNull { it.ownerUserId == ownerUserId && it.clientId == clientId }
+
+        override suspend fun deleteSyncedTodosByOwner(ownerUserId: String) {
+            itemsFlow.value = itemsFlow.value.filterNot {
+                it.ownerUserId == ownerUserId && it.syncStatus != "LOCAL_ONLY"
+            }
+        }
+
         override suspend fun getTodosWithActiveReminder(): List<TodoEntity> =
             itemsFlow.value
                 .asSequence()
@@ -301,5 +676,66 @@ class TodoRepositoryImplTest {
 
         override suspend fun getCategoryByName(name: String): CategoryEntity? =
             categoriesFlow.value.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
+
+    private class FakeTodoOutboxDao : TodoOutboxDao {
+        val items = mutableListOf<TodoOutboxEntity>()
+        private var nextId = 1L
+
+        override suspend fun getPendingMutations(ownerUserId: String): List<TodoOutboxEntity> =
+            items.filter { it.ownerUserId == ownerUserId }.sortedWith(compareBy<TodoOutboxEntity> { it.createdAt }.thenBy { it.id })
+
+        override suspend fun getByTodoLocalId(todoLocalId: Long): TodoOutboxEntity? =
+            items.firstOrNull { it.todoLocalId == todoLocalId }
+
+        override suspend fun insert(outbox: TodoOutboxEntity): Long {
+            val id = if (outbox.id == 0L) nextId++ else outbox.id
+            items.removeAll { it.id == id || it.clientMutationId == outbox.clientMutationId }
+            items += outbox.copy(id = id)
+            return id
+        }
+
+        override suspend fun update(outbox: TodoOutboxEntity) {
+            items.replaceAll { if (it.id == outbox.id) outbox else it }
+        }
+
+        override suspend fun delete(outbox: TodoOutboxEntity) {
+            items.removeAll { it.id == outbox.id }
+        }
+
+        override suspend fun deleteById(id: Long) {
+            items.removeAll { it.id == id }
+        }
+
+        override suspend fun deleteByTodoLocalId(todoLocalId: Long) {
+            items.removeAll { it.todoLocalId == todoLocalId }
+        }
+
+        override suspend fun deleteByOwner(ownerUserId: String) {
+            items.removeAll { it.ownerUserId == ownerUserId }
+        }
+    }
+
+    private class FakeTodoSyncNetworkDataSource : TodoSyncNetworkDataSource {
+        var nextPullResponse = NetworkTodoSyncPullResponse(todos = emptyList(), nextCursor = "0")
+        var nextPushResponse = NetworkTodoSyncPushResponse(results = emptyList(), nextCursor = "0")
+        var authRequired = false
+
+        override suspend fun pullTodos(accessToken: String, cursor: String?): NetworkTodoSyncPullResponse {
+            if (authRequired) throw TodoSyncAuthRequiredException()
+            return if (nextPullResponse.todos.isEmpty()) {
+                nextPullResponse.copy(nextCursor = cursor ?: nextPullResponse.nextCursor)
+            } else {
+                nextPullResponse
+            }
+        }
+
+        override suspend fun pushTodos(
+            accessToken: String,
+            request: NetworkTodoSyncPushRequest
+        ): NetworkTodoSyncPushResponse {
+            if (authRequired) throw TodoSyncAuthRequiredException()
+            return nextPushResponse
+        }
     }
 }

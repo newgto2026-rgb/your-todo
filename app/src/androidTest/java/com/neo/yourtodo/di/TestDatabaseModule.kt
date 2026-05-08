@@ -6,6 +6,7 @@ import com.neo.yourtodo.core.database.AppDatabase
 import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.dao.TodoDao
+import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.di.DatabaseModule
 import dagger.Module
 import dagger.Provides
@@ -30,6 +31,9 @@ object TestDatabaseModule {
 
     @Provides
     fun provideTodoDao(database: AppDatabase): TodoDao = database.todoDao()
+
+    @Provides
+    fun provideTodoOutboxDao(database: AppDatabase): TodoOutboxDao = database.todoOutboxDao()
 
     @Provides
     fun provideCategoryDao(database: AppDatabase): CategoryDao = database.categoryDao()

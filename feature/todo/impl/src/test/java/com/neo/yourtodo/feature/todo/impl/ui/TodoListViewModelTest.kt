@@ -8,6 +8,7 @@ import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
@@ -64,6 +65,7 @@ class TodoListViewModelTest {
             updateTodoUseCase = UpdateTodoUseCase(repository),
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
+            syncTodosUseCase = SyncTodosUseCase(repository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,

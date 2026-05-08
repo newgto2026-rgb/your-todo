@@ -11,11 +11,32 @@ import java.time.LocalDate
 class TodoUseCasesTest {
 
     @Test
+    fun `add use case returns failure when title is longer than server limit`() = runTest {
+        val repository = FakeTodoRepository()
+        val useCase = AddTodoUseCase(repository)
+
+        val result = useCase("a".repeat(201), null, null)
+
+        assertThat(result.isFailure).isTrue()
+    }
+
+    @Test
     fun `update use case returns failure on blank title`() = runTest {
         val repository = FakeTodoRepository()
         val useCase = UpdateTodoUseCase(repository)
 
         val result = useCase(1L, "   ", null, null)
+
+        assertThat(result.isFailure).isTrue()
+    }
+
+    @Test
+    fun `update use case returns failure when title is longer than server limit`() = runTest {
+        val repository = FakeTodoRepository()
+        val id = repository.addTodo("before", null, null).getOrNull()!!
+        val useCase = UpdateTodoUseCase(repository)
+
+        val result = useCase(id, "a".repeat(201), null, null)
 
         assertThat(result.isFailure).isTrue()
     }

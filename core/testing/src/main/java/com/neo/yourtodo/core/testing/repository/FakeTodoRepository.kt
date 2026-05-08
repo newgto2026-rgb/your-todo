@@ -131,6 +131,8 @@ class FakeTodoRepository :
         }
     }
 
+    override suspend fun syncTodos(): Result<Unit> = Result.success(Unit)
+
     override suspend fun getTodosWithActiveReminder(): List<TodoItem> =
         todos.value
             .asSequence()
