@@ -1,0 +1,29 @@
+<resources>
+    <string name="friends_title">친구</string>
+    <string name="friends_subtitle">함께 할 일을 주고받아요.</string>
+    <string name="friends_refresh">새로고침</string>
+    <string name="friends_add">친구 추가</string>
+    <string name="friends_add_title">닉네임으로 친구 추가</string>
+    <string name="friends_nickname_placeholder">친구 닉네임</string>
+    <string name="friends_send_request">요청 보내기</string>
+    <string name="friends_incoming_title">받은 요청</string>
+    <string name="friends_list_title">친구 목록</string>
+    <string name="friends_outgoing_title">보낸 요청</string>
+    <string name="friends_incoming_subtitle">친구 요청을 보냈어요</string>
+    <string name="friends_outgoing_pending">대기 중</string>
+    <string name="friends_accept">수락</string>
+    <string name="friends_decline">거절</string>
+    <string name="friends_more">더보기</string>
+    <string name="friends_remove_dialog_title">친구를 끊을까요?</string>
+    <string name="friends_remove_dialog_message">친구를 끊으면 새 할 일 요청을 주고받을 수 없어요.</string>
+    <string name="friends_remove_cancel">취소</string>
+    <string name="friends_remove_confirm">끊기</string>
+    <string name="friends_empty_title">아직 친구가 없어요</string>
+    <string name="friends_empty_description">정확한 닉네임으로 친구를 추가해 보세요.</string>
+    <string name="friends_request_sent">친구 요청을 보냈어요.</string>
+    <string name="friends_request_accepted">친구가 되었어요.</string>
+    <string name="friends_request_declined">요청을 거절했어요.</string>
+    <string name="friends_removed">친구를 끊었어요.</string>
+    <string name="friends_error_auth_required">다시 로그인해 주세요.</string>
+    <string name="friends_error_network">친구 정보를 처리하지 못했어요. 다시 시도해 주세요.</string>
+</resources>

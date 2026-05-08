@@ -1,0 +1,29 @@
+<resources>
+    <string name="friends_title">Friends</string>
+    <string name="friends_subtitle">Share todos together.</string>
+    <string name="friends_refresh">Refresh</string>
+    <string name="friends_add">Add friend</string>
+    <string name="friends_add_title">Add by nickname</string>
+    <string name="friends_nickname_placeholder">Friend nickname</string>
+    <string name="friends_send_request">Send request</string>
+    <string name="friends_incoming_title">Incoming requests</string>
+    <string name="friends_list_title">Friend list</string>
+    <string name="friends_outgoing_title">Sent requests</string>
+    <string name="friends_incoming_subtitle">sent you a friend request</string>
+    <string name="friends_outgoing_pending">Waiting</string>
+    <string name="friends_accept">Accept</string>
+    <string name="friends_decline">Decline</string>
+    <string name="friends_more">More</string>
+    <string name="friends_remove_dialog_title">Remove friend?</string>
+    <string name="friends_remove_dialog_message">You cannot send new shared todo requests after removing this friend.</string>
+    <string name="friends_remove_cancel">Cancel</string>
+    <string name="friends_remove_confirm">Remove</string>
+    <string name="friends_empty_title">No friends yet</string>
+    <string name="friends_empty_description">Add a friend with their exact nickname.</string>
+    <string name="friends_request_sent">Friend request sent.</string>
+    <string name="friends_request_accepted">You are friends now.</string>
+    <string name="friends_request_declined">Friend request declined.</string>
+    <string name="friends_removed">Friend removed.</string>
+    <string name="friends_error_auth_required">Please sign in again.</string>
+    <string name="friends_error_network">Could not update friends. Please try again.</string>
+</resources>
