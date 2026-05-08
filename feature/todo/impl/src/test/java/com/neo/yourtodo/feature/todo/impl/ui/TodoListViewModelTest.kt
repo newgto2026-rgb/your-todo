@@ -90,6 +90,24 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun screenStartedKeepsSyncingUntilScreenStopped() = runTest {
+        advanceUntilIdle()
+        val initialSyncCount = repository.syncCount
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        assertThat(repository.syncCount).isGreaterThan(initialSyncCount)
+
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        val stoppedSyncCount = repository.syncCount
+        mainDispatcherRule.testDispatcher.scheduler.advanceTimeBy(30_000)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        assertThat(repository.syncCount).isEqualTo(stoppedSyncCount)
+    }
+
+    @Test
     fun addClickOpensEditSheet() = runTest {
         viewModel.onAction(TodoListAction.OnAddClick)
         advanceUntilIdle()

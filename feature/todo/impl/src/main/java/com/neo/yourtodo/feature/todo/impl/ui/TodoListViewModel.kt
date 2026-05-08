@@ -21,6 +21,8 @@ import com.neo.yourtodo.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,6 +52,8 @@ class TodoListViewModel @Inject constructor(
     private val todoItems = observeTodosUseCase()
     private val authSession = observeAuthSessionUseCase()
     private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private var syncJob: Job? = null
+    private var foregroundSyncJob: Job? = null
 
     val sideEffect = sideEffectMutable.asSharedFlow()
 
@@ -143,6 +147,8 @@ class TodoListViewModel @Inject constructor(
             is TodoListAction.OnFilterChange -> updateFilter(action.filter)
             is TodoListAction.OnPriorityFilterChange -> updatePriorityFilter(action.filter)
             is TodoListAction.OnSortOptionChange -> updateSortOption(action.option)
+            TodoListAction.OnScreenStarted -> startForegroundSync()
+            TodoListAction.OnScreenStopped -> stopForegroundSync()
 
             TodoListAction.OnDismissDialog -> updateLocalState { dismissTodoEditor() }
         }
@@ -527,9 +533,25 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun syncTodosQuietly() {
-        viewModelScope.launch {
+        if (syncJob?.isActive == true) return
+        syncJob = viewModelScope.launch {
             syncTodosUseCase()
         }
+    }
+
+    private fun startForegroundSync() {
+        if (foregroundSyncJob?.isActive == true) return
+        foregroundSyncJob = viewModelScope.launch {
+            while (true) {
+                syncTodosQuietly()
+                delay(ForegroundSyncIntervalMillis)
+            }
+        }
+    }
+
+    private fun stopForegroundSync() {
+        foregroundSyncJob?.cancel()
+        foregroundSyncJob = null
     }
 
     private suspend fun notifyCalendarWidgetChanged() {
@@ -563,3 +585,5 @@ class TodoListViewModel @Inject constructor(
         return reminderAt.takeIf { it > System.currentTimeMillis() }
     }
 }
+
+private const val ForegroundSyncIntervalMillis = 15_000L

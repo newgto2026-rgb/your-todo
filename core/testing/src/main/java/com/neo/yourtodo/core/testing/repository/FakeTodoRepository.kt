@@ -29,6 +29,8 @@ class FakeTodoRepository :
     private val selectedPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
     private var idSeed = 1L
     private var categoryIdSeed = 1L
+    var syncCount: Int = 0
+        private set
 
     override fun observeTodos(): Flow<List<TodoItem>> = todos.asStateFlow()
 
@@ -131,7 +133,10 @@ class FakeTodoRepository :
         }
     }
 
-    override suspend fun syncTodos(): Result<Unit> = Result.success(Unit)
+    override suspend fun syncTodos(): Result<Unit> {
+        syncCount += 1
+        return Result.success(Unit)
+    }
 
     override suspend fun getTodosWithActiveReminder(): List<TodoItem> =
         todos.value

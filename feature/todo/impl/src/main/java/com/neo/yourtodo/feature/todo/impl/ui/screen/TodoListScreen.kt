@@ -70,6 +70,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
@@ -152,6 +153,13 @@ fun TodoListRoute(
 
     LaunchedEffect(onBackBlockedChange) {
         onBackBlockedChange(false)
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        viewModel.onAction(TodoListAction.OnScreenStopped)
     }
 
     TodoListScreen(
