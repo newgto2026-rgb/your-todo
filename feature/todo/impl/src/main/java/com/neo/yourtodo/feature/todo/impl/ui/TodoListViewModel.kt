@@ -23,6 +23,7 @@ import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -173,6 +174,10 @@ class TodoListViewModel @Inject constructor(
 
     private fun saveTodo() {
         val current = uiLocalState.value
+        current.editingAssignedTodoId?.let { assignedTodoId ->
+            saveAssignedReminder(current, assignedTodoId)
+            return
+        }
         val validation = validateTodoDraft(current)
         if (validation.errorMessageRes != null) {
             uiLocalState.value = current.copy(errorMessageRes = validation.errorMessageRes)
@@ -322,10 +327,10 @@ class TodoListViewModel @Inject constructor(
 
     private fun openEditDialog(id: Long) {
         val target = uiState.value.items.firstOrNull { it.id == id } ?: return
-        if (target.isAssigned) return
         uiLocalState.value = uiLocalState.value.copy(
             isEditDialogVisible = true,
             editingItem = target.toTodoEditModel(),
+            editingAssignedTodoId = target.assignedTodoId,
             draftTitle = target.title,
             draftDueDateInput = target.dueDateText.orEmpty(),
             draftDueTimeInput = target.dueTimeText.orEmpty(),
@@ -335,6 +340,36 @@ class TodoListViewModel @Inject constructor(
             draftPriority = target.priority,
             errorMessageRes = null
         )
+    }
+
+    private fun saveAssignedReminder(
+        current: TodoListUiState,
+        assignedTodoId: String
+    ) {
+        val validation = validateTodoDraft(current)
+        if (current.draftReminderEnabled && validation.errorMessageRes != null) {
+            uiLocalState.value = current.copy(errorMessageRes = validation.errorMessageRes)
+            return
+        }
+
+        viewModelScope.launch {
+            val result = if (current.draftReminderEnabled) {
+                manageAssignedTodoUseCase.upsertReminder(
+                    assignedTodoId = assignedTodoId,
+                    reminderAt = Instant.ofEpochMilli(checkNotNull(validation.reminderAtEpochMillis)).toString(),
+                    enabled = true
+                )
+            } else {
+                manageAssignedTodoUseCase.deleteReminder(assignedTodoId)
+            }
+
+            if (result.isSuccess) {
+                refreshAssignedTodosQuietly()
+                uiLocalState.value = current.dismissTodoEditor()
+            } else {
+                sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_error_save_failed))
+            }
+        }
     }
 
     private fun requestTodoDelete(id: Long) {

@@ -9,6 +9,7 @@ import java.time.LocalDate
 internal fun TodoListUiState.openNewTodoEditor(): TodoListUiState = copy(
     isEditDialogVisible = true,
     editingItem = null,
+    editingAssignedTodoId = null,
     draftTitle = "",
     draftDueDateInput = "",
     draftDueTimeInput = "",
@@ -26,6 +27,7 @@ internal fun TodoListUiState.openNewTodoEditorForDate(dueDate: LocalDate): TodoL
 internal fun TodoListUiState.dismissTodoEditor(): TodoListUiState = copy(
     isEditDialogVisible = false,
     editingItem = null,
+    editingAssignedTodoId = null,
     draftTitle = "",
     draftDueDateInput = "",
     draftDueTimeInput = "",

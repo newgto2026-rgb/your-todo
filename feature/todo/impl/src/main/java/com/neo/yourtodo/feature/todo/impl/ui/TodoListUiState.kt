@@ -23,6 +23,7 @@ data class TodoListUiState(
     val isEditDialogVisible: Boolean = false,
     val deleteConfirmation: TodoDeleteConfirmation? = null,
     val editingItem: TodoEditModel? = null,
+    val editingAssignedTodoId: String? = null,
     val draftPriority: TodoPriority = TodoPriority.MEDIUM,
     val draftTitle: String = "",
     val draftDueDateInput: String = "",

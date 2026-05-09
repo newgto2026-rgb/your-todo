@@ -105,10 +105,7 @@ internal fun AssignedTodo.toAssignmentTodoUiModel(
     progressPercent = progressPercent.coerceIn(0, 100),
     statusLabelRes = status.statusLabelRes(),
     statusStyle = status.statusStyle(),
-    personLabelRes = when (direction) {
-        AssignmentTodoDirection.SENT -> R.string.friends_assignment_to_user
-        AssignmentTodoDirection.RECEIVED -> R.string.friends_assignment_from_user
-    },
+    personLabelRes = R.string.friends_assignment_user_mention,
     personName = when (direction) {
         AssignmentTodoDirection.SENT -> receiver?.nickname.orEmpty().ifBlank { "?" }
         AssignmentTodoDirection.RECEIVED -> sender?.nickname.orEmpty().ifBlank { "?" }

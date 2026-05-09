@@ -83,6 +83,23 @@ internal class RetrofitAssignmentNetworkDataSource @Inject constructor(
             api.cancelAssignedTodo(accessToken.authorizationHeader(), idempotencyKey, assignedTodoId)
         }
 
+    override suspend fun upsertAssignedTodoReminder(
+        accessToken: String,
+        assignedTodoId: String,
+        request: NetworkUpsertAssignedTodoReminderRequest
+    ): NetworkAssignedTodoReminderResponse =
+        runAssignmentRequest {
+            api.upsertAssignedTodoReminder(accessToken.authorizationHeader(), assignedTodoId, request)
+        }
+
+    override suspend fun deleteAssignedTodoReminder(
+        accessToken: String,
+        assignedTodoId: String
+    ): NetworkAssignedTodoReminderResponse =
+        runAssignmentRequest {
+            api.deleteAssignedTodoReminder(accessToken.authorizationHeader(), assignedTodoId)
+        }
+
     private suspend fun <T> runAssignmentRequest(block: suspend () -> T): T =
         try {
             block()

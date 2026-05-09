@@ -195,8 +195,12 @@ private fun CalendarScreen(
             CalendarAgendaSection(
                 selectedDate = uiState.selectedDate,
                 selectedDateTodos = uiState.selectedDateTodos,
-                onTodoClick = { todoId -> onAction(CalendarAction.OnTodoClick(todoId)) },
-                onToggleTodoDone = { todoId -> onAction(CalendarAction.OnToggleTodoDone(todoId)) },
+                onTodoClick = { todo ->
+                    onAction(CalendarAction.OnTodoClick(todo.id, todo.assignedTodoId))
+                },
+                onToggleTodoDone = { todo ->
+                    onAction(CalendarAction.OnToggleTodoDone(todo.id, todo.assignedTodoId))
+                },
                 onAddTodoClick = { onAction(CalendarAction.OnAddTodoClick) },
                 modifier = Modifier.fillMaxWidth()
             )

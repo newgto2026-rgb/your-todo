@@ -226,17 +226,22 @@ class FriendsViewModel @Inject constructor(
     private fun openFriendDetail(friend: com.neo.yourtodo.core.model.friends.Friend) {
         mutableUiState.update {
             it.copy(
-                selectedFriend = friend,
+                selectedFriend = null,
                 friendDetailLoading = true,
+                friendAssignmentSummary = null,
+                friendSentAssignedTodos = emptyList(),
+                friendReceivedAssignedTodos = emptyList(),
+                selectedPendingAssignmentIds = emptySet(),
                 error = null
             )
         }
         viewModelScope.launch {
-            refreshFriendDetail(friend.userId)
+            refreshFriendDetail(friend)
         }
     }
 
-    private suspend fun refreshFriendDetail(friendUserId: String) {
+    private suspend fun refreshFriendDetail(friend: com.neo.yourtodo.core.model.friends.Friend) {
+        val friendUserId = friend.userId
         val summary = getFriendAssignmentSummary(friendUserId)
         val sent = getActiveAndPendingAssignedTodos(
             friendUserId = friendUserId,
@@ -252,6 +257,7 @@ class FriendsViewModel @Inject constructor(
                 val receivedItems = received.getOrThrow()
                 val validPendingIds = receivedItems.pendingDecisionItems().map { item -> item.id }.toSet()
                 it.copy(
+                    selectedFriend = friend,
                     friendDetailLoading = false,
                     friendAssignmentSummary = summary.getOrThrow(),
                     friendSentAssignedTodos = sent.getOrThrow(),
@@ -335,7 +341,7 @@ class FriendsViewModel @Inject constructor(
     ) {
         val state = uiState.value
         if (state.runningActionKey != null) return
-        val friendUserId = state.selectedFriend?.userId ?: return
+        val friend = state.selectedFriend ?: return
         val selectedItems = state.decisionPendingAssignedTodos()
             .filter { item -> item.id in state.selectedPendingAssignmentIds }
         if (selectedItems.isEmpty()) return
@@ -357,7 +363,7 @@ class FriendsViewModel @Inject constructor(
 
             if (result.isSuccess) {
                 mutableUiState.update { it.copy(selectedPendingAssignmentIds = emptySet()) }
-                refreshFriendDetail(friendUserId)
+                refreshFriendDetail(friend)
                 refreshAfterMutation()
                 mutableSideEffect.emit(FriendsSideEffect.ShowSnackbar(successMessage.messageRes))
             } else {
@@ -365,7 +371,7 @@ class FriendsViewModel @Inject constructor(
                     mutableUiState.update {
                         it.copy(selectedPendingAssignmentIds = it.selectedPendingAssignmentIds - succeededItemIds)
                     }
-                    refreshFriendDetail(friendUserId)
+                    refreshFriendDetail(friend)
                 }
                 mutableUiState.update {
                     it.copy(
@@ -419,8 +425,9 @@ class FriendsViewModel @Inject constructor(
             }
         ) {
             createAssignmentBundle(friend.userId, items).also { result ->
-                if (result.isSuccess && uiState.value.selectedFriend?.userId == friend.userId) {
-                    refreshFriendDetail(friend.userId)
+                val selectedFriend = uiState.value.selectedFriend
+                if (result.isSuccess && selectedFriend?.userId == friend.userId) {
+                    refreshFriendDetail(selectedFriend)
                 }
             }.map { Unit }
         }

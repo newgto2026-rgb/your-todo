@@ -72,7 +72,8 @@ internal fun EditTodoBottomSheet(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
-    showDelete: Boolean
+    showDelete: Boolean,
+    contentEditable: Boolean = true
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -130,6 +131,7 @@ internal fun EditTodoBottomSheet(
             TextField(
                 value = title,
                 onValueChange = onTitleChange,
+                enabled = contentEditable,
                 placeholder = { Text(stringResource(R.string.todo_editor_task_placeholder)) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -149,11 +151,12 @@ internal fun EditTodoBottomSheet(
             Spacer(Modifier.height(12.dp))
             Surface(
                 onClick = { showDatePicker = true },
+                enabled = contentEditable,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("due_date_selector"),
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFEBEDF4)
+                color = if (contentEditable) Color(0xFFEBEDF4) else Color(0xFFE2E5EC)
             ) {
                 Row(
                     modifier = Modifier
@@ -174,7 +177,11 @@ internal fun EditTodoBottomSheet(
                             dueDateInput
                         },
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (dueDateInput.isBlank()) Color(0xFF8E94A3) else Color(0xFF2F3441)
+                        color = when {
+                            !contentEditable -> Color(0xFF7A808C)
+                            dueDateInput.isBlank() -> Color(0xFF8E94A3)
+                            else -> Color(0xFF2F3441)
+                        }
                     )
                 }
             }
@@ -195,11 +202,12 @@ internal fun EditTodoBottomSheet(
                         true
                     ).show()
                 },
+                enabled = contentEditable,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("due_time_selector"),
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFEBEDF4)
+                color = if (contentEditable) Color(0xFFEBEDF4) else Color(0xFFE2E5EC)
             ) {
                 Row(
                     modifier = Modifier
@@ -220,7 +228,11 @@ internal fun EditTodoBottomSheet(
                             dueTimeInput
                         },
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (dueTimeInput.isBlank()) Color(0xFF8E94A3) else Color(0xFF2F3441)
+                        color = when {
+                            !contentEditable -> Color(0xFF7A808C)
+                            dueTimeInput.isBlank() -> Color(0xFF8E94A3)
+                            else -> Color(0xFF2F3441)
+                        }
                     )
                 }
             }
@@ -228,7 +240,8 @@ internal fun EditTodoBottomSheet(
             Spacer(Modifier.height(14.dp))
             TodoEditorPrioritySection(
                 selectedPriority = selectedPriority,
-                onPrioritySelected = onPrioritySelected
+                onPrioritySelected = onPrioritySelected,
+                enabled = contentEditable
             )
 
             Spacer(Modifier.height(14.dp))
@@ -274,7 +287,7 @@ internal fun EditTodoBottomSheet(
         }
     }
 
-    if (showDatePicker) {
+    if (showDatePicker && contentEditable) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {

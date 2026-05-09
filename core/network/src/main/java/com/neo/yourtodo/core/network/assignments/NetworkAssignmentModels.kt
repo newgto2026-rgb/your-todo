@@ -36,6 +36,12 @@ data class NetworkUpdateChecklistItemRequest(
 )
 
 @Serializable
+data class NetworkUpsertAssignedTodoReminderRequest(
+    val reminderAt: String,
+    val enabled: Boolean = true
+)
+
+@Serializable
 data class NetworkAssignmentBundleResponse(
     val bundle: NetworkAssignmentBundle,
     val items: List<NetworkAssignedTodo>
@@ -50,6 +56,11 @@ data class NetworkAssignedTodosResponse(
 data class NetworkAssignedTodoMutationResponse(
     val item: NetworkAssignedTodo,
     val bundle: NetworkAssignmentBundle
+)
+
+@Serializable
+data class NetworkAssignedTodoReminderResponse(
+    val reminder: NetworkAssignedTodoReminder?
 )
 
 @Serializable

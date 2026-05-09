@@ -36,5 +36,7 @@ data class CalendarSelectedTodoUiModel(
     val priority: TodoPriority,
     val isReminderEnabled: Boolean,
     val dueTimeLabel: String?,
-    val reminderLeadMinutes: Int?
+    val reminderLeadMinutes: Int?,
+    val sourceLabel: String? = null,
+    val assignedTodoId: String? = null
 )

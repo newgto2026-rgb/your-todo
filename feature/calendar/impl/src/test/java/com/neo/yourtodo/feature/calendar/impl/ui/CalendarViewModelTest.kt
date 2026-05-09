@@ -1,6 +1,11 @@
 package com.neo.yourtodo.feature.calendar.impl.ui
 
 import com.neo.yourtodo.core.domain.repository.AuthRepository
+import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
+import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
@@ -11,6 +16,14 @@ import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
+import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.calendar.impl.R
@@ -320,6 +333,33 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun selectedDateTodos_includeReceivedAssignedTodos() = runTest {
+        val repository = FakeTodoRepository()
+        val assignmentRepository = FakeAssignmentRepository(
+            receivedItems = listOf(
+                assignedTodo(
+                    id = "assigned-calendar",
+                    title = "From friend",
+                    dueDate = YearMonth.now().atDay(9)
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            assignmentRepository = assignmentRepository
+        )
+        val selectedDate = YearMonth.now().atDay(9)
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+
+        val todo = viewModel.uiState.value.selectedDateTodos.single()
+        assertThat(todo.title).isEqualTo("From friend")
+        assertThat(todo.sourceLabel).isEqualTo("@monday")
+        assertThat(viewModel.uiState.value.summariesByDate[selectedDate]?.indicatorCount).isEqualTo(1)
+    }
+
+    @Test
     fun buildMonthCells_includesAdjacentMonthDatesWithoutNullCells() {
         val yearMonth = YearMonth.of(2026, 4)
         val selectedDate = yearMonth.atDay(9)
@@ -366,7 +406,8 @@ class CalendarViewModelTest {
 
     private fun createViewModel(
         repository: FakeTodoRepository,
-        authRepository: FakeAuthRepository = FakeAuthRepository()
+        authRepository: FakeAuthRepository = FakeAuthRepository(),
+        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
     ): CalendarViewModel {
         val viewModel = CalendarViewModel(
             savedStateHandle = SavedStateHandle(),
@@ -376,7 +417,9 @@ class CalendarViewModelTest {
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
-            syncTodosUseCase = SyncTodosUseCase(repository)
+            syncTodosUseCase = SyncTodosUseCase(repository),
+            getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository)
         )
         uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()
@@ -407,4 +450,77 @@ class CalendarViewModelTest {
 
         override suspend fun signOut() = Unit
     }
+
+    private class FakeAssignmentRepository(
+        var receivedItems: List<AssignedTodo> = emptyList()
+    ) : AssignmentRepository {
+        var completedAssignedTodoId: String? = null
+
+        override suspend fun createBundle(
+            receiverUserId: String,
+            items: List<AssignmentDraftItem>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Result<List<AssignedTodo>> = Result.success(emptyList())
+
+        override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(receivedItems)
+
+        override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(emptyList())
+
+        override suspend fun decideBundleItems(
+            bundleId: String,
+            decisions: Map<String, AssignmentDecision>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            completedAssignedTodoId = assignedTodoId
+            return Result.success(assignedTodo(id = assignedTodoId, status = AssignedTodoStatus.DONE))
+        }
+
+        override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun upsertAssignedTodoReminder(
+            assignedTodoId: String,
+            reminderAt: String,
+            enabled: Boolean
+        ): Result<Unit> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+    }
 }
+
+private fun assignedTodo(
+    id: String = "assigned-1",
+    title: String = "Shared todo",
+    dueDate: LocalDate? = null,
+    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+) = AssignedTodo(
+    id = id,
+    bundleId = "bundle-1",
+    title = title,
+    description = null,
+    dueDate = dueDate,
+    priority = TodoPriority.MEDIUM,
+    category = null,
+    status = status,
+    terminalReason = null,
+    progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
+    sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
+    receiver = AssignedTodoUser(id = "me", nickname = "tester"),
+    reminder = null,
+    checklist = emptyList()
+)

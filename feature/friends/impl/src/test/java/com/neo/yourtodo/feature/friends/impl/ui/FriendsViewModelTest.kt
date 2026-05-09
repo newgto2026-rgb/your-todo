@@ -741,6 +741,15 @@ class FriendsViewModelTest {
 
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.success(assignedTodo(assignedTodoId, status = AssignedTodoStatus.CANCELED))
+
+        override suspend fun upsertAssignedTodoReminder(
+            assignedTodoId: String,
+            reminderAt: String,
+            enabled: Boolean
+        ): Result<Unit> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
     }
 }
 

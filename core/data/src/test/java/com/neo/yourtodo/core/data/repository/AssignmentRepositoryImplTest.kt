@@ -17,6 +17,7 @@ import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodo
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoChecklistItem
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoMutationResponse
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoReminder
+import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoReminderResponse
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodosResponse
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentBundle
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentBundleResponse
@@ -26,6 +27,7 @@ import com.neo.yourtodo.core.network.assignments.NetworkAssignmentUser
 import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentBundleRequest
 import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsRequest
 import com.neo.yourtodo.core.network.assignments.NetworkFriendAssignmentSummaryResponse
+import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import com.neo.yourtodo.core.network.auth.NetworkAuthUser
@@ -279,6 +281,8 @@ class AssignmentRepositoryImplTest {
         var lastFriendDirection: String? = null
         var lastFriendStatus: String? = null
         var lastDecisionRequest: NetworkDecideAssignmentItemsRequest? = null
+        var lastReminderRequest: NetworkUpsertAssignedTodoReminderRequest? = null
+        var deletedReminderTodoId: String? = null
 
         override suspend fun createBundle(
             accessToken: String,
@@ -369,6 +373,30 @@ class AssignmentRepositoryImplTest {
         ): NetworkAssignedTodoMutationResponse {
             failAuthIfNeeded()
             return mutationResponse(assignedTodoId)
+        }
+
+        override suspend fun upsertAssignedTodoReminder(
+            accessToken: String,
+            assignedTodoId: String,
+            request: NetworkUpsertAssignedTodoReminderRequest
+        ): NetworkAssignedTodoReminderResponse {
+            failAuthIfNeeded()
+            lastReminderRequest = request
+            return NetworkAssignedTodoReminderResponse(
+                reminder = NetworkAssignedTodoReminder(
+                    reminderAt = request.reminderAt,
+                    enabled = request.enabled
+                )
+            )
+        }
+
+        override suspend fun deleteAssignedTodoReminder(
+            accessToken: String,
+            assignedTodoId: String
+        ): NetworkAssignedTodoReminderResponse {
+            failAuthIfNeeded()
+            deletedReminderTodoId = assignedTodoId
+            return NetworkAssignedTodoReminderResponse(reminder = null)
         }
 
         private fun failAuthIfNeeded() {

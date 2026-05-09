@@ -23,6 +23,7 @@ import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoReminder
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
@@ -950,6 +951,40 @@ class TodoListViewModelTest {
         assertThat(viewModel.uiState.value.pendingAssignedDeleteId).isNull()
     }
 
+    @Test
+    fun receivedAssignedTodoClickOpensReadOnlyEditorAndSavesReminder() = runTest {
+        val futureDate = LocalDate.now().plusDays(1)
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "assigned-reminder",
+                title = "Friend task",
+                dueDate = futureDate,
+                dueTimeMinutes = 10 * 60
+            )
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        val assigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-reminder" }
+        viewModel.onAction(TodoListAction.OnEditClick(assigned.id))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.editingAssignedTodoId).isEqualTo("assigned-reminder")
+        assertThat(viewModel.uiState.value.draftTitle).isEqualTo("Friend task")
+
+        viewModel.onAction(TodoListAction.OnReminderEnabledChange(true))
+        viewModel.onAction(TodoListAction.OnReminderLeadMinutesChange(30))
+        viewModel.onAction(TodoListAction.OnSaveClick)
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.upsertedReminder?.first).isEqualTo("assigned-reminder")
+        assertThat(assignmentRepository.upsertedReminder?.second).isNotNull()
+        assertThat(viewModel.uiState.value.isEditDialogVisible).isFalse()
+    }
+
     private class RecordingReminderScheduler : TodoReminderScheduler {
         val cancelledTodoIds = mutableListOf<Long>()
 
@@ -999,6 +1034,8 @@ class TodoListViewModelTest {
         var receivedItems = emptyList<AssignedTodo>()
         var completedAssignedTodoId: String? = null
         var deletedAssignedTodoId: String? = null
+        var upsertedReminder: Pair<String, String>? = null
+        var deletedReminderAssignedTodoId: String? = null
 
         override suspend fun createBundle(
             receiverUserId: String,
@@ -1045,19 +1082,37 @@ class TodoListViewModelTest {
 
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
+
+        override suspend fun upsertAssignedTodoReminder(
+            assignedTodoId: String,
+            reminderAt: String,
+            enabled: Boolean
+        ): Result<Unit> {
+            upsertedReminder = assignedTodoId to reminderAt
+            return Result.success(Unit)
+        }
+
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> {
+            deletedReminderAssignedTodoId = assignedTodoId
+            return Result.success(Unit)
+        }
     }
 }
 
 private fun assignedTodo(
     id: String = "assigned-1",
     title: String = "Shared todo",
-    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
+    dueDate: LocalDate? = null,
+    dueTimeMinutes: Int? = null,
+    reminder: AssignedTodoReminder? = null
 ) = AssignedTodo(
     id = id,
     bundleId = "bundle-1",
     title = title,
     description = null,
-    dueDate = null,
+    dueDate = dueDate,
+    dueTimeMinutes = dueTimeMinutes,
     priority = TodoPriority.MEDIUM,
     category = null,
     status = status,
@@ -1065,6 +1120,6 @@ private fun assignedTodo(
     progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
     sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
     receiver = AssignedTodoUser(id = "me", nickname = "tester"),
-    reminder = null,
+    reminder = reminder,
     checklist = emptyList()
 )

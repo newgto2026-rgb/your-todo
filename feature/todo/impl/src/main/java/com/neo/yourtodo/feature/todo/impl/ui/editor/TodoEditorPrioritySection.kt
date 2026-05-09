@@ -21,7 +21,8 @@ import com.neo.yourtodo.feature.todo.impl.R
 @Composable
 internal fun TodoEditorPrioritySection(
     selectedPriority: TodoPriority,
-    onPrioritySelected: (TodoPriority) -> Unit
+    onPrioritySelected: (TodoPriority) -> Unit,
+    enabled: Boolean = true
 ) {
     Text(
         text = stringResource(R.string.todo_editor_priority_label),
@@ -41,6 +42,7 @@ internal fun TodoEditorPrioritySection(
             selected = selectedPriority == TodoPriority.LOW,
             color = Color(0xFF6FA58C),
             testTag = "priority_low_option",
+            enabled = enabled,
             onClick = { onPrioritySelected(TodoPriority.LOW) }
         )
         PriorityOptionChip(
@@ -48,6 +50,7 @@ internal fun TodoEditorPrioritySection(
             selected = selectedPriority == TodoPriority.MEDIUM,
             color = Color(0xFF6F86C9),
             testTag = "priority_medium_option",
+            enabled = enabled,
             onClick = { onPrioritySelected(TodoPriority.MEDIUM) }
         )
         PriorityOptionChip(
@@ -55,6 +58,7 @@ internal fun TodoEditorPrioritySection(
             selected = selectedPriority == TodoPriority.HIGH,
             color = Color(0xFFC76B7D),
             testTag = "priority_high_option",
+            enabled = enabled,
             onClick = { onPrioritySelected(TodoPriority.HIGH) }
         )
     }
@@ -66,18 +70,28 @@ private fun PriorityOptionChip(
     selected: Boolean,
     color: Color,
     testTag: String,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = if (selected) color.copy(alpha = 0.2f) else Color(0xFFE8EBF3),
+        color = when {
+            !enabled -> Color(0xFFE1E4EC)
+            selected -> color.copy(alpha = 0.2f)
+            else -> Color(0xFFE8EBF3)
+        },
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.testTag(testTag)
     ) {
         Text(
             text = label,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = if (selected) color else Color(0xFF6C7382),
+            color = when {
+                !enabled -> Color(0xFF8A909C)
+                selected -> color
+                else -> Color(0xFF6C7382)
+            },
             style = MaterialTheme.typography.labelLarge
         )
     }

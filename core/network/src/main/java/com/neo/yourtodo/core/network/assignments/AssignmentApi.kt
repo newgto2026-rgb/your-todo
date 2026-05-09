@@ -1,10 +1,12 @@
 package com.neo.yourtodo.core.network.assignments
 
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -77,4 +79,17 @@ interface AssignmentApi {
         @Path("checklistItemId") checklistItemId: String,
         @Body request: NetworkUpdateChecklistItemRequest
     ): NetworkAssignedTodoMutationResponse
+
+    @PUT("api/assigned-todos/{assignedTodoId}/my-reminder")
+    suspend fun upsertAssignedTodoReminder(
+        @Header("Authorization") authorization: String,
+        @Path("assignedTodoId") assignedTodoId: String,
+        @Body request: NetworkUpsertAssignedTodoReminderRequest
+    ): NetworkAssignedTodoReminderResponse
+
+    @DELETE("api/assigned-todos/{assignedTodoId}/my-reminder")
+    suspend fun deleteAssignedTodoReminder(
+        @Header("Authorization") authorization: String,
+        @Path("assignedTodoId") assignedTodoId: String
+    ): NetworkAssignedTodoReminderResponse
 }

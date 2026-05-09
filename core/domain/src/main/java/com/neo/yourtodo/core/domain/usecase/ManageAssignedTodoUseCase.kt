@@ -12,4 +12,13 @@ class ManageAssignedTodoUseCase @Inject constructor(
         repository.deleteReceivedAssignedTodo(assignedTodoId)
 
     suspend fun cancel(assignedTodoId: String) = repository.cancelAssignedTodo(assignedTodoId)
+
+    suspend fun upsertReminder(
+        assignedTodoId: String,
+        reminderAt: String,
+        enabled: Boolean
+    ) = repository.upsertAssignedTodoReminder(assignedTodoId, reminderAt, enabled)
+
+    suspend fun deleteReminder(assignedTodoId: String) =
+        repository.deleteAssignedTodoReminder(assignedTodoId)
 }

@@ -34,6 +34,14 @@ interface AssignmentRepository {
     suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo>
 
     suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo>
+
+    suspend fun upsertAssignedTodoReminder(
+        assignedTodoId: String,
+        reminderAt: String,
+        enabled: Boolean
+    ): Result<Unit>
+
+    suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit>
 }
 
 enum class AssignmentDirection {

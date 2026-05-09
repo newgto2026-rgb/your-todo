@@ -49,6 +49,17 @@ interface AssignmentNetworkDataSource {
         idempotencyKey: String,
         assignedTodoId: String
     ): NetworkAssignedTodoMutationResponse
+
+    suspend fun upsertAssignedTodoReminder(
+        accessToken: String,
+        assignedTodoId: String,
+        request: NetworkUpsertAssignedTodoReminderRequest
+    ): NetworkAssignedTodoReminderResponse
+
+    suspend fun deleteAssignedTodoReminder(
+        accessToken: String,
+        assignedTodoId: String
+    ): NetworkAssignedTodoReminderResponse
 }
 
 class AssignmentAuthRequiredException : RuntimeException()

@@ -31,6 +31,7 @@ import com.neo.yourtodo.core.network.assignments.NetworkAssignmentUser
 import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentBundleRequest
 import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentItem
 import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsRequest
+import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession as AuthNetworkSession
 import java.time.LocalDate
@@ -148,6 +149,32 @@ class AssignmentRepositoryImpl @Inject constructor(
                 idempotencyKey = UUID.randomUUID().toString(),
                 assignedTodoId = assignedTodoId
             ).item.toDomain()
+        }
+
+    override suspend fun upsertAssignedTodoReminder(
+        assignedTodoId: String,
+        reminderAt: String,
+        enabled: Boolean
+    ): Result<Unit> =
+        authenticatedRequest { accessToken ->
+            assignmentNetworkDataSource.upsertAssignedTodoReminder(
+                accessToken = accessToken,
+                assignedTodoId = assignedTodoId,
+                request = NetworkUpsertAssignedTodoReminderRequest(
+                    reminderAt = reminderAt,
+                    enabled = enabled
+                )
+            )
+            Unit
+        }
+
+    override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
+        authenticatedRequest { accessToken ->
+            assignmentNetworkDataSource.deleteAssignedTodoReminder(
+                accessToken = accessToken,
+                assignedTodoId = assignedTodoId
+            )
+            Unit
         }
 
     private suspend fun <T> authenticatedRequest(block: suspend (String) -> T): Result<T> =

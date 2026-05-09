@@ -6,7 +6,10 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 internal fun buildTodoListUiState(
@@ -113,22 +116,44 @@ private fun TodoItem.toUiModel(): TodoItemUiModel =
     )
 
 private fun AssignedTodo.toUiModel(): TodoItemUiModel =
-    TodoItemUiModel(
-        id = stableAssignedRowId(id),
-        title = title,
-        isDone = isDone,
-        dueDate = dueDate,
-        dueDateText = dueDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
-        dueTimeText = dueTimeMinutes?.let(::minutesToDueTimeText),
-        reminderAtEpochMillis = null,
-        reminderDateTimeText = null,
-        isReminderEnabled = reminder?.enabled == true,
-        reminderLeadMinutes = null,
-        reminderRepeatType = com.neo.yourtodo.core.model.ReminderRepeatType.NONE,
-        priority = priority,
-        assignedTodoId = id,
-        senderNickname = sender?.nickname
-    )
+    reminderAtEpochMillis().let { reminderEpochMillis ->
+        val reminderLeadMinutes = reminderLeadMinutes(reminderEpochMillis)
+        TodoItemUiModel(
+            id = stableAssignedRowId(id),
+            title = title,
+            isDone = isDone,
+            dueDate = dueDate,
+            dueDateText = dueDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            dueTimeText = dueTimeMinutes?.let(::minutesToDueTimeText),
+            reminderAtEpochMillis = reminderEpochMillis,
+            reminderDateTimeText = epochMillisToReminderDateTime(reminderEpochMillis),
+            isReminderEnabled = reminder?.enabled == true,
+            reminderLeadMinutes = reminderLeadMinutes,
+            reminderRepeatType = com.neo.yourtodo.core.model.ReminderRepeatType.NONE,
+            priority = priority,
+            assignedTodoId = id,
+            senderNickname = sender?.nickname
+        )
+    }
+
+private fun AssignedTodo.reminderAtEpochMillis(): Long? =
+    reminder
+        ?.takeIf { it.enabled }
+        ?.reminderAt
+        ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+
+private fun AssignedTodo.reminderLeadMinutes(reminderEpochMillis: Long?): Int? {
+    val dueDate = dueDate ?: return null
+    val dueTimeMinutes = dueTimeMinutes ?: return null
+    val reminderMillis = reminderEpochMillis ?: return null
+    val dueMillis = dueDate
+        .atTime(LocalTime.of(dueTimeMinutes / 60, dueTimeMinutes % 60))
+        .atZone(ZoneId.systemDefault())
+        .toInstant()
+        .toEpochMilli()
+    val leadMinutes = ((dueMillis - reminderMillis) / 60_000L).toInt()
+    return leadMinutes.takeIf { it in setOf(0, 5, 10, 30, 60) }
+}
 
 private fun stableAssignedRowId(id: String): Long {
     val positiveHash = id.hashCode().toLong().let { if (it == Long.MIN_VALUE) 0 else kotlin.math.abs(it) }

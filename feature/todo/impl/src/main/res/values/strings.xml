@@ -31,6 +31,7 @@
 
     <string name="todo_editor_title_new_task">New Task</string>
     <string name="todo_editor_title_edit_task">Edit Task</string>
+    <string name="todo_editor_title_received_task">Requested Task</string>
     <string name="todo_editor_task_description">TASK DESCRIPTION</string>
     <string name="todo_editor_task_placeholder">What needs to be done?</string>
     <string name="todo_editor_select_due_date">Select due date</string>
@@ -78,7 +79,7 @@
 
     <string name="todo_row_subtitle_completed">@string/todo_filter_completed</string>
     <string name="todo_row_subtitle_today">@string/todo_filter_today</string>
-    <string name="todo_row_assigned_from">From %1$s</string>
+    <string name="todo_row_assigned_from">@%1$s</string>
 
     <string name="todo_error_title_required">Please enter a title.</string>
     <string name="todo_error_due_date_format">Date format must be yyyy-MM-dd.</string>

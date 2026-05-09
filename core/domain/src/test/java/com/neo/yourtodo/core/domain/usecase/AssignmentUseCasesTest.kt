@@ -213,6 +213,15 @@ class AssignmentUseCasesTest {
             canceledTodoIds += assignedTodoId
             return cancelResult
         }
+
+        override suspend fun upsertAssignedTodoReminder(
+            assignedTodoId: String,
+            reminderAt: String,
+            enabled: Boolean
+        ): Result<Unit> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
     }
 
     private fun testDraft() = AssignmentDraftItem(

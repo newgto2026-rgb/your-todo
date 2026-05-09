@@ -175,6 +175,13 @@ internal fun CalendarAgendaItem(
                                 color = Color(0xFF5A6065).copy(alpha = if (todo.isDone) 0.6f else 1f)
                             )
                         }
+                        if (!todo.sourceLabel.isNullOrBlank()) {
+                            Text(
+                                text = todo.sourceLabel,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = Color(0xFF3C7766).copy(alpha = if (todo.isDone) 0.6f else 1f)
+                            )
+                        }
                     }
                 }
             }

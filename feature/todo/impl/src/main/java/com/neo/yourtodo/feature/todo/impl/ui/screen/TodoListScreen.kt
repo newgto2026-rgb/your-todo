@@ -38,6 +38,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -49,6 +50,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -185,6 +187,7 @@ private fun TodoListLoadingScreen() {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun TodoListScreen(
     uiState: TodoListUiState,
     onAction: (TodoListAction) -> Unit,
@@ -208,6 +211,7 @@ private fun TodoListScreen(
     val shouldShowQuickAdd = uiState.selectedFilter != TodoFilter.COMPLETED
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
+    val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(
         uiState.selectedFilter,
@@ -408,6 +412,44 @@ private fun TodoListScreen(
             onConfirm = { onAction(TodoListAction.OnDeleteConfirm) },
             onDismiss = { onAction(TodoListAction.OnDeleteCancel) }
         )
+    }
+
+    if (uiState.isEditDialogVisible) {
+        val isAssignedEdit = uiState.editingAssignedTodoId != null
+        ModalBottomSheet(
+            onDismissRequest = { onAction(TodoListAction.OnDismissDialog) },
+            sheetState = editSheetState,
+            containerColor = Color.Transparent,
+            dragHandle = null
+        ) {
+            EditTodoBottomSheet(
+                sheetTitle = stringResource(
+                    when {
+                        isAssignedEdit -> R.string.todo_editor_title_received_task
+                        uiState.editingItem == null -> R.string.todo_editor_title_new_task
+                        else -> R.string.todo_editor_title_edit_task
+                    }
+                ),
+                title = uiState.draftTitle,
+                dueDateInput = uiState.draftDueDateInput,
+                dueTimeInput = uiState.draftDueTimeInput,
+                reminderEnabled = uiState.draftReminderEnabled,
+                reminderLeadMinutes = uiState.draftReminderLeadMinutes ?: DEFAULT_REMINDER_LEAD_MINUTES,
+                selectedPriority = uiState.draftPriority,
+                errorMessageRes = uiState.errorMessageRes,
+                onTitleChange = { onAction(TodoListAction.OnTitleChange(it)) },
+                onDateInputChange = { onAction(TodoListAction.OnDueDateInputChange(it)) },
+                onDueTimeInputChange = { onAction(TodoListAction.OnDueTimeInputChange(it)) },
+                onReminderEnabledChange = { onAction(TodoListAction.OnReminderEnabledChange(it)) },
+                onReminderLeadMinutesChange = { onAction(TodoListAction.OnReminderLeadMinutesChange(it)) },
+                onPrioritySelected = { onAction(TodoListAction.OnPrioritySelectedInEditor(it)) },
+                onDismiss = { onAction(TodoListAction.OnDismissDialog) },
+                onSave = { onAction(TodoListAction.OnSaveClick) },
+                onDelete = { uiState.editingItem?.id?.let { onAction(TodoListAction.OnDeleteRequest(it)) } },
+                showDelete = !isAssignedEdit && uiState.editingItem?.id != null,
+                contentEditable = !isAssignedEdit
+            )
+        }
     }
 }
 
@@ -665,7 +707,9 @@ private fun TodoPlannerRow(
                 } ?: onAction(TodoListAction.OnToggleDone(item.id))
             },
             onClick = {
-                if (!item.isAssigned) {
+                if (item.isAssigned) {
+                    onAction(TodoListAction.OnEditClick(item.id))
+                } else {
                     onEditRequested(item.id)
                 }
             },
@@ -674,7 +718,7 @@ private fun TodoPlannerRow(
             priorityColor = priorityColor(item.priority),
             assignedFromText = assignedFromLabel
         )
-        if (showQuickActions) {
+        if (showQuickActions && !item.isAssigned) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     onClick = { onAction(TodoListAction.OnMoveToTomorrow(item.id)) },
@@ -755,11 +799,7 @@ private fun DeletableTodoItemRow(
             priorityLabel = priorityLabel,
             priorityColor = priorityColor,
             toggleTestTag = "todo_row_toggle_$itemId",
-            content = assignedFromText?.let {
-                {
-                    AssignedTodoSourceBadge(text = it)
-                }
-            }
+            sourceText = assignedFromText
         )
     }
 }
@@ -772,24 +812,6 @@ private fun SortOptionDot(color: Color) {
             .clip(CircleShape)
             .background(color)
     )
-}
-
-@Composable
-private fun AssignedTodoSourceBadge(text: String) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = Color(0xFFEAF4F0),
-        border = BorderStroke(1.dp, Color(0xFFC8E5DA))
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-            color = Color(0xFF3C7766),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
 }
 
 @Composable
