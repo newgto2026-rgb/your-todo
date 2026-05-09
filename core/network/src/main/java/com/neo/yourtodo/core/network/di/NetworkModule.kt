@@ -4,6 +4,9 @@ import com.neo.yourtodo.core.network.BuildConfig
 import com.neo.yourtodo.core.network.auth.AuthApi
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.RetrofitAuthNetworkDataSource
+import com.neo.yourtodo.core.network.friends.FriendApi
+import com.neo.yourtodo.core.network.friends.FriendNetworkDataSource
+import com.neo.yourtodo.core.network.friends.RetrofitFriendNetworkDataSource
 import com.neo.yourtodo.core.network.sync.RetrofitTodoSyncNetworkDataSource
 import com.neo.yourtodo.core.network.sync.TodoSyncApi
 import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
@@ -65,6 +68,10 @@ internal object NetworkProvidesModule {
     @Provides
     @Singleton
     fun provideTodoSyncApi(retrofit: Retrofit): TodoSyncApi = retrofit.create(TodoSyncApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideFriendApi(retrofit: Retrofit): FriendApi = retrofit.create(FriendApi::class.java)
 }
 
 @Module
@@ -81,4 +88,10 @@ internal abstract class NetworkBindsModule {
     abstract fun bindTodoSyncNetworkDataSource(
         impl: RetrofitTodoSyncNetworkDataSource
     ): TodoSyncNetworkDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindFriendNetworkDataSource(
+        impl: RetrofitFriendNetworkDataSource
+    ): FriendNetworkDataSource
 }

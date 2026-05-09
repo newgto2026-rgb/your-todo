@@ -168,6 +168,51 @@ internal fun AppTabIcon(
                     center = Offset(19.8.dp.toPx(), 20.dp.toPx())
                 )
             }
+
+            AppTabDestination.FRIENDS -> {
+                drawCircle(
+                    color = fillColor,
+                    radius = 5.2.dp.toPx(),
+                    center = Offset(11.dp.toPx(), 11.dp.toPx())
+                )
+                drawCircle(
+                    color = lineColor,
+                    radius = 5.2.dp.toPx(),
+                    center = Offset(11.dp.toPx(), 11.dp.toPx()),
+                    style = stroke
+                )
+                drawCircle(
+                    color = fillColor,
+                    radius = 4.4.dp.toPx(),
+                    center = Offset(20.dp.toPx(), 12.4.dp.toPx())
+                )
+                drawCircle(
+                    color = lineColor.copy(alpha = 0.82f),
+                    radius = 4.4.dp.toPx(),
+                    center = Offset(20.dp.toPx(), 12.4.dp.toPx()),
+                    style = stroke
+                )
+                drawRoundRect(
+                    color = fillColor,
+                    topLeft = Offset(6.dp.toPx(), 18.dp.toPx()),
+                    size = Size(12.dp.toPx(), 7.dp.toPx()),
+                    cornerRadius = CornerRadius(5.dp.toPx())
+                )
+                drawRoundRect(
+                    color = accentColor,
+                    topLeft = Offset(6.dp.toPx(), 18.dp.toPx()),
+                    size = Size(12.dp.toPx(), 7.dp.toPx()),
+                    cornerRadius = CornerRadius(5.dp.toPx()),
+                    style = stroke
+                )
+                drawLine(
+                    color = lineColor.copy(alpha = 0.78f),
+                    start = Offset(17.5.dp.toPx(), 20.2.dp.toPx()),
+                    end = Offset(24.dp.toPx(), 20.2.dp.toPx()),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round
+                )
+            }
         }
     }
 }

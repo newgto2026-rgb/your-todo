@@ -24,15 +24,7 @@ class GoogleIdTokenReader(
         runCatching {
             requestIdToken(
                 context = context,
-                serverClientId = serverClientId,
-                filterByAuthorizedAccounts = true
-            )
-        }.recoverCatching { firstError ->
-            if (firstError !is NoCredentialException) throw firstError
-            requestIdToken(
-                context = context,
-                serverClientId = serverClientId,
-                filterByAuthorizedAccounts = false
+                serverClientId = serverClientId
             )
         }
     }
@@ -40,21 +32,24 @@ class GoogleIdTokenReader(
     @SuppressLint("CredentialManagerSignInWithGoogle")
     private suspend fun requestIdToken(
         context: Context,
-        serverClientId: String,
-        filterByAuthorizedAccounts: Boolean
+        serverClientId: String
     ): String {
         val googleIdOption = GetGoogleIdOption.Builder()
             .setServerClientId(serverClientId)
-            .setFilterByAuthorizedAccounts(filterByAuthorizedAccounts)
-            .setAutoSelectEnabled(filterByAuthorizedAccounts)
+            .setFilterByAuthorizedAccounts(false)
+            .setAutoSelectEnabled(false)
             .build()
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(googleIdOption)
             .build()
-        val response = credentialManager.getCredential(
-            context = context,
-            request = request
-        )
+        val response = try {
+            credentialManager.getCredential(
+                context = context,
+                request = request
+            )
+        } catch (error: NoCredentialException) {
+            throw IllegalStateException("No Google credential was returned.", error)
+        }
         val credential = response.credential
         if (
             credential !is CustomCredential ||

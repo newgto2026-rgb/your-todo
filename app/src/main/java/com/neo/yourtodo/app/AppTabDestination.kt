@@ -3,6 +3,7 @@ package com.neo.yourtodo.app
 import androidx.annotation.StringRes
 import com.neo.yourtodo.R
 import com.neo.yourtodo.feature.calendar.api.CalendarRoute
+import com.neo.yourtodo.feature.friends.api.FriendsRoute
 import com.neo.yourtodo.feature.todo.api.TodoAllRoute
 import com.neo.yourtodo.feature.todo.api.TodoCompletedRoute
 import com.neo.yourtodo.feature.todo.api.TodoTodayRoute
@@ -27,6 +28,10 @@ enum class AppTabDestination(
     CALENDAR(
         route = CalendarRoute,
         labelRes = R.string.tab_calendar
+    ),
+    FRIENDS(
+        route = FriendsRoute,
+        labelRes = R.string.tab_friends
     );
 
     companion object {
