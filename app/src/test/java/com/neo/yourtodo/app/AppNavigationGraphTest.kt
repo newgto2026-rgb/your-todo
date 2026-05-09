@@ -5,6 +5,7 @@ import androidx.navigation3.runtime.NavKey
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
 import com.neo.yourtodo.core.ui.navigation.AppRouteActions
 import com.neo.yourtodo.feature.calendar.api.CalendarRoute
+import com.neo.yourtodo.feature.friends.api.FriendsRoute
 import com.neo.yourtodo.feature.todo.api.TodoAllRoute
 import com.neo.yourtodo.feature.todo.api.TodoCompletedRoute
 import com.neo.yourtodo.feature.todo.api.TodoTodayRoute
@@ -23,7 +24,8 @@ class AppNavigationGraphTest {
                     topLevelRoutes = setOf(TodoAllRoute, TodoTodayRoute, TodoCompletedRoute),
                     isStartDestination = true
                 ),
-                fakeEntry(route = CalendarRoute)
+                fakeEntry(route = CalendarRoute),
+                fakeEntry(route = FriendsRoute)
             )
         )
 
@@ -32,7 +34,8 @@ class AppNavigationGraphTest {
             TodoAllRoute,
             TodoTodayRoute,
             TodoCompletedRoute,
-            CalendarRoute
+            CalendarRoute,
+            FriendsRoute
         ).inOrder()
     }
 
@@ -46,7 +49,8 @@ class AppNavigationGraphTest {
                     transientRouteTypes = setOf(ExternalChildRoute::class),
                     isStartDestination = true
                 ),
-                fakeEntry(route = CalendarRoute)
+                fakeEntry(route = CalendarRoute),
+                fakeEntry(route = FriendsRoute)
             )
         )
 
@@ -117,7 +121,8 @@ class AppNavigationGraphTest {
                         transientRouteTypes = setOf(TodoAllRoute::class),
                         isStartDestination = true
                     ),
-                    fakeEntry(route = CalendarRoute)
+                    fakeEntry(route = CalendarRoute),
+                    fakeEntry(route = FriendsRoute)
                 )
             )
         }

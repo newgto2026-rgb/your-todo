@@ -5,4 +5,5 @@
     <string name="tab_today">오늘</string>
     <string name="tab_completed">완료</string>
     <string name="tab_calendar">캘린더</string>
+    <string name="tab_friends">친구</string>
 </resources>

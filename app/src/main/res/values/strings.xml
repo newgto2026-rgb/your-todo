@@ -5,4 +5,5 @@
     <string name="tab_today">Today</string>
     <string name="tab_completed">Completed</string>
     <string name="tab_calendar">Calendar</string>
+    <string name="tab_friends">Friends</string>
 </resources>
