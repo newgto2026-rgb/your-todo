@@ -19,6 +19,7 @@ import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
@@ -67,6 +68,7 @@ class TodoListViewModelTest {
     private lateinit var assignmentRepository: FakeAssignmentRepository
     private lateinit var reminderScheduler: RecordingReminderScheduler
     private lateinit var calendarWidgetUpdater: RecordingCalendarWidgetUpdater
+    private lateinit var workspaceSyncNotifier: WorkspaceSyncNotifier
     private lateinit var viewModel: TodoListViewModel
     private lateinit var uiStateCollectionJob: Job
 
@@ -77,6 +79,7 @@ class TodoListViewModelTest {
         assignmentRepository = FakeAssignmentRepository()
         reminderScheduler = RecordingReminderScheduler()
         calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
+        workspaceSyncNotifier = WorkspaceSyncNotifier()
         viewModel = TodoListViewModel(
             observeTodosUseCase = ObserveTodosUseCase(repository),
             observeAuthSessionUseCase = ObserveAuthSessionUseCase(authRepository),
@@ -85,17 +88,13 @@ class TodoListViewModelTest {
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             syncTodosUseCase = SyncTodosUseCase(repository),
-            refreshWorkspaceUseCase = RefreshWorkspaceUseCase(
-                todoRepository = repository,
-                friendRepository = FakeFriendRepository(),
-                assignmentRepository = assignmentRepository
-            ),
             getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
             manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,
-            calendarWidgetUpdater = calendarWidgetUpdater
+            calendarWidgetUpdater = calendarWidgetUpdater,
+            workspaceSyncNotifier = workspaceSyncNotifier
         )
         uiStateCollectionJob = CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()
@@ -943,19 +942,21 @@ class TodoListViewModelTest {
     }
 
     @Test
-    fun syncClickSyncsLocalTodosAndRefreshesReceivedAssignments() = runTest {
+    fun workspaceSyncSnapshotRefreshesReceivedAssignments() = runTest {
         advanceUntilIdle()
         val initialSyncCount = repository.syncCount
         assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-2", title = "Accepted share"))
-        val emitted = async { viewModel.sideEffect.first() }
 
-        viewModel.onAction(TodoListAction.OnSyncClick)
+        RefreshWorkspaceUseCase(
+            todoRepository = repository,
+            friendRepository = FakeFriendRepository(),
+            assignmentRepository = assignmentRepository,
+            syncNotifier = workspaceSyncNotifier
+        )()
         advanceUntilIdle()
 
         assertThat(repository.syncCount).isEqualTo(initialSyncCount + 1)
-        assertThat(viewModel.uiState.value.isSyncing).isFalse()
         assertThat(viewModel.uiState.value.items.map { it.title }).contains("Accepted share")
-        assertThat(emitted.await()).isEqualTo(TodoListSideEffect.ShowSnackbar(R.string.todo_sync_success))
     }
 
     @Test

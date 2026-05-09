@@ -18,7 +18,6 @@ import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
-import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
@@ -39,6 +38,7 @@ import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -125,6 +125,22 @@ class FriendsViewModelTest {
 
         val state = viewModel.uiState.first { it.profileInitial == "taeyunlive" }
         assertThat(state.profileInitial).isEqualTo("taeyunlive")
+    }
+
+    @Test
+    fun manualRefreshUpdatesFriendListWithoutFeatureSnackbar() = runTest {
+        val repository = FakeFriendRepository().apply {
+            friends = emptyList()
+        }
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { !it.isLoading }
+
+        repository.friends = listOf(friend())
+        viewModel.onAction(FriendsAction.OnRefresh)
+        val refreshed = viewModel.uiState.first { it.friends.isNotEmpty() }
+
+        assertThat(refreshed.friends).hasSize(1)
     }
 
     @Test
@@ -309,7 +325,9 @@ class FriendsViewModelTest {
             skipItems(2)
 
             viewModel.onAction(FriendsAction.OnFriendClick(friend()))
-            assertThat(awaitItem().friendDetailLoading).isTrue()
+            val loading = awaitItem()
+            assertThat(loading.friendDetailLoading).isTrue()
+            assertThat(loading.selectedFriend?.userId).isEqualTo("friend-1")
 
             val loaded = awaitItem()
             assertThat(loaded.selectedFriend?.userId).isEqualTo("friend-1")
@@ -656,11 +674,6 @@ class FriendsViewModelTest {
             getFriendAssignmentSummary = GetFriendAssignmentSummaryUseCase(assignmentRepository),
             getAssignedTodos = GetAssignedTodosUseCase(assignmentRepository),
             respondAssignmentBundle = RespondAssignmentBundleUseCase(assignmentRepository),
-            refreshWorkspace = RefreshWorkspaceUseCase(
-                todoRepository = com.neo.yourtodo.core.testing.repository.FakeTodoRepository(),
-                friendRepository = this,
-                assignmentRepository = assignmentRepository
-            ),
             observeAuthSession = ObserveAuthSessionUseCase(authRepository)
         )
 

@@ -7,6 +7,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -14,23 +16,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.neo.yourtodo.app.navigation.ImmediateNavDisplay
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
 import com.neo.yourtodo.core.ui.navigation.AppRouteActions
+import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.feature.todo.api.TodoEditorRoute
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun AppNavHost(
     entries: Set<@JvmSuppressWildcards AppFeatureEntry>,
-    launchNavigationRequest: AppLaunchNavigationRequest? = null
+    launchNavigationRequest: AppLaunchNavigationRequest? = null,
+    syncViewModel: AppSyncViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val backPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
+    val snackbarHostState = remember { SnackbarHostState() }
     val navigationGraph = remember(entries) { buildAppNavigationGraph(entries) }
     val orderedTopLevelRoutes = navigationGraph.topLevelRoutes
     val initialLaunchNavigationRequest = remember { launchNavigationRequest }
@@ -48,14 +57,24 @@ fun AppNavHost(
             transientRouteTypes = navigationGraph.transientRouteTypes
         )
     }
-    val routeActions = remember(navigator) {
+    val routeActions = remember(navigator, syncViewModel) {
         object : AppRouteActions {
+            override val workspaceSyncState: StateFlow<WorkspaceSyncUiState> = syncViewModel.uiState
+
             override fun openTodoEdit(todoId: Long) {
                 navigator.navigate(TodoEditorRoute(todoId = todoId, editOnly = true))
             }
 
+            override fun openAssignedTodoEdit(assignedTodoId: String) {
+                navigator.navigate(TodoEditorRoute(assignedTodoId = assignedTodoId, editOnly = true))
+            }
+
             override fun openTodoAdd(dueDate: String) {
                 navigator.navigate(TodoEditorRoute(dueDate = dueDate, editOnly = true))
+            }
+
+            override fun requestWorkspaceSync() {
+                syncViewModel.syncWorkspace()
             }
 
             override fun closeCurrentEntry() {
@@ -87,7 +106,16 @@ fun AppNavHost(
             navigator.replaceTopLevelContent(route)
         }
     }
+    LaunchedEffect(Unit) {
+        syncViewModel.sideEffect.collect { sideEffect ->
+            when (sideEffect) {
+                is AppSyncSideEffect.ShowSnackbar ->
+                    snackbarHostState.showSnackbar(resources.getString(sideEffect.messageRes))
+            }
+        }
+    }
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             AppBottomBar(
                 selectedTab = currentTab,

@@ -8,8 +8,8 @@ import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
-import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
@@ -50,13 +50,12 @@ class CalendarViewModel @Inject constructor(
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
-    private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
-    private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase
+    private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
+    private val workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
 ) : ViewModel() {
     private val monthState = MutableStateFlow(savedStateHandle.initialMonth())
     private val selectedDateState = MutableStateFlow(savedStateHandle.initialSelectedDate())
-    private val syncState = MutableStateFlow(false)
     private val receivedAssignedTodos = MutableStateFlow<List<AssignedTodo>>(emptyList())
     private val sideEffectMutable = MutableSharedFlow<CalendarSideEffect>()
 
@@ -158,12 +157,7 @@ class CalendarViewModel @Inject constructor(
         )
     }
 
-    val uiState: StateFlow<CalendarUiState> = combine(
-        calendarContentState,
-        syncState
-    ) { contentState, isSyncing ->
-        contentState.copy(isSyncing = isSyncing)
-    }.stateIn(
+    val uiState: StateFlow<CalendarUiState> = calendarContentState.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = initialCalendarUiState(
@@ -181,9 +175,11 @@ class CalendarViewModel @Inject constructor(
             }
 
             is CalendarAction.OnTodoClick -> {
-                if (action.assignedTodoId == null) {
-                    viewModelScope.launch {
+                viewModelScope.launch {
+                    if (action.assignedTodoId == null) {
                         sideEffectMutable.emit(CalendarSideEffect.NavigateToTodoEdit(action.todoId))
+                    } else {
+                        sideEffectMutable.emit(CalendarSideEffect.NavigateToAssignedTodoEdit(action.assignedTodoId))
                     }
                 }
             }
@@ -196,12 +192,14 @@ class CalendarViewModel @Inject constructor(
                 }
             }
 
-            CalendarAction.OnSyncClick -> syncTodosManually()
+            CalendarAction.OnSyncClick -> Unit
+            CalendarAction.OnScreenStarted -> Unit
         }
     }
 
     init {
         refreshAssignedTodosQuietly()
+        observeWorkspaceSync()
     }
 
     fun selectRouteDate(rawDate: String) {
@@ -247,29 +245,19 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    private fun syncTodosManually() {
-        if (syncState.value) return
-        viewModelScope.launch {
-            syncState.value = true
-            val result = refreshWorkspaceUseCase()
-                .onSuccess { receivedAssignedTodos.value = it.visibleReceivedAssignedTodos }
-            syncState.value = false
-            val isFullySynced = result.getOrNull()?.isFullySynced == true
-            sideEffectMutable.emit(
-                CalendarSideEffect.ShowSnackbar(
-                    if (isFullySynced) {
-                        R.string.calendar_sync_success
-                    } else {
-                        R.string.calendar_sync_failed
-                    }
-                )
-            )
-        }
-    }
-
     private fun refreshAssignedTodosQuietly() {
         viewModelScope.launch {
             refreshAssignedTodos()
+        }
+    }
+
+    private fun observeWorkspaceSync() {
+        viewModelScope.launch {
+            workspaceSyncNotifier.snapshots.collect { snapshot ->
+                if (snapshot != null) {
+                    receivedAssignedTodos.value = snapshot.visibleReceivedAssignedTodos
+                }
+            }
         }
     }
 

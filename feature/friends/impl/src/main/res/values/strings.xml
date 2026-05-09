@@ -29,6 +29,7 @@
     <string name="friends_assignment_open_editor">Send todo</string>
     <string name="friends_assignment_dialog_title">Shared with @%1$s</string>
     <string name="friends_assignment_monitor_subtitle">Review requested and received todo progress.</string>
+    <string name="friends_assignment_loading">Loading shared todos…</string>
     <string name="friends_assignment_editor_title">Send todo to @%1$s</string>
     <string name="friends_assignment_sent_title">Requested</string>
     <string name="friends_assignment_received_title">Requested from me</string>

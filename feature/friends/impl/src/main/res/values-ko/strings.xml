@@ -29,6 +29,7 @@
     <string name="friends_assignment_open_editor">할 일 보내기</string>
     <string name="friends_assignment_dialog_title">@%1$s와 공유한 일</string>
     <string name="friends_assignment_monitor_subtitle">요청한 일과 요청받은 일의 진행 상황을 확인해요.</string>
+    <string name="friends_assignment_loading">공유한 일을 불러오는 중이에요.</string>
     <string name="friends_assignment_editor_title">@%1$s에게 할 일 보내기</string>
     <string name="friends_assignment_sent_title">요청한 일</string>
     <string name="friends_assignment_received_title">요청받은 일</string>

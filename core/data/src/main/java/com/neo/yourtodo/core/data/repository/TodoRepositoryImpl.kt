@@ -9,7 +9,6 @@ import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.entity.CategoryEntity
 import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
-import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.repository.TodoCategoryRepository
 import com.neo.yourtodo.core.domain.repository.TodoFilterRepository
@@ -24,7 +23,6 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSyncStatus
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
-import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import com.neo.yourtodo.core.network.sync.NetworkTodo
 import com.neo.yourtodo.core.network.sync.NetworkTodoMutation
 import com.neo.yourtodo.core.network.sync.NetworkTodoMutationPayload
@@ -50,7 +48,9 @@ class TodoRepositoryImpl @Inject constructor(
     private val todoOutboxDao: TodoOutboxDao,
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
-    private val authNetworkDataSource: AuthNetworkDataSource
+    authNetworkDataSource: AuthNetworkDataSource,
+    private val authSessionRefresher: AuthSessionRefresher =
+        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
 ) : TodoItemRepository, TodoCategoryRepository, TodoFilterRepository, TodoReminderRepository {
 
     private val json = Json {
@@ -187,7 +187,7 @@ class TodoRepositoryImpl @Inject constructor(
                     try {
                         syncTodosWithSession(session.accessToken, session.userId)
                     } catch (throwable: TodoSyncAuthRequiredException) {
-                        val refreshedSession = refreshSessionOrNull(session.refreshToken)
+                        val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
                         if (refreshedSession == null) {
                             userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
                             userPreferencesDataSource.clearAuthSession()
@@ -196,7 +196,7 @@ class TodoRepositoryImpl @Inject constructor(
 
                         try {
                             userPreferencesDataSource.setTodoSyncHaltReason(null)
-                            syncTodosWithSession(refreshedSession.accessToken, refreshedSession.user.id)
+                            syncTodosWithSession(refreshedSession.accessToken, refreshedSession.userId)
                         } catch (retryThrowable: TodoSyncAuthRequiredException) {
                             userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
                             userPreferencesDataSource.clearAuthSession()
@@ -302,13 +302,6 @@ class TodoRepositoryImpl @Inject constructor(
         pushTodos(accessToken, ownerUserId)
         pullTodos(accessToken, ownerUserId)
     }
-
-    private suspend fun refreshSessionOrNull(refreshToken: String): NetworkAuthSession? =
-        runCatching {
-            authNetworkDataSource.refreshSession(refreshToken)
-        }.getOrNull()?.also { networkSession ->
-            userPreferencesDataSource.saveAuthSession(networkSession.toAuthSessionData())
-        }
 
     private suspend fun updateTodoWithOutbox(existing: TodoEntity, updated: TodoEntity) {
         when (syncStatusOf(existing)) {
@@ -546,16 +539,6 @@ class TodoRepositoryImpl @Inject constructor(
             serverRevision = revision,
             deletedAt = deletedAt?.let(::parseInstantMillis),
             lastSyncError = null
-        )
-
-    private fun NetworkAuthSession.toAuthSessionData() =
-        AuthSessionData(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            userId = user.id,
-            nickname = user.nickname,
-            email = user.email,
-            onboardingRequired = user.onboardingRequired
         )
 
     private fun parseInstantMillis(value: String): Long =

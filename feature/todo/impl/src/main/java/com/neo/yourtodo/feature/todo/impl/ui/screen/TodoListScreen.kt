@@ -79,6 +79,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.ui.TodoItemRow
+import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
@@ -86,6 +87,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 @Composable
@@ -95,6 +98,8 @@ fun TodoListRoute(
     onBackBlockedChange: (Boolean) -> Unit = {},
     onAddRequested: (LocalDate?) -> Unit = {},
     onEditRequested: (Long) -> Unit = {},
+    workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
+    onWorkspaceSyncClick: () -> Unit = {},
     viewModel: TodoListViewModel = hiltViewModel(key = viewModelKey)
 ) {
     val routeUiState = remember(viewModel, presetFilter) {
@@ -109,6 +114,7 @@ fun TodoListRoute(
     } else {
         TodoListUiState(isLoading = true, selectedFilter = presetFilter)
     }
+    val syncUiState by workspaceSyncState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -168,10 +174,12 @@ fun TodoListRoute(
 
     TodoListScreen(
         uiState = uiState,
+        isSyncing = syncUiState.isSyncing,
         onAction = viewModel::onAction,
         snackbarHostState = snackbarHostState,
         onAddRequested = onAddRequested,
-        onEditRequested = onEditRequested
+        onEditRequested = onEditRequested,
+        onSyncClick = onWorkspaceSyncClick
     )
 }
 
@@ -190,10 +198,12 @@ private fun TodoListLoadingScreen() {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun TodoListScreen(
     uiState: TodoListUiState,
+    isSyncing: Boolean,
     onAction: (TodoListAction) -> Unit,
     snackbarHostState: SnackbarHostState,
     onAddRequested: (LocalDate?) -> Unit,
-    onEditRequested: (Long) -> Unit
+    onEditRequested: (Long) -> Unit,
+    onSyncClick: () -> Unit
 ) {
     val todayHeaderDateFormat = stringResource(R.string.todo_today_header_date_format)
     val (title, subtitle) = headerTextFor(
@@ -254,8 +264,8 @@ private fun TodoListScreen(
             Spacer(Modifier.height(10.dp))
             AppHeader(
                 profileInitial = uiState.profileInitial,
-                isSyncing = uiState.isSyncing,
-                onSyncClick = { onAction(TodoListAction.OnSyncClick) }
+                isSyncing = isSyncing,
+                onSyncClick = onSyncClick
             )
             Spacer(Modifier.height(12.dp))
 
@@ -869,9 +879,9 @@ internal fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlann
         !it.isDone && it.dueDate == today && it.dueTimeText.isNullOrBlank()
     }
     return listOf(
-        TodayPlannerSection(R.string.todo_today_section_overdue, overdue),
         TodayPlannerSection(R.string.todo_today_section_timed, timedToday),
-        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed)
+        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed),
+        TodayPlannerSection(R.string.todo_today_section_overdue, overdue)
     )
 }
 

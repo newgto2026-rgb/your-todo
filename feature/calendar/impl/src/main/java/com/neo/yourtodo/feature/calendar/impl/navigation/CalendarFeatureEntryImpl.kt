@@ -22,9 +22,14 @@ class CalendarFeatureEntryImpl @Inject constructor() : CalendarFeatureEntry {
                 onNavigateToTodoEdit = { todoId ->
                     routeActions.openTodoEdit(todoId)
                 },
+                onNavigateToAssignedTodoEdit = { assignedTodoId ->
+                    routeActions.openAssignedTodoEdit(assignedTodoId)
+                },
                 onNavigateToTodoAdd = { dueDate ->
                     routeActions.openTodoAdd(dueDate.toString())
-                }
+                },
+                workspaceSyncState = routeActions.workspaceSyncState,
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
             )
         }
         entryProviderScope.entry<CalendarDateRoute> { route ->
@@ -33,9 +38,14 @@ class CalendarFeatureEntryImpl @Inject constructor() : CalendarFeatureEntry {
                 onNavigateToTodoEdit = { todoId ->
                     routeActions.openTodoEdit(todoId)
                 },
+                onNavigateToAssignedTodoEdit = { assignedTodoId ->
+                    routeActions.openAssignedTodoEdit(assignedTodoId)
+                },
                 onNavigateToTodoAdd = { dueDate ->
                     routeActions.openTodoAdd(dueDate.toString())
-                }
+                },
+                workspaceSyncState = routeActions.workspaceSyncState,
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
             )
         }
     }

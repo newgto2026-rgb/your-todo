@@ -1,6 +1,5 @@
 package com.neo.yourtodo.core.data.repository
 
-import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
@@ -33,7 +32,6 @@ import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentItem
 import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsRequest
 import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
-import com.neo.yourtodo.core.network.auth.NetworkAuthSession as AuthNetworkSession
 import java.time.Instant
 import java.time.LocalDate
 import java.util.Locale
@@ -44,7 +42,9 @@ import kotlinx.coroutines.flow.first
 class AssignmentRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val assignmentNetworkDataSource: AssignmentNetworkDataSource,
-    private val authNetworkDataSource: AuthNetworkDataSource
+    authNetworkDataSource: AuthNetworkDataSource,
+    private val authSessionRefresher: AuthSessionRefresher =
+        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
 ) : AssignmentRepository {
     override suspend fun createBundle(
         receiverUserId: String,
@@ -184,7 +184,7 @@ class AssignmentRepositoryImpl @Inject constructor(
             try {
                 block(session.accessToken)
             } catch (throwable: AssignmentAuthRequiredException) {
-                val refreshedSession = refreshSessionOrNull(session.refreshToken)
+                val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
                     ?: authRequired()
                 try {
                     block(refreshedSession.accessToken)
@@ -198,27 +198,10 @@ class AssignmentRepositoryImpl @Inject constructor(
         userPreferencesDataSource.authSession.first()
             ?.takeUnless { it.onboardingRequired }
 
-    private suspend fun refreshSessionOrNull(refreshToken: String): AuthNetworkSession? =
-        runCatching {
-            authNetworkDataSource.refreshSession(refreshToken)
-        }.getOrNull()?.also { networkSession ->
-            userPreferencesDataSource.saveAuthSession(networkSession.toAuthSessionData())
-        }
-
     private suspend fun authRequired(): Nothing {
         userPreferencesDataSource.clearAuthSession()
         throw AuthRequiredException()
     }
-
-    private fun AuthNetworkSession.toAuthSessionData() =
-        AuthSessionData(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            userId = user.id,
-            nickname = user.nickname,
-            email = user.email,
-            onboardingRequired = user.onboardingRequired
-        )
 
     private fun NetworkAssignmentBundleResponse.toDomain(): AssignmentBundle =
         AssignmentBundle(

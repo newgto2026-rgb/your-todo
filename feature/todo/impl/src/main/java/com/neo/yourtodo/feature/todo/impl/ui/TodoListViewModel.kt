@@ -11,11 +11,11 @@ import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
-import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
@@ -46,13 +46,13 @@ class TodoListViewModel @Inject constructor(
     private val deleteTodoUseCase: DeleteTodoUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val syncTodosUseCase: SyncTodosUseCase,
-    private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
     private val getTodoUseCase: GetTodoUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
-    private val calendarWidgetUpdater: CalendarWidgetUpdater
+    private val calendarWidgetUpdater: CalendarWidgetUpdater,
+    private val workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
 ) : ViewModel() {
 
     private val uiLocalState = MutableStateFlow(TodoListUiState(isLoading = true))
@@ -90,6 +90,7 @@ class TodoListViewModel @Inject constructor(
     init {
         syncTodosQuietly()
         refreshAssignedTodosQuietly()
+        observeWorkspaceSync()
     }
 
     fun setRouteFilter(filter: TodoFilter) {
@@ -165,7 +166,7 @@ class TodoListViewModel @Inject constructor(
             is TodoListAction.OnFilterChange -> updateFilter(action.filter)
             is TodoListAction.OnPriorityFilterChange -> updatePriorityFilter(action.filter)
             is TodoListAction.OnSortOptionChange -> updateSortOption(action.option)
-            TodoListAction.OnSyncClick -> syncTodosManually()
+            TodoListAction.OnSyncClick -> Unit
             TodoListAction.OnScreenStarted -> startForegroundSync()
             TodoListAction.OnScreenStopped -> stopForegroundSync()
 
@@ -624,23 +625,13 @@ class TodoListViewModel @Inject constructor(
         }
     }
 
-    private fun syncTodosManually() {
-        if (uiLocalState.value.isSyncing) return
+    private fun observeWorkspaceSync() {
         viewModelScope.launch {
-            updateLocalState { copy(isSyncing = true) }
-            val syncResult = refreshWorkspaceUseCase()
-                .onSuccess { receivedAssignedTodos.value = it.visibleReceivedAssignedTodos }
-            updateLocalState { copy(isSyncing = false) }
-            val isFullySynced = syncResult.getOrNull()?.isFullySynced == true
-            sideEffectMutable.emit(
-                TodoListSideEffect.ShowSnackbar(
-                    if (isFullySynced) {
-                        R.string.todo_sync_success
-                    } else {
-                        R.string.todo_sync_failed
-                    }
-                )
-            )
+            workspaceSyncNotifier.snapshots.collect { snapshot ->
+                if (snapshot != null) {
+                    receivedAssignedTodos.value = snapshot.visibleReceivedAssignedTodos
+                }
+            }
         }
     }
 

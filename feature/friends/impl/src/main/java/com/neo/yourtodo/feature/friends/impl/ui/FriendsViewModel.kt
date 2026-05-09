@@ -14,7 +14,7 @@ import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
-import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
@@ -41,7 +41,7 @@ class FriendsViewModel @Inject constructor(
     private val getFriendAssignmentSummary: GetFriendAssignmentSummaryUseCase,
     private val getAssignedTodos: GetAssignedTodosUseCase,
     private val respondAssignmentBundle: RespondAssignmentBundleUseCase,
-    private val refreshWorkspace: RefreshWorkspaceUseCase,
+    private val workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier(),
     observeAuthSession: ObserveAuthSessionUseCase
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow(FriendsUiState())
@@ -56,6 +56,7 @@ class FriendsViewModel @Inject constructor(
                 mutableUiState.update { it.copy(profileInitial = session?.user?.nickname) }
             }
         }
+        observeWorkspaceSync()
         refresh(initial = true)
     }
 
@@ -200,17 +201,23 @@ class FriendsViewModel @Inject constructor(
                 )
             }
 
-            val syncResult = refreshWorkspace()
+            val friendsResult = getFriends()
+            val incomingRequestsResult = getFriendRequests.incoming()
+            val outgoingRequestsResult = getFriendRequests.outgoing()
+            val requiredFailure = listOf(
+                friendsResult,
+                incomingRequestsResult,
+                outgoingRequestsResult
+            ).firstOrNull { it.isFailure }?.exceptionOrNull()
 
-            if (syncResult.isSuccess) {
-                val snapshot = syncResult.getOrThrow()
+            if (requiredFailure == null) {
                 mutableUiState.update {
                     it.copy(
                         isLoading = false,
                         isRefreshing = false,
-                        friends = snapshot.friends,
-                        incomingRequests = snapshot.incomingRequests,
-                        outgoingRequests = snapshot.outgoingRequests,
+                        friends = friendsResult.getOrDefault(emptyList()),
+                        incomingRequests = incomingRequestsResult.getOrDefault(emptyList()),
+                        outgoingRequests = outgoingRequestsResult.getOrDefault(emptyList()),
                         error = null
                     )
                 }
@@ -219,8 +226,26 @@ class FriendsViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         isRefreshing = false,
-                        error = syncResult.exceptionOrNull().toUiError()
+                        error = requiredFailure.toUiError()
                     )
+                }
+            }
+        }
+    }
+
+    private fun observeWorkspaceSync() {
+        viewModelScope.launch {
+            workspaceSyncNotifier.snapshots.collect { snapshot ->
+                if (snapshot != null) {
+                    mutableUiState.update {
+                        it.copy(
+                            friends = snapshot.friends,
+                            incomingRequests = snapshot.incomingRequests,
+                            outgoingRequests = snapshot.outgoingRequests,
+                            isRefreshing = false,
+                            error = null
+                        )
+                    }
                 }
             }
         }
@@ -229,7 +254,7 @@ class FriendsViewModel @Inject constructor(
     private fun openFriendDetail(friend: com.neo.yourtodo.core.model.friends.Friend) {
         mutableUiState.update {
             it.copy(
-                selectedFriend = null,
+                selectedFriend = friend,
                 friendDetailLoading = true,
                 friendAssignmentSummary = null,
                 friendSentAssignedTodos = emptyList(),

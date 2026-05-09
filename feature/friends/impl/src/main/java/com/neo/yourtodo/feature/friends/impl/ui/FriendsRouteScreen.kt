@@ -88,18 +88,24 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.ui.YourTodoAppHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
+import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun FriendsRouteScreen(
+    workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
+    onWorkspaceSyncClick: () -> Unit = {},
     viewModel: FriendsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val syncUiState by workspaceSyncState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -120,7 +126,9 @@ fun FriendsRouteScreen(
 
     FriendsScreen(
         uiState = uiState,
+        isSyncing = syncUiState.isSyncing,
         snackbarHostState = snackbarHostState,
+        onSyncClick = onWorkspaceSyncClick,
         onAction = viewModel::onAction
     )
 }
@@ -128,7 +136,9 @@ fun FriendsRouteScreen(
 @Composable
 private fun FriendsScreen(
     uiState: FriendsUiState,
+    isSyncing: Boolean,
     snackbarHostState: SnackbarHostState,
+    onSyncClick: () -> Unit,
     onAction: (FriendsAction) -> Unit
 ) {
     YourTodoScreenBackground {
@@ -152,8 +162,8 @@ private fun FriendsScreen(
                         profileContentDescription = stringResource(R.string.friends_header_profile_icon),
                         syncContentDescription = stringResource(R.string.friends_refresh),
                         profileInitial = uiState.profileInitial,
-                        isSyncing = uiState.isRefreshing,
-                        onSyncClick = { onAction(FriendsAction.OnRefresh) },
+                        isSyncing = isSyncing,
+                        onSyncClick = onSyncClick,
                         syncTestTag = "friends_refresh"
                     )
                 }
@@ -506,57 +516,59 @@ private fun FriendAssignmentMonitorDialog(
             ) {
                 if (uiState.friendDetailLoading) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                AssignmentSummaryBlock(
-                    sent = uiState.friendAssignmentSummary?.sent,
-                    received = uiState.friendAssignmentSummary?.received
-                )
-                AssignmentHistoryToggle(
-                    showHistory = detail.showHistory,
-                    onToggle = { onAction(FriendsAction.OnToggleAssignmentHistory) }
-                )
-                PendingAssignmentDecisionBlock(
-                    items = detail.pendingReceivedItems,
-                    selectedCount = detail.pendingSelectedCount,
-                    totalCount = detail.pendingTotalCount,
-                    allSelected = detail.isAllPendingSelected,
-                    hasSelection = detail.hasPendingSelection,
-                    running = detail.isDecisionRunning,
-                    onToggle = { onAction(FriendsAction.OnTogglePendingAssignment(it)) },
-                    onToggleAll = { onAction(FriendsAction.OnToggleAllPendingAssignments) },
-                    onAcceptSelected = { onAction(FriendsAction.OnAcceptSelectedAssignments) },
-                    onRejectSelected = { onAction(FriendsAction.OnRejectSelectedAssignments) }
-                )
-                if (detail.showHistory) {
-                    AssignmentPreviewList(
-                        title = stringResource(R.string.friends_assignment_sent_history_title),
-                        caption = stringResource(R.string.friends_assignment_sent_history_caption),
-                        items = detail.sentHistoryItems,
-                        accentColor = Color(0xFF6771C7),
-                        containerColor = Color(0xFFF0F3FF)
-                    )
-                    AssignmentPreviewList(
-                        title = stringResource(R.string.friends_assignment_received_history_title),
-                        caption = stringResource(R.string.friends_assignment_received_history_caption),
-                        items = detail.receivedHistoryItems,
-                        accentColor = Color(0xFF4B9A82),
-                        containerColor = Color(0xFFEFF8F4)
-                    )
+                    AssignmentDetailLoadingBlock()
                 } else {
-                    AssignmentPreviewList(
-                        title = stringResource(R.string.friends_assignment_sent_title),
-                        caption = stringResource(R.string.friends_assignment_sent_caption),
-                        items = detail.sentItems,
-                        accentColor = Color(0xFF6771C7),
-                        containerColor = Color(0xFFF0F3FF)
+                    AssignmentSummaryBlock(
+                        sent = uiState.friendAssignmentSummary?.sent,
+                        received = uiState.friendAssignmentSummary?.received
                     )
-                    AssignmentPreviewList(
-                        title = stringResource(R.string.friends_assignment_received_title),
-                        caption = stringResource(R.string.friends_assignment_received_caption),
-                        items = detail.activeReceivedItems,
-                        accentColor = Color(0xFF4B9A82),
-                        containerColor = Color(0xFFEFF8F4)
+                    AssignmentHistoryToggle(
+                        showHistory = detail.showHistory,
+                        onToggle = { onAction(FriendsAction.OnToggleAssignmentHistory) }
                     )
+                    PendingAssignmentDecisionBlock(
+                        items = detail.pendingReceivedItems,
+                        selectedCount = detail.pendingSelectedCount,
+                        totalCount = detail.pendingTotalCount,
+                        allSelected = detail.isAllPendingSelected,
+                        hasSelection = detail.hasPendingSelection,
+                        running = detail.isDecisionRunning,
+                        onToggle = { onAction(FriendsAction.OnTogglePendingAssignment(it)) },
+                        onToggleAll = { onAction(FriendsAction.OnToggleAllPendingAssignments) },
+                        onAcceptSelected = { onAction(FriendsAction.OnAcceptSelectedAssignments) },
+                        onRejectSelected = { onAction(FriendsAction.OnRejectSelectedAssignments) }
+                    )
+                    if (detail.showHistory) {
+                        AssignmentPreviewList(
+                            title = stringResource(R.string.friends_assignment_sent_history_title),
+                            caption = stringResource(R.string.friends_assignment_sent_history_caption),
+                            items = detail.sentHistoryItems,
+                            accentColor = Color(0xFF6771C7),
+                            containerColor = Color(0xFFF0F3FF)
+                        )
+                        AssignmentPreviewList(
+                            title = stringResource(R.string.friends_assignment_received_history_title),
+                            caption = stringResource(R.string.friends_assignment_received_history_caption),
+                            items = detail.receivedHistoryItems,
+                            accentColor = Color(0xFF4B9A82),
+                            containerColor = Color(0xFFEFF8F4)
+                        )
+                    } else {
+                        AssignmentPreviewList(
+                            title = stringResource(R.string.friends_assignment_sent_title),
+                            caption = stringResource(R.string.friends_assignment_sent_caption),
+                            items = detail.sentItems,
+                            accentColor = Color(0xFF6771C7),
+                            containerColor = Color(0xFFF0F3FF)
+                        )
+                        AssignmentPreviewList(
+                            title = stringResource(R.string.friends_assignment_received_title),
+                            caption = stringResource(R.string.friends_assignment_received_caption),
+                            items = detail.activeReceivedItems,
+                            accentColor = Color(0xFF4B9A82),
+                            containerColor = Color(0xFFEFF8F4)
+                        )
+                    }
                 }
             }
         },
@@ -566,6 +578,37 @@ private fun FriendAssignmentMonitorDialog(
             }
         }
     )
+}
+
+@Composable
+private fun AssignmentDetailLoadingBlock() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(148.dp)
+            .testTag("friends_assignment_loading"),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, Color(0xFFE1E7F0))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(28.dp),
+                strokeWidth = 3.dp,
+                color = Color(0xFF6771C7)
+            )
+            Text(
+                text = stringResource(R.string.friends_assignment_loading),
+                modifier = Modifier.padding(top = 12.dp),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = Color(0xFF647286)
+            )
+        }
+    }
 }
 
 @Composable

@@ -28,6 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.ui.YourTodoAppHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
+import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.feature.calendar.impl.R
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarAction
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarSideEffect
@@ -39,12 +40,17 @@ import com.neo.yourtodo.feature.calendar.impl.ui.components.CalendarMonthGrid
 import com.neo.yourtodo.feature.calendar.impl.ui.components.CalendarTopHeader
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun CalendarRouteScreen(
     initialSelectedDate: String?,
     onNavigateToTodoEdit: (Long) -> Unit,
+    onNavigateToAssignedTodoEdit: (String) -> Unit,
     onNavigateToTodoAdd: (LocalDate) -> Unit,
+    workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
+    onWorkspaceSyncClick: () -> Unit = {},
     viewModel: CalendarViewModel = hiltViewModel()
 ) {
     val routeDate = remember(initialSelectedDate) {
@@ -84,11 +90,15 @@ fun CalendarRouteScreen(
     } else {
         uiState
     }
+    val syncUiState by workspaceSyncState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.sideEffect.collect { sideEffect ->
             when (sideEffect) {
                 is CalendarSideEffect.NavigateToTodoEdit -> onNavigateToTodoEdit(sideEffect.todoId)
+                is CalendarSideEffect.NavigateToAssignedTodoEdit ->
+                    onNavigateToAssignedTodoEdit(sideEffect.assignedTodoId)
+
                 is CalendarSideEffect.NavigateToTodoAdd -> onNavigateToTodoAdd(sideEffect.dueDate)
                 is CalendarSideEffect.ShowSnackbar ->
                     snackbarHostState.showSnackbar(context.getString(sideEffect.messageRes))
@@ -98,10 +108,12 @@ fun CalendarRouteScreen(
 
     CalendarScreen(
         uiState = displayedUiState,
+        isSyncing = syncUiState.isSyncing,
         onAction = { action ->
             isWaitingForRouteDate = false
             viewModel.onAction(action)
         },
+        onSyncClick = onWorkspaceSyncClick,
         snackbarHostState = snackbarHostState
     )
 }
@@ -109,7 +121,9 @@ fun CalendarRouteScreen(
 @Composable
 private fun CalendarScreen(
     uiState: CalendarUiState,
+    isSyncing: Boolean,
     onAction: (CalendarAction) -> Unit,
+    onSyncClick: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     YourTodoScreenBackground {
@@ -131,8 +145,8 @@ private fun CalendarScreen(
                 profileContentDescription = stringResource(R.string.calendar_header_profile_icon),
                 syncContentDescription = stringResource(R.string.calendar_sync_action),
                 profileInitial = uiState.profileInitial,
-                isSyncing = uiState.isSyncing,
-                onSyncClick = { onAction(CalendarAction.OnSyncClick) },
+                isSyncing = isSyncing,
+                onSyncClick = onSyncClick,
                 syncTestTag = "calendar_sync"
             )
 

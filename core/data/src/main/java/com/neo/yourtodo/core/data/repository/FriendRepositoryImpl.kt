@@ -1,6 +1,5 @@
 package com.neo.yourtodo.core.data.repository
 
-import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.repository.FriendRepository
@@ -10,7 +9,6 @@ import com.neo.yourtodo.core.model.friends.FriendRequestStatus
 import com.neo.yourtodo.core.model.friends.FriendUser
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
-import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import com.neo.yourtodo.core.network.friends.FriendAuthRequiredException
 import com.neo.yourtodo.core.network.friends.FriendNetworkDataSource
 import com.neo.yourtodo.core.network.friends.NetworkFriend
@@ -21,7 +19,9 @@ import javax.inject.Inject
 class FriendRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val friendNetworkDataSource: FriendNetworkDataSource,
-    private val authNetworkDataSource: AuthNetworkDataSource
+    authNetworkDataSource: AuthNetworkDataSource,
+    private val authSessionRefresher: AuthSessionRefresher =
+        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
 ) : FriendRepository {
     override suspend fun getFriends(): Result<List<Friend>> =
         authenticatedRequest { accessToken ->
@@ -68,7 +68,7 @@ class FriendRepositoryImpl @Inject constructor(
             try {
                 block(session.accessToken)
             } catch (throwable: FriendAuthRequiredException) {
-                val refreshedSession = refreshSessionOrNull(session.refreshToken)
+                val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
                     ?: authRequired()
                 try {
                     block(refreshedSession.accessToken)
@@ -82,27 +82,10 @@ class FriendRepositoryImpl @Inject constructor(
         userPreferencesDataSource.authSession.first()
             ?.takeUnless { it.onboardingRequired }
 
-    private suspend fun refreshSessionOrNull(refreshToken: String): NetworkAuthSession? =
-        runCatching {
-            authNetworkDataSource.refreshSession(refreshToken)
-        }.getOrNull()?.also { networkSession ->
-            userPreferencesDataSource.saveAuthSession(networkSession.toAuthSessionData())
-        }
-
     private suspend fun authRequired(): Nothing {
         userPreferencesDataSource.clearAuthSession()
         throw AuthRequiredException()
     }
-
-    private fun NetworkAuthSession.toAuthSessionData() =
-        AuthSessionData(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            userId = user.id,
-            nickname = user.nickname,
-            email = user.email,
-            onboardingRequired = user.onboardingRequired
-        )
 
     private fun NetworkFriend.toDomain() =
         Friend(

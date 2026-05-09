@@ -12,6 +12,7 @@ import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import androidx.lifecycle.SavedStateHandle
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.ReminderRepeatType
@@ -29,7 +30,6 @@ import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
-import com.neo.yourtodo.feature.calendar.impl.R
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -181,6 +181,18 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun assignedTodoClickAction_emitsAssignedEditSideEffect() = runTest {
+        val viewModel = createViewModel(FakeTodoRepository())
+        val emitted = async { viewModel.sideEffect.first() }
+
+        viewModel.onAction(CalendarAction.OnTodoClick(todoId = -1L, assignedTodoId = "assigned-calendar"))
+        advanceUntilIdle()
+
+        assertThat(emitted.await())
+            .isEqualTo(CalendarSideEffect.NavigateToAssignedTodoEdit("assigned-calendar"))
+    }
+
+    @Test
     fun addTodoClickAction_emitsSelectedDateAddSideEffect() = runTest {
         val repository = FakeTodoRepository()
         val viewModel = createViewModel(repository)
@@ -223,17 +235,35 @@ class CalendarViewModelTest {
     }
 
     @Test
-    fun syncClickRunsRepositorySyncAndEmitsSnackbar() = runTest {
+    fun workspaceSyncSnapshotUpdatesAssignedTodos() = runTest {
         val repository = FakeTodoRepository()
-        val viewModel = createViewModel(repository)
-        val emitted = async { viewModel.sideEffect.first { it is CalendarSideEffect.ShowSnackbar } }
+        val workspaceSyncNotifier = WorkspaceSyncNotifier()
+        val assignmentRepository = FakeAssignmentRepository(
+            receivedItems = listOf(
+                assignedTodo(
+                    id = "assigned-sync",
+                    title = "Synced shared",
+                    dueDate = LocalDate.now()
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            assignmentRepository = assignmentRepository,
+            workspaceSyncNotifier = workspaceSyncNotifier
+        )
 
-        viewModel.onAction(CalendarAction.OnSyncClick)
+        RefreshWorkspaceUseCase(
+            todoRepository = repository,
+            friendRepository = FakeFriendRepository(),
+            assignmentRepository = assignmentRepository,
+            syncNotifier = workspaceSyncNotifier
+        )()
         advanceUntilIdle()
 
         assertThat(repository.syncCount).isEqualTo(1)
-        assertThat(viewModel.uiState.value.isSyncing).isFalse()
-        assertThat(emitted.await()).isEqualTo(CalendarSideEffect.ShowSnackbar(R.string.calendar_sync_success))
+        assertThat(viewModel.uiState.value.selectedDateTodos.map { it.assignedTodoId })
+            .contains("assigned-sync")
     }
 
 
@@ -442,7 +472,8 @@ class CalendarViewModelTest {
     private fun createViewModel(
         repository: FakeTodoRepository,
         authRepository: FakeAuthRepository = FakeAuthRepository(),
-        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
+        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository(),
+        workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
     ): CalendarViewModel {
         val viewModel = CalendarViewModel(
             savedStateHandle = SavedStateHandle(),
@@ -452,13 +483,9 @@ class CalendarViewModelTest {
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
-            refreshWorkspaceUseCase = RefreshWorkspaceUseCase(
-                todoRepository = repository,
-                friendRepository = FakeFriendRepository(),
-                assignmentRepository = assignmentRepository
-            ),
             getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
-            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository)
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository),
+            workspaceSyncNotifier = workspaceSyncNotifier
         )
         uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()

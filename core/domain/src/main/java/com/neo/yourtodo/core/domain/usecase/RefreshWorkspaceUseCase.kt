@@ -14,10 +14,11 @@ import kotlinx.coroutines.coroutineScope
 class RefreshWorkspaceUseCase @Inject constructor(
     private val todoRepository: TodoItemRepository,
     private val friendRepository: FriendRepository,
-    private val assignmentRepository: AssignmentRepository
+    private val assignmentRepository: AssignmentRepository,
+    private val syncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
 ) {
     suspend operator fun invoke(): Result<WorkspaceRefreshSnapshot> = coroutineScope {
-        val todoSync = async { todoRepository.syncTodos() }
+        val todoSyncResult = todoRepository.syncTodos()
         val friends = async { friendRepository.getFriends() }
         val incomingRequests = async { friendRepository.getIncomingRequests() }
         val outgoingRequests = async { friendRepository.getOutgoingRequests() }
@@ -28,7 +29,6 @@ class RefreshWorkspaceUseCase @Inject constructor(
             assignmentRepository.getReceivedAssignedTodos(AssignmentFeedStatus.HISTORY)
         }
 
-        val todoSyncResult = todoSync.await()
         val friendsResult = friends.await()
         val incomingRequestsResult = incomingRequests.await()
         val outgoingRequestsResult = outgoingRequests.await()
@@ -51,18 +51,18 @@ class RefreshWorkspaceUseCase @Inject constructor(
             historyReceivedResult
         ).all { it.isSuccess }
 
-        Result.success(
-            WorkspaceRefreshSnapshot(
-                isFullySynced = isFullySynced,
-                friends = friendsResult.getOrDefault(emptyList()),
-                incomingRequests = incomingRequestsResult.getOrDefault(emptyList()),
-                outgoingRequests = outgoingRequestsResult.getOrDefault(emptyList()),
-                visibleReceivedAssignedTodos = visibleTaskSurfaceAssignedTodos(
-                    activeReceivedResult.getOrDefault(emptyList()),
-                    historyReceivedResult.getOrDefault(emptyList())
-                )
+        val snapshot = WorkspaceRefreshSnapshot(
+            isFullySynced = isFullySynced,
+            friends = friendsResult.getOrDefault(emptyList()),
+            incomingRequests = incomingRequestsResult.getOrDefault(emptyList()),
+            outgoingRequests = outgoingRequestsResult.getOrDefault(emptyList()),
+            visibleReceivedAssignedTodos = visibleTaskSurfaceAssignedTodos(
+                activeReceivedResult.getOrDefault(emptyList()),
+                historyReceivedResult.getOrDefault(emptyList())
             )
         )
+        syncNotifier.publish(snapshot)
+        Result.success(snapshot)
     }
 }
 

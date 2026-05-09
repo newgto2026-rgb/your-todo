@@ -10,4 +10,5 @@ sealed interface CalendarAction {
     data class OnToggleTodoDone(val todoId: Long, val assignedTodoId: String? = null) : CalendarAction
     data object OnAddTodoClick : CalendarAction
     data object OnSyncClick : CalendarAction
+    data object OnScreenStarted : CalendarAction
 }

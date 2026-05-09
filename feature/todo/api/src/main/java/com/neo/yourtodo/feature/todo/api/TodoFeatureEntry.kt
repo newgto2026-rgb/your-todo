@@ -28,6 +28,7 @@ data class TodoAddRoute(
 @Serializable
 data class TodoEditorRoute(
     val todoId: Long? = null,
+    val assignedTodoId: String? = null,
     val dueDate: String? = null,
     val editOnly: Boolean = true
 ) : NavKey
