@@ -170,9 +170,12 @@ class FriendsViewModel @Inject constructor(
                     error = null
                 )
             } else {
+                val failure = listOf(friends, incoming, outgoing)
+                    .firstOrNull { result -> result.isFailure }
+                    ?.exceptionOrNull()
                 it.copy(
                     runningActionKey = null,
-                    error = FriendsError.NETWORK
+                    error = failure.toUiError()
                 )
             }
         }

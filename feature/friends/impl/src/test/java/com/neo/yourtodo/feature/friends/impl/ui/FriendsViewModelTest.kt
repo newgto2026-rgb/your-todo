@@ -210,6 +210,29 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun refreshAfterSuccessfulMutationMapsAuthFailureToAuthError() = runTest {
+        val repository = FakeFriendRepository()
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.test {
+            skipItems(2)
+            viewModel.onAction(FriendsAction.OnNicknameChanged("monday"))
+            assertThat(awaitItem().nicknameInput).isEqualTo("monday")
+
+            repository.getFriendsResult = Result.failure(AuthRequiredException())
+            viewModel.onAction(FriendsAction.OnSendRequest)
+            assertThat(awaitItem().runningActionKey).isEqualTo("send")
+
+            var failedRefresh = awaitItem()
+            while (failedRefresh.error != FriendsError.AUTH_REQUIRED) {
+                failedRefresh = awaitItem()
+            }
+            assertThat(failedRefresh.runningActionKey).isNull()
+            assertThat(failedRefresh.error).isEqualTo(FriendsError.AUTH_REQUIRED)
+        }
+    }
+
+    @Test
     fun removeFailureKeepsFriendAndShowsNetworkError() = runTest {
         val repository = FakeFriendRepository(
             removeResult = Result.failure(IllegalStateException())
@@ -276,7 +299,7 @@ class FriendsViewModelTest {
     }
 
     private class FakeFriendRepository(
-        private val getFriendsResult: Result<List<Friend>>? = null,
+        var getFriendsResult: Result<List<Friend>>? = null,
         private val sendResult: Result<Unit> = Result.success(Unit),
         private val acceptResult: Result<Unit> = Result.success(Unit),
         private val removeResult: Result<Unit> = Result.success(Unit)
