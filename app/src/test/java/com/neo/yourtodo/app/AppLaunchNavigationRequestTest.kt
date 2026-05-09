@@ -4,6 +4,8 @@ import com.neo.yourtodo.feature.calendar.api.CalendarDateRoute
 import com.neo.yourtodo.feature.calendar.api.CalendarRoute
 import com.neo.yourtodo.feature.calendar.api.CalendarWidgetIntentContract
 import com.google.common.truth.Truth.assertThat
+import com.neo.yourtodo.app.push.PushNotificationContract
+import com.neo.yourtodo.feature.friends.api.FriendsRoute
 import org.junit.Test
 
 class AppLaunchNavigationRequestTest {
@@ -51,5 +53,41 @@ class AppLaunchNavigationRequestTest {
         )
 
         assertThat(request).isNull()
+    }
+
+    @Test
+    fun parsePushIntent_returnsFriendsRouteAndRequestsSync() {
+        val request = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = "ASSIGNMENT_BUNDLE_RECEIVED",
+            deepLink = "yourtodo://assignment-bundles/received/bundle-id",
+            dataScheme = null,
+            requestId = 10L
+        )
+
+        assertThat(request).isEqualTo(
+            AppLaunchNavigationRequest(
+                id = 10L,
+                topLevelRoute = FriendsRoute,
+                contentRoute = null,
+                syncOnOpen = true
+            )
+        )
+    }
+
+    @Test
+    fun parseYourTodoDeepLink_returnsFriendsRouteAndRequestsSync() {
+        val request = parseAppLaunchNavigationRequest(
+            action = "android.intent.action.VIEW",
+            selectedDate = null,
+            pushType = null,
+            deepLink = null,
+            dataScheme = "yourtodo",
+            requestId = 11L
+        )
+
+        assertThat(request?.topLevelRoute).isEqualTo(FriendsRoute)
+        assertThat(request?.syncOnOpen).isTrue()
     }
 }

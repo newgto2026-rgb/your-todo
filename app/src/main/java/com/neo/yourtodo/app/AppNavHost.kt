@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.neo.yourtodo.app.push.PushTokenRegistrationViewModel
 import com.neo.yourtodo.app.navigation.ImmediateNavDisplay
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
 import com.neo.yourtodo.core.ui.navigation.AppRouteActions
@@ -34,8 +35,10 @@ import kotlinx.coroutines.flow.StateFlow
 fun AppNavHost(
     entries: Set<@JvmSuppressWildcards AppFeatureEntry>,
     launchNavigationRequest: AppLaunchNavigationRequest? = null,
-    syncViewModel: AppSyncViewModel = hiltViewModel()
+    syncViewModel: AppSyncViewModel = hiltViewModel(),
+    pushTokenRegistrationViewModel: PushTokenRegistrationViewModel = hiltViewModel()
 ) {
+    pushTokenRegistrationViewModel.keepActive()
     val context = LocalContext.current
     val resources = LocalResources.current
     val backPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
@@ -100,10 +103,19 @@ fun AppNavHost(
     )
     LaunchedEffect(launchNavigationRequest?.id) {
         val request = launchNavigationRequest ?: return@LaunchedEffect
+        if (request.syncOnOpen) {
+            syncViewModel.syncWorkspace()
+        }
         if (request.id == initialLaunchNavigationRequest?.id) return@LaunchedEffect
         navigator.navigate(request.topLevelRoute)
         request.contentRoute?.let { route ->
             navigator.replaceTopLevelContent(route)
+        }
+    }
+    LaunchedEffect(initialLaunchNavigationRequest?.id) {
+        val request = initialLaunchNavigationRequest ?: return@LaunchedEffect
+        if (request.syncOnOpen) {
+            syncViewModel.syncWorkspace()
         }
     }
     LaunchedEffect(Unit) {

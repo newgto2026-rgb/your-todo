@@ -3,6 +3,7 @@ package com.neo.yourtodo.core.datastore.source
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 interface UserPreferencesDataSource {
     val authSession: Flow<AuthSessionData?>
@@ -11,6 +12,8 @@ interface UserPreferencesDataSource {
     val selectedTodoPriorityFilter: Flow<TodoPriorityFilter>
     val todoSyncCursor: Flow<String?>
     val todoSyncHaltReason: Flow<String?>
+    val pushCurrentToken: Flow<String?> get() = flowOf(null)
+    val pushRegisteredToken: Flow<String?> get() = flowOf(null)
     suspend fun saveAuthSession(session: AuthSessionData)
     suspend fun clearAuthSession()
     suspend fun setSelectedTodoFilter(filter: TodoFilter)
@@ -19,4 +22,6 @@ interface UserPreferencesDataSource {
     suspend fun setTodoSyncCursor(cursor: String?)
     suspend fun setTodoSyncHaltReason(reason: String?)
     suspend fun clearTodoSyncState()
+    suspend fun setPushCurrentToken(token: String?) = Unit
+    suspend fun setPushRegisteredToken(token: String?) = Unit
 }

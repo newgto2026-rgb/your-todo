@@ -8,4 +8,18 @@
     <string name="tab_friends">Friends</string>
     <string name="app_sync_success">Sync completed.</string>
     <string name="app_sync_failed">Sync was partially completed.</string>
+    <string name="push_notification_channel_name">Friend updates</string>
+    <string name="push_notification_channel_description">Friend requests and shared todo updates</string>
+    <string name="push_default_title">YourTodo update</string>
+    <string name="push_default_body">Open YourTodo to check the latest update.</string>
+    <string name="push_friend_request_title">Friend request received</string>
+    <string name="push_friend_request_body">Open Friends to accept or decline the request.</string>
+    <string name="push_assignment_received_title">Shared todos received</string>
+    <string name="push_assignment_received_body">Open Friends to review the request.</string>
+    <string name="push_assignment_decided_title">Shared todo response updated</string>
+    <string name="push_assignment_decided_body">Open Friends to check the response.</string>
+    <string name="push_assigned_todo_completed_title">Shared todo completed</string>
+    <string name="push_assigned_todo_completed_body">Open Friends to check the completed todo.</string>
+    <string name="push_assigned_todo_canceled_title">Shared todo canceled</string>
+    <string name="push_assigned_todo_canceled_body">Open Friends to check the canceled todo.</string>
 </resources>
