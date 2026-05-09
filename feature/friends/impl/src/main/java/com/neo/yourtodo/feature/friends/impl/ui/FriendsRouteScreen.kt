@@ -756,6 +756,9 @@ private fun AssignmentPreviewList(
     containerColor: Color
 ) {
     Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 156.dp),
         shape = RoundedCornerShape(20.dp),
         color = containerColor,
         border = BorderStroke(1.dp, accentColor.copy(alpha = 0.18f))
@@ -785,11 +788,7 @@ private fun AssignmentPreviewList(
                 }
             }
             if (items.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.friends_assignment_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF7A8595)
-                )
+                EmptyAssignmentTodoCard(accentColor = accentColor)
             } else {
                 items.take(3).forEach { item ->
                     AssignmentTodoCard(
@@ -798,6 +797,38 @@ private fun AssignmentPreviewList(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EmptyAssignmentTodoCard(
+    accentColor: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.74f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.86f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(76.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 42.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accentColor.copy(alpha = 0.28f))
+            )
+            Text(
+                text = stringResource(R.string.friends_assignment_empty),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = Color(0xFF7A8595)
+            )
         }
     }
 }
@@ -855,10 +886,12 @@ private fun AssignmentTodoSummary(
             )
             AssignmentStatusChip(labelRes = item.statusLabelRes, style = item.statusStyle)
         }
-        AssignmentPersonChip(
-            text = stringResource(item.personLabelRes, item.personName),
-            modifier = Modifier.padding(top = 6.dp)
-        )
+        item.personName?.let { personName ->
+            AssignmentPersonChip(
+                text = stringResource(item.personLabelRes, personName),
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
         Text(
             text = stringResource(R.string.friends_assignment_item_summary, item.progressPercent),
             modifier = Modifier.padding(top = 5.dp),

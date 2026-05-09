@@ -40,17 +40,32 @@ data class FriendsUiState(
 
     val assignmentDetail: FriendAssignmentDetailUiModel
         get() {
+            val friendNickname = selectedFriend?.nickname
             val pending = friendReceivedAssignedTodos
                 .pendingDecisionItems()
-                .map { it.toAssignmentTodoUiModel(AssignmentTodoDirection.RECEIVED, it.id in selectedPendingAssignmentIds) }
+                .map {
+                    it.toAssignmentTodoUiModel(
+                        direction = AssignmentTodoDirection.RECEIVED,
+                        selected = it.id in selectedPendingAssignmentIds,
+                        fallbackPersonName = friendNickname
+                    )
+                }
             return FriendAssignmentDetailUiModel(
                 sentItems = friendSentAssignedTodos.map {
-                    it.toAssignmentTodoUiModel(AssignmentTodoDirection.SENT)
+                    it.toAssignmentTodoUiModel(
+                        direction = AssignmentTodoDirection.SENT,
+                        fallbackPersonName = friendNickname
+                    )
                 },
                 pendingReceivedItems = pending,
                 activeReceivedItems = friendReceivedAssignedTodos
                     .filterNot { it.status == AssignedTodoStatus.PENDING_ACCEPTANCE }
-                    .map { it.toAssignmentTodoUiModel(AssignmentTodoDirection.RECEIVED) },
+                    .map {
+                        it.toAssignmentTodoUiModel(
+                            direction = AssignmentTodoDirection.RECEIVED,
+                            fallbackPersonName = friendNickname
+                        )
+                    },
                 pendingSelectedCount = pending.count { it.selected },
                 pendingTotalCount = pending.size,
                 isAllPendingSelected = pending.isNotEmpty() && pending.all { it.selected },
@@ -78,7 +93,7 @@ data class AssignmentTodoUiModel(
     @StringRes val statusLabelRes: Int,
     val statusStyle: AssignmentTodoStatusStyle,
     @StringRes val personLabelRes: Int,
-    val personName: String,
+    val personName: String?,
     val selected: Boolean = false
 )
 
@@ -98,7 +113,8 @@ internal enum class AssignmentTodoDirection {
 
 internal fun AssignedTodo.toAssignmentTodoUiModel(
     direction: AssignmentTodoDirection,
-    selected: Boolean = false
+    selected: Boolean = false,
+    fallbackPersonName: String? = null
 ): AssignmentTodoUiModel = AssignmentTodoUiModel(
     id = id,
     title = title,
@@ -107,11 +123,15 @@ internal fun AssignedTodo.toAssignmentTodoUiModel(
     statusStyle = status.statusStyle(),
     personLabelRes = R.string.friends_assignment_user_mention,
     personName = when (direction) {
-        AssignmentTodoDirection.SENT -> receiver?.nickname.orEmpty().ifBlank { "?" }
-        AssignmentTodoDirection.RECEIVED -> sender?.nickname.orEmpty().ifBlank { "?" }
-    },
+        AssignmentTodoDirection.SENT -> receiver?.nickname
+        AssignmentTodoDirection.RECEIVED -> sender?.nickname
+    }.validMentionName(fallbackPersonName),
     selected = selected
 )
+
+private fun String?.validMentionName(fallback: String?): String? =
+    this?.takeIf { it.isNotBlank() }
+        ?: fallback?.takeIf { it.isNotBlank() }
 
 @StringRes
 internal fun AssignedTodoStatus.statusLabelRes(): Int = when (this) {
