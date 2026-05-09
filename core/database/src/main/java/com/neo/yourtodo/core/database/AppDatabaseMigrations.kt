@@ -144,8 +144,9 @@ object AppDatabaseMigrations {
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS `assigned_todo` (
-                    `id` TEXT NOT NULL,
                     `ownerUserId` TEXT NOT NULL,
+                    `id` TEXT NOT NULL,
+                    `cacheKey` TEXT NOT NULL,
                     `bundleId` TEXT,
                     `title` TEXT NOT NULL,
                     `description` TEXT,
@@ -167,20 +168,24 @@ object AppDatabaseMigrations {
                     `receivedCached` INTEGER NOT NULL,
                     `sentCached` INTEGER NOT NULL,
                     `cacheUpdatedAt` INTEGER NOT NULL,
-                    PRIMARY KEY(`id`)
+                    PRIMARY KEY(`ownerUserId`, `id`)
                 )
                 """.trimIndent()
             )
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS `assigned_todo_checklist_item` (
+                    `ownerUserId` TEXT NOT NULL,
                     `assignedTodoId` TEXT NOT NULL,
+                    `assignedTodoCacheKey` TEXT NOT NULL,
                     `id` TEXT NOT NULL,
                     `title` TEXT NOT NULL,
                     `completed` INTEGER NOT NULL,
                     `sortOrder` INTEGER NOT NULL,
-                    PRIMARY KEY(`assignedTodoId`, `id`),
-                    FOREIGN KEY(`assignedTodoId`) REFERENCES `assigned_todo`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    PRIMARY KEY(`ownerUserId`, `assignedTodoId`, `id`),
+                    FOREIGN KEY(`ownerUserId`, `assignedTodoId`)
+                        REFERENCES `assigned_todo`(`ownerUserId`, `id`)
+                        ON UPDATE NO ACTION ON DELETE CASCADE
                 )
                 """.trimIndent()
             )
@@ -188,7 +193,9 @@ object AppDatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_sentCached_status` ON `assigned_todo` (`ownerUserId`, `sentCached`, `status`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_senderUserId_status` ON `assigned_todo` (`ownerUserId`, `senderUserId`, `status`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_receiverUserId_status` ON `assigned_todo` (`ownerUserId`, `receiverUserId`, `status`)")
-            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_assignedTodoId` ON `assigned_todo_checklist_item` (`assignedTodoId`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_assigned_todo_cacheKey` ON `assigned_todo` (`cacheKey`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_ownerUserId_assignedTodoId` ON `assigned_todo_checklist_item` (`ownerUserId`, `assignedTodoId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_assignedTodoCacheKey` ON `assigned_todo_checklist_item` (`assignedTodoCacheKey`)")
         }
     }
 }

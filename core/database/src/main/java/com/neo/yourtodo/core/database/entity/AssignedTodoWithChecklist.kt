@@ -6,8 +6,8 @@ import androidx.room.Relation
 data class AssignedTodoWithChecklist(
     @Embedded val assignedTodo: AssignedTodoEntity,
     @Relation(
-        parentColumn = "id",
-        entityColumn = "assignedTodoId"
+        parentColumn = "cacheKey",
+        entityColumn = "assignedTodoCacheKey"
     )
     val checklist: List<AssignedTodoChecklistItemEntity>
 )

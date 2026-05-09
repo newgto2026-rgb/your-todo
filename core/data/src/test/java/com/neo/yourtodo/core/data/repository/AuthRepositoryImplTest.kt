@@ -404,7 +404,7 @@ class AuthRepositoryImplTest {
 
         override suspend fun upsertAssignedTodos(items: List<AssignedTodoEntity>) = Unit
         override suspend fun upsertChecklistItems(items: List<AssignedTodoChecklistItemEntity>) = Unit
-        override suspend fun deleteChecklistItems(assignedTodoIds: List<String>) = Unit
+        override suspend fun deleteChecklistItems(assignedTodoCacheKeys: List<String>) = Unit
         override suspend fun deleteReceivedByStatuses(ownerUserId: String, statuses: List<String>) = Unit
         override suspend fun deleteReceivedByStatusesExcept(
             ownerUserId: String,

@@ -4,6 +4,7 @@ import com.neo.yourtodo.core.database.dao.AssignedTodoDao
 import com.neo.yourtodo.core.database.entity.AssignedTodoChecklistItemEntity
 import com.neo.yourtodo.core.database.entity.AssignedTodoEntity
 import com.neo.yourtodo.core.database.entity.AssignedTodoWithChecklist
+import com.neo.yourtodo.core.database.entity.assignedTodoCacheKey
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
@@ -349,9 +350,12 @@ class AssignmentRepositoryImpl @Inject constructor(
             )
         }
         val checklistItems = items.flatMap { item ->
+            val cacheKey = assignedTodoCacheKey(ownerUserId, item.id)
             item.checklist.mapIndexed { index, checklist ->
                 AssignedTodoChecklistItemEntity(
+                    ownerUserId = ownerUserId,
                     assignedTodoId = item.id,
+                    assignedTodoCacheKey = cacheKey,
                     id = checklist.id,
                     title = checklist.title,
                     completed = checklist.completed,
@@ -529,8 +533,9 @@ class AssignmentRepositoryImpl @Inject constructor(
         cacheUpdatedAt: Long
     ): AssignedTodoEntity =
         AssignedTodoEntity(
-            id = id,
             ownerUserId = ownerUserId,
+            id = id,
+            cacheKey = assignedTodoCacheKey(ownerUserId, id),
             bundleId = bundleId,
             title = title,
             description = description,

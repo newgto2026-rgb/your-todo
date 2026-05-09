@@ -150,9 +150,9 @@ interface AssignedTodoDao {
         checklistItems: List<AssignedTodoChecklistItemEntity>
     ) {
         if (items.isEmpty()) return
-        val assignedTodoIds = items.map { it.id }
+        val assignedTodoCacheKeys = items.map { it.cacheKey }
         upsertAssignedTodos(items)
-        deleteChecklistItems(assignedTodoIds)
+        deleteChecklistItems(assignedTodoCacheKeys)
         if (checklistItems.isNotEmpty()) {
             upsertChecklistItems(checklistItems)
         }
@@ -164,8 +164,8 @@ interface AssignedTodoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertChecklistItems(items: List<AssignedTodoChecklistItemEntity>)
 
-    @Query("DELETE FROM assigned_todo_checklist_item WHERE assignedTodoId IN (:assignedTodoIds)")
-    suspend fun deleteChecklistItems(assignedTodoIds: List<String>)
+    @Query("DELETE FROM assigned_todo_checklist_item WHERE assignedTodoCacheKey IN (:assignedTodoCacheKeys)")
+    suspend fun deleteChecklistItems(assignedTodoCacheKeys: List<String>)
 
     @Query("DELETE FROM assigned_todo WHERE ownerUserId = :ownerUserId AND receivedCached = 1 AND status IN (:statuses)")
     suspend fun deleteReceivedByStatuses(ownerUserId: String, statuses: List<String>)

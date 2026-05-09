@@ -107,6 +107,7 @@ class AppDatabaseMigrationTest {
         assertThat(migrated.columnNames("assigned_todo")).containsAtLeast(
             "id",
             "ownerUserId",
+            "cacheKey",
             "bundleId",
             "title",
             "dueDateEpochDay",
@@ -122,7 +123,9 @@ class AppDatabaseMigrationTest {
             "cacheUpdatedAt"
         )
         assertThat(migrated.columnNames("assigned_todo_checklist_item")).containsAtLeast(
+            "ownerUserId",
             "assignedTodoId",
+            "assignedTodoCacheKey",
             "id",
             "title",
             "completed",
@@ -132,10 +135,14 @@ class AppDatabaseMigrationTest {
             "index_assigned_todo_ownerUserId_receivedCached_status",
             "index_assigned_todo_ownerUserId_sentCached_status",
             "index_assigned_todo_ownerUserId_senderUserId_status",
-            "index_assigned_todo_ownerUserId_receiverUserId_status"
+            "index_assigned_todo_ownerUserId_receiverUserId_status",
+            "index_assigned_todo_cacheKey"
         )
         assertThat(migrated.indexNames("assigned_todo_checklist_item"))
-            .contains("index_assigned_todo_checklist_item_assignedTodoId")
+            .containsAtLeast(
+                "index_assigned_todo_checklist_item_ownerUserId_assignedTodoId",
+                "index_assigned_todo_checklist_item_assignedTodoCacheKey"
+            )
         testDb.close()
     }
 

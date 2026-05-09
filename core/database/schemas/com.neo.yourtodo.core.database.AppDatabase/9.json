@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 9,
-    "identityHash": "920db5ffb840c6f208b7c6be91ddde6d",
+    "identityHash": "37947a3cf3873c49ad0a774b4d43167b",
     "entities": [
       {
         "tableName": "todo",
@@ -454,8 +454,14 @@
       },
       {
         "tableName": "assigned_todo",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `ownerUserId` TEXT NOT NULL, `bundleId` TEXT, `title` TEXT NOT NULL, `description` TEXT, `dueDateEpochDay` INTEGER, `dueTimeMinutes` INTEGER, `priority` TEXT NOT NULL, `category` TEXT, `status` TEXT NOT NULL, `terminalReason` TEXT, `progressPercent` INTEGER NOT NULL, `senderUserId` TEXT, `senderNickname` TEXT, `receiverUserId` TEXT, `receiverNickname` TEXT, `reminderAt` TEXT, `reminderEnabled` INTEGER, `createdAtEpochMillis` INTEGER, `completedAtEpochMillis` INTEGER, `receivedCached` INTEGER NOT NULL, `sentCached` INTEGER NOT NULL, `cacheUpdatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerUserId` TEXT NOT NULL, `id` TEXT NOT NULL, `cacheKey` TEXT NOT NULL, `bundleId` TEXT, `title` TEXT NOT NULL, `description` TEXT, `dueDateEpochDay` INTEGER, `dueTimeMinutes` INTEGER, `priority` TEXT NOT NULL, `category` TEXT, `status` TEXT NOT NULL, `terminalReason` TEXT, `progressPercent` INTEGER NOT NULL, `senderUserId` TEXT, `senderNickname` TEXT, `receiverUserId` TEXT, `receiverNickname` TEXT, `reminderAt` TEXT, `reminderEnabled` INTEGER, `createdAtEpochMillis` INTEGER, `completedAtEpochMillis` INTEGER, `receivedCached` INTEGER NOT NULL, `sentCached` INTEGER NOT NULL, `cacheUpdatedAt` INTEGER NOT NULL, PRIMARY KEY(`ownerUserId`, `id`))",
         "fields": [
+          {
+            "fieldPath": "ownerUserId",
+            "columnName": "ownerUserId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
           {
             "fieldPath": "id",
             "columnName": "id",
@@ -463,8 +469,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "ownerUserId",
-            "columnName": "ownerUserId",
+            "fieldPath": "cacheKey",
+            "columnName": "cacheKey",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -584,6 +590,7 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
+            "ownerUserId",
             "id"
           ]
         },
@@ -631,16 +638,37 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_receiverUserId_status` ON `${TABLE_NAME}` (`ownerUserId`, `receiverUserId`, `status`)"
+          },
+          {
+            "name": "index_assigned_todo_cacheKey",
+            "unique": true,
+            "columnNames": [
+              "cacheKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_assigned_todo_cacheKey` ON `${TABLE_NAME}` (`cacheKey`)"
           }
         ]
       },
       {
         "tableName": "assigned_todo_checklist_item",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`assignedTodoId` TEXT NOT NULL, `id` TEXT NOT NULL, `title` TEXT NOT NULL, `completed` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`assignedTodoId`, `id`), FOREIGN KEY(`assignedTodoId`) REFERENCES `assigned_todo`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ownerUserId` TEXT NOT NULL, `assignedTodoId` TEXT NOT NULL, `assignedTodoCacheKey` TEXT NOT NULL, `id` TEXT NOT NULL, `title` TEXT NOT NULL, `completed` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, PRIMARY KEY(`ownerUserId`, `assignedTodoId`, `id`), FOREIGN KEY(`ownerUserId`, `assignedTodoId`) REFERENCES `assigned_todo`(`ownerUserId`, `id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
+          {
+            "fieldPath": "ownerUserId",
+            "columnName": "ownerUserId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
           {
             "fieldPath": "assignedTodoId",
             "columnName": "assignedTodoId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignedTodoCacheKey",
+            "columnName": "assignedTodoCacheKey",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -672,19 +700,30 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
+            "ownerUserId",
             "assignedTodoId",
             "id"
           ]
         },
         "indices": [
           {
-            "name": "index_assigned_todo_checklist_item_assignedTodoId",
+            "name": "index_assigned_todo_checklist_item_ownerUserId_assignedTodoId",
             "unique": false,
             "columnNames": [
+              "ownerUserId",
               "assignedTodoId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_assignedTodoId` ON `${TABLE_NAME}` (`assignedTodoId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_ownerUserId_assignedTodoId` ON `${TABLE_NAME}` (`ownerUserId`, `assignedTodoId`)"
+          },
+          {
+            "name": "index_assigned_todo_checklist_item_assignedTodoCacheKey",
+            "unique": false,
+            "columnNames": [
+              "assignedTodoCacheKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_assignedTodoCacheKey` ON `${TABLE_NAME}` (`assignedTodoCacheKey`)"
           }
         ],
         "foreignKeys": [
@@ -693,9 +732,11 @@
             "onDelete": "CASCADE",
             "onUpdate": "NO ACTION",
             "columns": [
+              "ownerUserId",
               "assignedTodoId"
             ],
             "referencedColumns": [
+              "ownerUserId",
               "id"
             ]
           }
@@ -704,7 +745,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '920db5ffb840c6f208b7c6be91ddde6d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '37947a3cf3873c49ad0a774b4d43167b')"
     ]
   }
 }

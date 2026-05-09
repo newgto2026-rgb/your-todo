@@ -337,7 +337,7 @@ class AssignmentRepositoryImplTest {
             }
 
         override suspend fun getAssignedTodoById(ownerUserId: String, id: String): AssignedTodoEntity? =
-            state.value.items[id]?.takeIf { it.ownerUserId == ownerUserId }
+            state.value.items.values.firstOrNull { it.ownerUserId == ownerUserId && it.id == id }
 
         override suspend fun deleteByOwner(ownerUserId: String) {
             deleteWhere { it.ownerUserId == ownerUserId }
@@ -345,18 +345,18 @@ class AssignmentRepositoryImplTest {
 
         override suspend fun upsertAssignedTodos(items: List<AssignedTodoEntity>) {
             state.value = state.value.copy(
-                items = state.value.items + items.associateBy { it.id }
+                items = state.value.items + items.associateBy { it.cacheKey }
             )
         }
 
         override suspend fun upsertChecklistItems(items: List<AssignedTodoChecklistItemEntity>) {
             state.value = state.value.copy(
-                checklist = state.value.checklist + items.groupBy { it.assignedTodoId }
+                checklist = state.value.checklist + items.groupBy { it.assignedTodoCacheKey }
             )
         }
 
-        override suspend fun deleteChecklistItems(assignedTodoIds: List<String>) {
-            state.value = state.value.copy(checklist = state.value.checklist - assignedTodoIds.toSet())
+        override suspend fun deleteChecklistItems(assignedTodoCacheKeys: List<String>) {
+            state.value = state.value.copy(checklist = state.value.checklist - assignedTodoCacheKeys.toSet())
         }
 
         override suspend fun deleteReceivedByStatuses(ownerUserId: String, statuses: List<String>) {
@@ -436,13 +436,13 @@ class AssignmentRepositoryImplTest {
         }
 
         private fun deleteWhere(predicate: (AssignedTodoEntity) -> Boolean) {
-            val removedIds = state.value.items.values
+            val removedCacheKeys = state.value.items.values
                 .filter(predicate)
-                .map { it.id }
+                .map { it.cacheKey }
                 .toSet()
             state.value = state.value.copy(
-                items = state.value.items.filterKeys { it !in removedIds },
-                checklist = state.value.checklist.filterKeys { it !in removedIds }
+                items = state.value.items.filterKeys { it !in removedCacheKeys },
+                checklist = state.value.checklist.filterKeys { it !in removedCacheKeys }
             )
         }
 
@@ -453,7 +453,7 @@ class AssignmentRepositoryImplTest {
                 .map { item ->
                     AssignedTodoWithChecklist(
                         assignedTodo = item,
-                        checklist = cache.checklist[item.id].orEmpty()
+                        checklist = cache.checklist[item.cacheKey].orEmpty()
                     )
                 }
     }
