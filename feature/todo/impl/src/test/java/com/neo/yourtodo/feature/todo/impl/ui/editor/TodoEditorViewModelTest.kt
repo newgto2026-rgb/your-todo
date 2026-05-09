@@ -33,6 +33,8 @@ import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -329,6 +331,18 @@ class TodoEditorViewModelTest {
 
         override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
             Result.success(emptyList())
+
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            MutableStateFlow(receivedItems)
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            MutableStateFlow(emptyList())
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> = MutableStateFlow(emptyList())
 
         override suspend fun decideBundleItems(
             bundleId: String,

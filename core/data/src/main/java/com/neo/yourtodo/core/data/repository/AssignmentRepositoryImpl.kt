@@ -1,5 +1,10 @@
 package com.neo.yourtodo.core.data.repository
 
+import com.neo.yourtodo.core.database.dao.AssignedTodoDao
+import com.neo.yourtodo.core.database.entity.AssignedTodoChecklistItemEntity
+import com.neo.yourtodo.core.database.entity.AssignedTodoEntity
+import com.neo.yourtodo.core.database.entity.AssignedTodoWithChecklist
+import com.neo.yourtodo.core.database.entity.assignedTodoCacheKey
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
@@ -37,11 +42,18 @@ import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AssignmentRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val assignmentNetworkDataSource: AssignmentNetworkDataSource,
+    private val assignedTodoDao: AssignedTodoDao,
     authNetworkDataSource: AuthNetworkDataSource,
     private val authSessionRefresher: AuthSessionRefresher =
         AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
@@ -69,6 +81,15 @@ class AssignmentRepositoryImpl @Inject constructor(
                     }
                 )
             ).toDomain()
+                .also { bundle ->
+                    cacheAssignedTodos(
+                        items = bundle.items,
+                        direction = AssignmentDirection.SENT,
+                        status = AssignmentFeedStatus.PENDING,
+                        friendUserId = receiverUserId,
+                        replaceStale = false
+                    )
+                }
         }
 
     override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
@@ -94,19 +115,78 @@ class AssignmentRepositoryImpl @Inject constructor(
                 direction = direction.name.lowercase(Locale.US),
                 status = status.wireValue
             ).items.map { it.toDomain() }
+                .also {
+                    cacheAssignedTodos(
+                        items = it,
+                        direction = direction,
+                        status = status,
+                        friendUserId = friendUserId
+                    )
+                }
         }
 
     override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
         authenticatedRequest { accessToken ->
             assignmentNetworkDataSource.getReceivedAssignedTodos(accessToken, status.wireValue)
                 .items.map { it.toDomain() }
+                .also {
+                    cacheAssignedTodos(
+                        items = it,
+                        direction = AssignmentDirection.RECEIVED,
+                        status = status
+                    )
+                }
         }
 
     override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
         authenticatedRequest { accessToken ->
             assignmentNetworkDataSource.getSentAssignedTodos(accessToken, status.wireValue)
                 .items.map { it.toDomain() }
+                .also {
+                    cacheAssignedTodos(
+                        items = it,
+                        direction = AssignmentDirection.SENT,
+                        status = status
+                    )
+                }
         }
+
+    override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+        userPreferencesDataSource.authSession.flatMapLatest { session ->
+            val ownerUserId = session?.takeUnless { it.onboardingRequired }?.userId
+                ?: return@flatMapLatest flowOf(emptyList())
+            assignedTodoDao.observeReceivedAssignedTodos(ownerUserId, status.cacheStatuses())
+        }.map { items -> items.map { it.toDomain() } }
+
+    override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+        userPreferencesDataSource.authSession.flatMapLatest { session ->
+            val ownerUserId = session?.takeUnless { it.onboardingRequired }?.userId
+                ?: return@flatMapLatest flowOf(emptyList())
+            assignedTodoDao.observeSentAssignedTodos(ownerUserId, status.cacheStatuses())
+        }.map { items -> items.map { it.toDomain() } }
+
+    override fun observeFriendAssignedTodos(
+        friendUserId: String,
+        direction: AssignmentDirection,
+        status: AssignmentFeedStatus
+    ): Flow<List<AssignedTodo>> =
+        userPreferencesDataSource.authSession.flatMapLatest { session ->
+            val ownerUserId = session?.takeUnless { it.onboardingRequired }?.userId
+                ?: return@flatMapLatest flowOf(emptyList())
+            when (direction) {
+                AssignmentDirection.SENT -> assignedTodoDao.observeSentAssignedTodosByFriend(
+                    ownerUserId = ownerUserId,
+                    friendUserId = friendUserId,
+                    statuses = status.cacheStatuses()
+                )
+
+                AssignmentDirection.RECEIVED -> assignedTodoDao.observeReceivedAssignedTodosByFriend(
+                    ownerUserId = ownerUserId,
+                    friendUserId = friendUserId,
+                    statuses = status.cacheStatuses()
+                )
+            }
+        }.map { items -> items.map { it.toDomain() } }
 
     override suspend fun decideBundleItems(
         bundleId: String,
@@ -126,36 +206,90 @@ class AssignmentRepositoryImpl @Inject constructor(
                     }
                 )
             ).toDomain()
+                .also { bundle ->
+                    cacheAssignedTodos(
+                        items = bundle.items,
+                        direction = AssignmentDirection.RECEIVED,
+                        status = AssignmentFeedStatus.PENDING,
+                        replaceStale = false
+                    )
+                }
         }
 
     override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-        authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.completeAssignedTodo(accessToken, assignedTodoId)
-                .item.toDomain()
+        mutateAssignedTodoOptimistically(
+            assignedTodoId = assignedTodoId,
+            optimistic = { item ->
+                item.copy(
+                    status = AssignedTodoStatus.DONE.name,
+                    progressPercent = 100,
+                    completedAtEpochMillis = Instant.now().toEpochMilli()
+                )
+            }
+        ) {
+            authenticatedRequest { accessToken ->
+                assignmentNetworkDataSource.completeAssignedTodo(accessToken, assignedTodoId)
+                    .item.toDomain()
+                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
+            }
         }
 
     override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-        authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.reopenAssignedTodo(accessToken, assignedTodoId)
-                .item.toDomain()
+        mutateAssignedTodoOptimistically(
+            assignedTodoId = assignedTodoId,
+            optimistic = { item ->
+                item.copy(
+                    status = AssignedTodoStatus.ACCEPTED.name,
+                    progressPercent = 0,
+                    completedAtEpochMillis = null
+                )
+            }
+        ) {
+            authenticatedRequest { accessToken ->
+                assignmentNetworkDataSource.reopenAssignedTodo(accessToken, assignedTodoId)
+                    .item.toDomain()
+                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
+            }
         }
 
     override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-        authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.deleteReceivedAssignedTodo(
-                accessToken = accessToken,
-                idempotencyKey = UUID.randomUUID().toString(),
-                assignedTodoId = assignedTodoId
-            ).item.toDomain()
+        mutateAssignedTodoOptimistically(
+            assignedTodoId = assignedTodoId,
+            optimistic = { item ->
+                item.copy(
+                    status = AssignedTodoStatus.REJECTED.name,
+                    terminalReason = AssignedTodoTerminalReason.DELETED_BY_RECEIVER.name
+                )
+            }
+        ) {
+            authenticatedRequest { accessToken ->
+                assignmentNetworkDataSource.deleteReceivedAssignedTodo(
+                    accessToken = accessToken,
+                    idempotencyKey = UUID.randomUUID().toString(),
+                    assignedTodoId = assignedTodoId
+                ).item.toDomain()
+                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
+            }
         }
 
     override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-        authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.cancelAssignedTodo(
-                accessToken = accessToken,
-                idempotencyKey = UUID.randomUUID().toString(),
-                assignedTodoId = assignedTodoId
-            ).item.toDomain()
+        mutateAssignedTodoOptimistically(
+            assignedTodoId = assignedTodoId,
+            optimistic = { item ->
+                item.copy(
+                    status = AssignedTodoStatus.CANCELED.name,
+                    terminalReason = AssignedTodoTerminalReason.CANCELED_BY_SENDER.name
+                )
+            }
+        ) {
+            authenticatedRequest { accessToken ->
+                assignmentNetworkDataSource.cancelAssignedTodo(
+                    accessToken = accessToken,
+                    idempotencyKey = UUID.randomUUID().toString(),
+                    assignedTodoId = assignedTodoId
+                ).item.toDomain()
+                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.SENT) }
+            }
         }
 
     override suspend fun upsertAssignedTodoReminder(
@@ -183,6 +317,118 @@ class AssignmentRepositoryImpl @Inject constructor(
             )
             Unit
         }
+
+    private suspend fun cacheAssignedTodoMutation(
+        item: AssignedTodo,
+        direction: AssignmentDirection
+    ) {
+        cacheAssignedTodos(
+            items = listOf(item),
+            direction = direction,
+            status = item.feedStatus(),
+            replaceStale = false
+        )
+    }
+
+    private suspend fun cacheAssignedTodos(
+        items: List<AssignedTodo>,
+        direction: AssignmentDirection,
+        status: AssignmentFeedStatus,
+        friendUserId: String? = null,
+        replaceStale: Boolean = true
+    ) {
+        val ownerUserId = currentSession()?.userId ?: return
+        val ids = items.map { it.id }
+        val now = System.currentTimeMillis()
+        val entities = items.map { item ->
+            val existing = assignedTodoDao.getAssignedTodoById(ownerUserId, item.id)
+            item.toEntity(
+                ownerUserId = ownerUserId,
+                existing = existing,
+                direction = direction,
+                cacheUpdatedAt = now
+            )
+        }
+        val checklistItems = items.flatMap { item ->
+            val cacheKey = assignedTodoCacheKey(ownerUserId, item.id)
+            item.checklist.mapIndexed { index, checklist ->
+                AssignedTodoChecklistItemEntity(
+                    ownerUserId = ownerUserId,
+                    assignedTodoId = item.id,
+                    assignedTodoCacheKey = cacheKey,
+                    id = checklist.id,
+                    title = checklist.title,
+                    completed = checklist.completed,
+                    sortOrder = index
+                )
+            }
+        }
+        if (replaceStale) {
+            replaceCachedItems(ownerUserId, direction, status, friendUserId, ids, entities, checklistItems)
+        } else {
+            assignedTodoDao.upsertAssignedTodoGraph(entities, checklistItems)
+        }
+    }
+
+    private suspend fun replaceCachedItems(
+        ownerUserId: String,
+        direction: AssignmentDirection,
+        status: AssignmentFeedStatus,
+        friendUserId: String?,
+        ids: List<String>,
+        entities: List<AssignedTodoEntity>,
+        checklistItems: List<AssignedTodoChecklistItemEntity>
+    ) {
+        val statuses = status.cacheStatuses()
+        when (direction) {
+            AssignmentDirection.RECEIVED -> {
+                if (friendUserId == null) {
+                    assignedTodoDao.replaceReceivedCache(ownerUserId, statuses, ids, entities, checklistItems)
+                } else {
+                    assignedTodoDao.replaceReceivedFriendCache(
+                        ownerUserId,
+                        friendUserId,
+                        statuses,
+                        ids,
+                        entities,
+                        checklistItems
+                    )
+                }
+            }
+
+            AssignmentDirection.SENT -> {
+                if (friendUserId == null) {
+                    assignedTodoDao.replaceSentCache(ownerUserId, statuses, ids, entities, checklistItems)
+                } else {
+                    assignedTodoDao.replaceSentFriendCache(
+                        ownerUserId,
+                        friendUserId,
+                        statuses,
+                        ids,
+                        entities,
+                        checklistItems
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun <T> mutateAssignedTodoOptimistically(
+        assignedTodoId: String,
+        optimistic: (AssignedTodoEntity) -> AssignedTodoEntity,
+        mutation: suspend () -> Result<T>
+    ): Result<T> {
+        val ownerUserId = currentSession()?.userId
+        val previous = ownerUserId?.let { assignedTodoDao.getAssignedTodoById(it, assignedTodoId) }
+        if (previous != null) {
+            assignedTodoDao.upsertAssignedTodos(listOf(optimistic(previous)))
+        }
+        val result = mutation()
+        if (result.isFailure && previous != null) {
+            assignedTodoDao.upsertAssignedTodos(listOf(previous))
+        }
+        return result
+    }
 
     private suspend fun <T> authenticatedRequest(block: suspend (String) -> T): Result<T> =
         runCatching {
@@ -242,6 +488,77 @@ class AssignmentRepositoryImpl @Inject constructor(
             completedAt = completedAt.toInstantOrNull()
         )
 
+    private fun AssignedTodoWithChecklist.toDomain(): AssignedTodo =
+        assignedTodo.run {
+            AssignedTodo(
+                id = id,
+                bundleId = bundleId,
+                title = title,
+                description = description,
+                dueDate = dueDateEpochDay?.let(LocalDate::ofEpochDay),
+                dueTimeMinutes = dueTimeMinutes,
+                priority = enumValueOrDefault(priority, TodoPriority.MEDIUM),
+                category = category,
+                status = enumValueOf(status),
+                terminalReason = terminalReason?.let {
+                    enumValueOf<AssignedTodoTerminalReason>(it)
+                },
+                progressPercent = progressPercent,
+                sender = userOrNull(senderUserId, senderNickname),
+                receiver = userOrNull(receiverUserId, receiverNickname),
+                reminder = reminderAt?.let {
+                    AssignedTodoReminder(
+                        reminderAt = it,
+                        enabled = reminderEnabled ?: true
+                    )
+                },
+                checklist = checklist
+                    .sortedBy { it.sortOrder }
+                    .map {
+                        AssignedTodoChecklistItem(
+                            id = it.id,
+                            title = it.title,
+                            completed = it.completed
+                        )
+                    },
+                createdAt = createdAtEpochMillis?.let(Instant::ofEpochMilli),
+                completedAt = completedAtEpochMillis?.let(Instant::ofEpochMilli)
+            )
+        }
+
+    private fun AssignedTodo.toEntity(
+        ownerUserId: String,
+        existing: AssignedTodoEntity?,
+        direction: AssignmentDirection,
+        cacheUpdatedAt: Long
+    ): AssignedTodoEntity =
+        AssignedTodoEntity(
+            ownerUserId = ownerUserId,
+            id = id,
+            cacheKey = assignedTodoCacheKey(ownerUserId, id),
+            bundleId = bundleId,
+            title = title,
+            description = description,
+            dueDateEpochDay = dueDate?.toEpochDay(),
+            dueTimeMinutes = dueTimeMinutes,
+            priority = priority.name,
+            category = category,
+            status = status.name,
+            terminalReason = terminalReason?.name,
+            progressPercent = progressPercent,
+            senderUserId = sender?.id,
+            senderNickname = sender?.nickname,
+            receiverUserId = receiver?.id,
+            receiverNickname = receiver?.nickname,
+            reminderAt = reminder?.reminderAt,
+            reminderEnabled = reminder?.enabled,
+            createdAtEpochMillis = createdAt?.toEpochMilli(),
+            completedAtEpochMillis = completedAt?.toEpochMilli(),
+            receivedCached = existing?.receivedCached == true || direction == AssignmentDirection.RECEIVED,
+            sentCached = existing?.sentCached == true || direction == AssignmentDirection.SENT,
+            cacheUpdatedAt = cacheUpdatedAt
+        )
+
     private fun NetworkAssignedTodoChecklistItem.toDomain() =
         AssignedTodoChecklistItem(id = id, title = title, completed = completed)
 
@@ -274,4 +591,35 @@ class AssignmentRepositoryImpl @Inject constructor(
 
     private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =
         enumValues<T>().firstOrNull { it.name == value } ?: default
+
+    private fun userOrNull(id: String?, nickname: String?): AssignedTodoUser? =
+        if (id != null && nickname != null) {
+            AssignedTodoUser(id = id, nickname = nickname)
+        } else {
+            null
+        }
+
+    private fun AssignmentFeedStatus.cacheStatuses(): List<String> = when (this) {
+        AssignmentFeedStatus.ACTIVE -> listOf(
+            AssignedTodoStatus.ACCEPTED.name,
+            AssignedTodoStatus.IN_PROGRESS.name
+        )
+
+        AssignmentFeedStatus.PENDING -> listOf(AssignedTodoStatus.PENDING_ACCEPTANCE.name)
+        AssignmentFeedStatus.HISTORY -> listOf(
+            AssignedTodoStatus.DONE.name,
+            AssignedTodoStatus.REJECTED.name,
+            AssignedTodoStatus.CANCELED.name
+        )
+    }
+
+    private fun AssignedTodo.feedStatus(): AssignmentFeedStatus = when (status) {
+        AssignedTodoStatus.PENDING_ACCEPTANCE -> AssignmentFeedStatus.PENDING
+        AssignedTodoStatus.ACCEPTED,
+        AssignedTodoStatus.IN_PROGRESS -> AssignmentFeedStatus.ACTIVE
+
+        AssignedTodoStatus.DONE,
+        AssignedTodoStatus.REJECTED,
+        AssignedTodoStatus.CANCELED -> AssignmentFeedStatus.HISTORY
+    }
 }

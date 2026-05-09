@@ -5,6 +5,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import kotlinx.coroutines.flow.Flow
 
 interface AssignmentRepository {
     suspend fun createBundle(
@@ -23,6 +24,16 @@ interface AssignmentRepository {
     suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>>
 
     suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>>
+
+    fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>>
+
+    fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>>
+
+    fun observeFriendAssignedTodos(
+        friendUserId: String,
+        direction: AssignmentDirection,
+        status: AssignmentFeedStatus
+    ): Flow<List<AssignedTodo>>
 
     suspend fun decideBundleItems(
         bundleId: String,

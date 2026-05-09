@@ -3,6 +3,7 @@ package com.neo.yourtodo.di
 import android.content.Context
 import androidx.room.Room
 import com.neo.yourtodo.core.database.AppDatabase
+import com.neo.yourtodo.core.database.dao.AssignedTodoDao
 import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.dao.TodoDao
@@ -40,4 +41,7 @@ object TestDatabaseModule {
 
     @Provides
     fun provideReminderDao(database: AppDatabase): ReminderDao = database.reminderDao()
+
+    @Provides
+    fun provideAssignedTodoDao(database: AppDatabase): AssignedTodoDao = database.assignedTodoDao()
 }

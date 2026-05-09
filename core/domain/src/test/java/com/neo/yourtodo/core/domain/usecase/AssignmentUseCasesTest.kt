@@ -24,6 +24,7 @@ import com.neo.yourtodo.core.model.friends.FriendRequest
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -196,6 +197,54 @@ class AssignmentUseCasesTest {
     }
 
     @Test
+    fun observeVisibleReceivedCombinesActiveAndHistoryFeeds() = runTest {
+        val accepted = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "accepted")
+        val done = testTodo(status = AssignedTodoStatus.DONE).copy(id = "done")
+        val rejected = testTodo(status = AssignedTodoStatus.REJECTED).copy(id = "rejected")
+        val repository = FakeAssignmentRepository(
+            receivedResults = mapOf(
+                AssignmentFeedStatus.ACTIVE to Result.success(listOf(accepted)),
+                AssignmentFeedStatus.HISTORY to Result.success(listOf(done, rejected))
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.observeVisibleReceived().first()
+
+        assertThat(result).containsExactly(accepted, done).inOrder()
+        assertThat(repository.observedReceivedStatuses)
+            .containsExactly(AssignmentFeedStatus.ACTIVE, AssignmentFeedStatus.HISTORY)
+            .inOrder()
+    }
+
+    @Test
+    fun observeAssignedTodosDelegatesReceivedSentAndFriendFeeds() = runTest {
+        val todos = listOf(testTodo())
+        val repository = FakeAssignmentRepository(
+            receivedResult = Result.success(todos),
+            sentResult = Result.success(todos),
+            friendTodosResult = Result.success(todos)
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val received = useCase.observeReceived(AssignmentFeedStatus.PENDING).first()
+        val sent = useCase.observeSent(AssignmentFeedStatus.HISTORY).first()
+        val friend = useCase.observeByFriend(
+            friendUserId = "friend-1",
+            direction = AssignmentDirection.SENT,
+            status = AssignmentFeedStatus.ACTIVE
+        ).first()
+
+        assertThat(received).isEqualTo(todos)
+        assertThat(sent).isEqualTo(todos)
+        assertThat(friend).isEqualTo(todos)
+        assertThat(repository.observedReceivedStatuses).containsExactly(AssignmentFeedStatus.PENDING)
+        assertThat(repository.observedSentStatuses).containsExactly(AssignmentFeedStatus.HISTORY)
+        assertThat(repository.observedFriendFeedRequests)
+            .containsExactly(FriendFeedRequest("friend-1", AssignmentDirection.SENT, AssignmentFeedStatus.ACTIVE))
+    }
+
+    @Test
     fun visibleByFriendFetchesPendingActiveAndHistoryFeeds() = runTest {
         val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
         val active = testTodo(status = AssignedTodoStatus.IN_PROGRESS).copy(id = "active")
@@ -235,6 +284,58 @@ class AssignmentUseCasesTest {
         val result = useCase.completedHistoryByFriend("friend-1", AssignmentDirection.SENT)
 
         assertThat(result.exceptionOrNull()).isSameInstanceAs(failure)
+    }
+
+    @Test
+    fun observeVisibleByFriendCombinesPendingActiveAndHistoryFeeds() = runTest {
+        val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
+        val active = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "active")
+        val done = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.now()
+        ).copy(id = "done")
+        val repository = FakeAssignmentRepository(
+            friendTodosResults = mapOf(
+                AssignmentFeedStatus.PENDING to Result.success(listOf(pending)),
+                AssignmentFeedStatus.ACTIVE to Result.success(listOf(active)),
+                AssignmentFeedStatus.HISTORY to Result.success(listOf(done))
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.observeVisibleByFriend("friend-1", AssignmentDirection.RECEIVED).first()
+
+        assertThat(result).containsExactly(pending, active, done).inOrder()
+        assertThat(repository.observedFriendFeedRequests).containsExactly(
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.PENDING),
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.ACTIVE),
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.HISTORY)
+        ).inOrder()
+    }
+
+    @Test
+    fun observeCompletedHistoryByFriendKeepsAllDoneItemsNewestFirst() = runTest {
+        val recentDone = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.parse("2026-05-03T00:00:00Z")
+        ).copy(id = "recent-done")
+        val oldDone = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.parse("2026-04-30T00:00:00Z")
+        ).copy(id = "old-done")
+        val rejected = testTodo(status = AssignedTodoStatus.REJECTED).copy(id = "rejected")
+        val repository = FakeAssignmentRepository(
+            friendTodosResults = mapOf(
+                AssignmentFeedStatus.HISTORY to Result.success(listOf(oldDone, rejected, recentDone))
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.observeCompletedHistoryByFriend("friend-1", AssignmentDirection.SENT).first()
+
+        assertThat(result.map { it.id }).containsExactly("recent-done", "old-done").inOrder()
+        assertThat(repository.observedFriendFeedRequests)
+            .containsExactly(FriendFeedRequest("friend-1", AssignmentDirection.SENT, AssignmentFeedStatus.HISTORY))
     }
 
     @Test
@@ -467,6 +568,9 @@ class AssignmentUseCasesTest {
         val friendFeedRequests = mutableListOf<FriendFeedRequest>()
         val receivedStatuses = mutableListOf<AssignmentFeedStatus>()
         val sentStatuses = mutableListOf<AssignmentFeedStatus>()
+        val observedReceivedStatuses = mutableListOf<AssignmentFeedStatus>()
+        val observedSentStatuses = mutableListOf<AssignmentFeedStatus>()
+        val observedFriendFeedRequests = mutableListOf<FriendFeedRequest>()
         val decidedBundleIds = mutableListOf<String>()
         val decidedItems = mutableListOf<Map<String, AssignmentDecision>>()
         val completedTodoIds = mutableListOf<String>()
@@ -512,6 +616,25 @@ class AssignmentUseCasesTest {
             sentStatuses += status
             return sentResult
         }
+
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf((receivedResults[status] ?: receivedResult).getOrDefault(emptyList())).also {
+                observedReceivedStatuses += status
+            }
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf(sentResult.getOrDefault(emptyList())).also {
+                observedSentStatuses += status
+            }
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> =
+            flowOf((friendTodosResults[status] ?: friendTodosResult).getOrDefault(emptyList())).also {
+                observedFriendFeedRequests += FriendFeedRequest(friendUserId, direction, status)
+            }
 
         override suspend fun decideBundleItems(
             bundleId: String,

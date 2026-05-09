@@ -45,6 +45,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -102,8 +103,7 @@ class TodoListViewModelTest {
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,
-            calendarWidgetUpdater = calendarWidgetUpdater,
-            workspaceSyncNotifier = workspaceSyncNotifier
+            calendarWidgetUpdater = calendarWidgetUpdater
         )
         uiStateCollectionJob = CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()
@@ -1175,7 +1175,12 @@ class TodoListViewModelTest {
     }
 
     private class FakeAssignmentRepository : AssignmentRepository {
-        var receivedItems = emptyList<AssignedTodo>()
+        private val receivedItemsState = MutableStateFlow<List<AssignedTodo>>(emptyList())
+        var receivedItems: List<AssignedTodo>
+            get() = receivedItemsState.value
+            set(value) {
+                receivedItemsState.value = value
+            }
         var completedAssignedTodoId: String? = null
         var reopenedAssignedTodoId: String? = null
         var deletedAssignedTodoId: String? = null
@@ -1203,6 +1208,18 @@ class TodoListViewModelTest {
 
         override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
             Result.success(emptyList())
+
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            receivedItemsState
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            MutableStateFlow(emptyList())
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> = MutableStateFlow(emptyList())
 
         override suspend fun decideBundleItems(
             bundleId: String,

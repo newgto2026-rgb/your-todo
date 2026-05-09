@@ -36,6 +36,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -250,8 +251,7 @@ class CalendarViewModelTest {
         )
         val viewModel = createViewModel(
             repository = repository,
-            assignmentRepository = assignmentRepository,
-            workspaceSyncNotifier = workspaceSyncNotifier
+            assignmentRepository = assignmentRepository
         )
 
         RefreshWorkspaceUseCase(
@@ -474,8 +474,7 @@ class CalendarViewModelTest {
     private fun createViewModel(
         repository: FakeTodoRepository,
         authRepository: FakeAuthRepository = FakeAuthRepository(),
-        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository(),
-        workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
+        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
     ): CalendarViewModel {
         val viewModel = CalendarViewModel(
             savedStateHandle = SavedStateHandle(),
@@ -492,11 +491,9 @@ class CalendarViewModelTest {
                     todoRepository = repository,
                     friendRepository = FakeFriendRepository(),
                     assignmentRepository = assignmentRepository,
-                    calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
-                    syncNotifier = workspaceSyncNotifier
+                    calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
                 )
-            ),
-            workspaceSyncNotifier = workspaceSyncNotifier
+            )
         )
         uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()
@@ -547,8 +544,14 @@ class CalendarViewModelTest {
     }
 
     private class FakeAssignmentRepository(
-        var receivedItems: List<AssignedTodo> = emptyList()
+        receivedItems: List<AssignedTodo> = emptyList()
     ) : AssignmentRepository {
+        private val receivedItemsState = MutableStateFlow(receivedItems)
+        var receivedItems: List<AssignedTodo>
+            get() = receivedItemsState.value
+            set(value) {
+                receivedItemsState.value = value
+            }
         var completedAssignedTodoId: String? = null
 
         override suspend fun createBundle(
@@ -570,6 +573,18 @@ class CalendarViewModelTest {
 
         override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
             Result.success(emptyList())
+
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            receivedItemsState
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            MutableStateFlow(emptyList())
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> = MutableStateFlow(emptyList())
 
         override suspend fun decideBundleItems(
             bundleId: String,

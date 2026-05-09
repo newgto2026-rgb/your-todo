@@ -138,4 +138,64 @@ object AppDatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_outbox_ownerUserId_createdAt` ON `todo_outbox` (`ownerUserId`, `createdAt`)")
         }
     }
+
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `assigned_todo` (
+                    `ownerUserId` TEXT NOT NULL,
+                    `id` TEXT NOT NULL,
+                    `cacheKey` TEXT NOT NULL,
+                    `bundleId` TEXT,
+                    `title` TEXT NOT NULL,
+                    `description` TEXT,
+                    `dueDateEpochDay` INTEGER,
+                    `dueTimeMinutes` INTEGER,
+                    `priority` TEXT NOT NULL,
+                    `category` TEXT,
+                    `status` TEXT NOT NULL,
+                    `terminalReason` TEXT,
+                    `progressPercent` INTEGER NOT NULL,
+                    `senderUserId` TEXT,
+                    `senderNickname` TEXT,
+                    `receiverUserId` TEXT,
+                    `receiverNickname` TEXT,
+                    `reminderAt` TEXT,
+                    `reminderEnabled` INTEGER,
+                    `createdAtEpochMillis` INTEGER,
+                    `completedAtEpochMillis` INTEGER,
+                    `receivedCached` INTEGER NOT NULL,
+                    `sentCached` INTEGER NOT NULL,
+                    `cacheUpdatedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`ownerUserId`, `id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `assigned_todo_checklist_item` (
+                    `ownerUserId` TEXT NOT NULL,
+                    `assignedTodoId` TEXT NOT NULL,
+                    `assignedTodoCacheKey` TEXT NOT NULL,
+                    `id` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `completed` INTEGER NOT NULL,
+                    `sortOrder` INTEGER NOT NULL,
+                    PRIMARY KEY(`ownerUserId`, `assignedTodoId`, `id`),
+                    FOREIGN KEY(`ownerUserId`, `assignedTodoId`)
+                        REFERENCES `assigned_todo`(`ownerUserId`, `id`)
+                        ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_receivedCached_status` ON `assigned_todo` (`ownerUserId`, `receivedCached`, `status`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_sentCached_status` ON `assigned_todo` (`ownerUserId`, `sentCached`, `status`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_senderUserId_status` ON `assigned_todo` (`ownerUserId`, `senderUserId`, `status`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_receiverUserId_status` ON `assigned_todo` (`ownerUserId`, `receiverUserId`, `status`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_assigned_todo_cacheKey` ON `assigned_todo` (`cacheKey`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_ownerUserId_assignedTodoId` ON `assigned_todo_checklist_item` (`ownerUserId`, `assignedTodoId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_assignedTodoCacheKey` ON `assigned_todo_checklist_item` (`assignedTodoCacheKey`)")
+        }
+    }
 }

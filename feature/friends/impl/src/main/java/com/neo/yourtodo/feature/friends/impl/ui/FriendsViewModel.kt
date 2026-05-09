@@ -24,10 +24,12 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.feature.friends.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -51,6 +53,7 @@ class FriendsViewModel @Inject constructor(
 
     private val mutableSideEffect = MutableSharedFlow<FriendsSideEffect>()
     val sideEffect: SharedFlow<FriendsSideEffect> = mutableSideEffect
+    private var friendDetailObservationJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -88,18 +91,22 @@ class FriendsViewModel @Inject constructor(
                 successMessage = FriendsMessage.FRIEND_REMOVED
             ) { removeFriend(action.friendshipId) }
             is FriendsAction.OnFriendClick -> openFriendDetail(action.friend)
-            FriendsAction.OnCloseFriendDetail -> mutableUiState.update {
-                it.copy(
-                    selectedFriend = null,
-                    friendAssignmentSummary = null,
-                    friendSentAssignedTodos = emptyList(),
-                    friendReceivedAssignedTodos = emptyList(),
-                    friendSentCompletedHistoryTodos = emptyList(),
-                    friendReceivedCompletedHistoryTodos = emptyList(),
-                    showFriendAssignmentHistory = false,
-                    expandedAssignmentSections = emptySet(),
-                    selectedPendingAssignmentIds = emptySet()
-                )
+            FriendsAction.OnCloseFriendDetail -> {
+                friendDetailObservationJob?.cancel()
+                friendDetailObservationJob = null
+                mutableUiState.update {
+                    it.copy(
+                        selectedFriend = null,
+                        friendAssignmentSummary = null,
+                        friendSentAssignedTodos = emptyList(),
+                        friendReceivedAssignedTodos = emptyList(),
+                        friendSentCompletedHistoryTodos = emptyList(),
+                        friendReceivedCompletedHistoryTodos = emptyList(),
+                        showFriendAssignmentHistory = false,
+                        expandedAssignmentSections = emptySet(),
+                        selectedPendingAssignmentIds = emptySet()
+                    )
+                }
             }
             FriendsAction.OnToggleAssignmentHistory -> mutableUiState.update {
                 it.copy(
@@ -258,6 +265,7 @@ class FriendsViewModel @Inject constructor(
     }
 
     private fun openFriendDetail(friend: com.neo.yourtodo.core.model.friends.Friend) {
+        observeFriendAssignmentCache(friend)
         mutableUiState.update {
             it.copy(
                 selectedFriend = friend,
@@ -275,6 +283,55 @@ class FriendsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             refreshFriendDetail(friend)
+        }
+    }
+
+    private fun observeFriendAssignmentCache(friend: com.neo.yourtodo.core.model.friends.Friend) {
+        friendDetailObservationJob?.cancel()
+        friendDetailObservationJob = viewModelScope.launch {
+            combine(
+                getAssignedTodos.observeVisibleByFriend(
+                    friendUserId = friend.userId,
+                    direction = AssignmentDirection.SENT
+                ),
+                getAssignedTodos.observeVisibleByFriend(
+                    friendUserId = friend.userId,
+                    direction = AssignmentDirection.RECEIVED
+                ),
+                getAssignedTodos.observeCompletedHistoryByFriend(
+                    friendUserId = friend.userId,
+                    direction = AssignmentDirection.SENT
+                ),
+                getAssignedTodos.observeCompletedHistoryByFriend(
+                    friendUserId = friend.userId,
+                    direction = AssignmentDirection.RECEIVED
+                )
+            ) { sent, received, sentHistory, receivedHistory ->
+                FriendAssignmentCacheSnapshot(
+                    sent = sent,
+                    received = received,
+                    sentHistory = sentHistory,
+                    receivedHistory = receivedHistory
+                )
+            }.collect { snapshot ->
+                mutableUiState.update {
+                    if (it.selectedFriend?.userId != friend.userId) {
+                        it
+                    } else {
+                        val validPendingIds = snapshot.received
+                            .pendingDecisionItems()
+                            .map { item -> item.id }
+                            .toSet()
+                        it.copy(
+                            friendSentAssignedTodos = snapshot.sent,
+                            friendReceivedAssignedTodos = snapshot.received,
+                            friendSentCompletedHistoryTodos = snapshot.sentHistory,
+                            friendReceivedCompletedHistoryTodos = snapshot.receivedHistory,
+                            selectedPendingAssignmentIds = it.selectedPendingAssignmentIds.intersect(validPendingIds)
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -571,6 +628,13 @@ class FriendsViewModel @Inject constructor(
         const val MaxDueTimeLength = 5
     }
 }
+
+private data class FriendAssignmentCacheSnapshot(
+    val sent: List<AssignedTodo>,
+    val received: List<AssignedTodo>,
+    val sentHistory: List<AssignedTodo>,
+    val receivedHistory: List<AssignedTodo>
+)
 
 internal fun FriendsUiState.decisionPendingAssignedTodos(): List<AssignedTodo> =
     friendReceivedAssignedTodos.pendingDecisionItems()

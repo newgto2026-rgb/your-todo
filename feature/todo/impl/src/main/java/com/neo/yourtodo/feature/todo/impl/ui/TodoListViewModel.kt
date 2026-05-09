@@ -15,7 +15,6 @@ import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
-import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
@@ -51,8 +50,7 @@ class TodoListViewModel @Inject constructor(
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
     private val getTodoUseCase: GetTodoUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
-    private val calendarWidgetUpdater: CalendarWidgetUpdater,
-    private val workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
+    private val calendarWidgetUpdater: CalendarWidgetUpdater
 ) : ViewModel() {
 
     private val uiLocalState = MutableStateFlow(TodoListUiState(isLoading = true))
@@ -60,7 +58,12 @@ class TodoListViewModel @Inject constructor(
     private val todoItems = observeTodosUseCase()
     private val authSession = observeAuthSessionUseCase()
     private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
-    private val receivedAssignedTodos = MutableStateFlow<List<AssignedTodo>>(emptyList())
+    private val receivedAssignedTodos = getAssignedTodosUseCase.observeVisibleReceived()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
     private var syncJob: Job? = null
     private var foregroundSyncJob: Job? = null
 
@@ -90,7 +93,6 @@ class TodoListViewModel @Inject constructor(
     init {
         syncTodosQuietly()
         refreshAssignedTodosQuietly()
-        observeWorkspaceSync()
     }
 
     fun setRouteFilter(filter: TodoFilter) {
@@ -333,8 +335,7 @@ class TodoListViewModel @Inject constructor(
         }
         viewModelScope.launch {
             manageAssignedTodoUseCase.complete(assignedTodoId)
-                .onSuccess { updated ->
-                    receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
+                .onSuccess {
                     updateLocalState {
                         copy(optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId)
                     }
@@ -361,8 +362,7 @@ class TodoListViewModel @Inject constructor(
         }
         viewModelScope.launch {
             manageAssignedTodoUseCase.reopen(assignedTodoId)
-                .onSuccess { updated ->
-                    receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
+                .onSuccess {
                     updateLocalState {
                         copy(optimisticActiveAssignedTodoIds = optimisticActiveAssignedTodoIds - assignedTodoId)
                     }
@@ -543,7 +543,6 @@ class TodoListViewModel @Inject constructor(
         viewModelScope.launch {
             manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
                 .onSuccess {
-                    receivedAssignedTodos.value = receivedAssignedTodos.value.filterNot { it.id == assignedTodoId }
                     updateLocalState {
                         copy(
                             optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - assignedTodoId
@@ -735,20 +734,9 @@ class TodoListViewModel @Inject constructor(
         }
     }
 
-    private fun observeWorkspaceSync() {
-        viewModelScope.launch {
-            workspaceSyncNotifier.snapshots.collect { snapshot ->
-                if (snapshot != null) {
-                    receivedAssignedTodos.value = snapshot.visibleReceivedAssignedTodos
-                }
-            }
-        }
-    }
-
     private fun refreshAssignedTodosQuietly() {
         viewModelScope.launch {
             getAssignedTodosUseCase.visibleReceived()
-                .onSuccess { receivedAssignedTodos.value = it }
         }
     }
 

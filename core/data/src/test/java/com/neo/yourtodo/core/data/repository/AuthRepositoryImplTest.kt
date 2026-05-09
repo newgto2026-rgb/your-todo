@@ -1,8 +1,12 @@
 package com.neo.yourtodo.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
+import com.neo.yourtodo.core.database.dao.AssignedTodoDao
 import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.dao.TodoOutboxDao
+import com.neo.yourtodo.core.database.entity.AssignedTodoChecklistItemEntity
+import com.neo.yourtodo.core.database.entity.AssignedTodoEntity
+import com.neo.yourtodo.core.database.entity.AssignedTodoWithChecklist
 import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
@@ -42,7 +46,8 @@ class AuthRepositoryImplTest {
             networkDataSource = FakeAuthNetworkDataSource(),
             preferencesDataSource = FakeUserPreferencesDataSource(),
             todoDao = FakeTodoDao(),
-            todoOutboxDao = FakeTodoOutboxDao()
+            todoOutboxDao = FakeTodoOutboxDao(),
+            assignedTodoDao = FakeAssignedTodoDao()
         )
         repository.signInWithGoogle("google-token")
 
@@ -56,10 +61,12 @@ class AuthRepositoryImplTest {
         val preferences = FakeUserPreferencesDataSource()
         val todoDao = FakeTodoDao()
         val todoOutboxDao = FakeTodoOutboxDao()
+        val assignedTodoDao = FakeAssignedTodoDao()
         val repository = repository(
             preferences = preferences,
             todoDao = todoDao,
-            todoOutboxDao = todoOutboxDao
+            todoOutboxDao = todoOutboxDao,
+            assignedTodoDao = assignedTodoDao
         )
         repository.signInWithGoogle("google-token")
         preferences.setTodoSyncCursor("3")
@@ -69,6 +76,7 @@ class AuthRepositoryImplTest {
 
         assertThat(todoOutboxDao.deletedOwnerUserId).isEqualTo("user-id")
         assertThat(todoDao.deletedOwnerUserId).isEqualTo("user-id")
+        assertThat(assignedTodoDao.deletedOwnerUserId).isEqualTo("user-id")
         assertThat(preferences.todoSyncCursor.first()).isNull()
         assertThat(preferences.todoSyncHaltReason.first()).isNull()
         assertThat(repository.authSession.first()).isNull()
@@ -188,13 +196,15 @@ class AuthRepositoryImplTest {
         network: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
         preferences: FakeUserPreferencesDataSource = FakeUserPreferencesDataSource(),
         todoDao: FakeTodoDao = FakeTodoDao(),
-        todoOutboxDao: FakeTodoOutboxDao = FakeTodoOutboxDao()
+        todoOutboxDao: FakeTodoOutboxDao = FakeTodoOutboxDao(),
+        assignedTodoDao: FakeAssignedTodoDao = FakeAssignedTodoDao()
     ): AuthRepositoryImpl =
         AuthRepositoryImpl(
             networkDataSource = network,
             preferencesDataSource = preferences,
             todoDao = todoDao,
-            todoOutboxDao = todoOutboxDao
+            todoOutboxDao = todoOutboxDao,
+            assignedTodoDao = assignedTodoDao
         )
 
     private class FakeAuthNetworkDataSource : AuthNetworkDataSource {
@@ -359,5 +369,72 @@ class AuthRepositoryImplTest {
             deletedOwnerUserId = ownerUserId
             items.removeAll { it.ownerUserId == ownerUserId }
         }
+    }
+
+    private class FakeAssignedTodoDao : AssignedTodoDao {
+        var deletedOwnerUserId: String? = null
+
+        override fun observeReceivedAssignedTodos(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> = flowOf(emptyList())
+
+        override fun observeSentAssignedTodos(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> = flowOf(emptyList())
+
+        override fun observeSentAssignedTodosByFriend(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> = flowOf(emptyList())
+
+        override fun observeReceivedAssignedTodosByFriend(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> = flowOf(emptyList())
+
+        override suspend fun getAssignedTodoById(ownerUserId: String, id: String): AssignedTodoEntity? = null
+
+        override suspend fun deleteByOwner(ownerUserId: String) {
+            deletedOwnerUserId = ownerUserId
+        }
+
+        override suspend fun upsertAssignedTodos(items: List<AssignedTodoEntity>) = Unit
+        override suspend fun upsertChecklistItems(items: List<AssignedTodoChecklistItemEntity>) = Unit
+        override suspend fun deleteChecklistItems(assignedTodoCacheKeys: List<String>) = Unit
+        override suspend fun deleteReceivedByStatuses(ownerUserId: String, statuses: List<String>) = Unit
+        override suspend fun deleteReceivedByStatusesExcept(
+            ownerUserId: String,
+            statuses: List<String>,
+            ids: List<String>
+        ) = Unit
+        override suspend fun deleteSentByStatuses(ownerUserId: String, statuses: List<String>) = Unit
+        override suspend fun deleteSentByStatusesExcept(ownerUserId: String, statuses: List<String>, ids: List<String>) =
+            Unit
+        override suspend fun deleteSentByFriendAndStatuses(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ) = Unit
+        override suspend fun deleteSentByFriendAndStatusesExcept(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>,
+            ids: List<String>
+        ) = Unit
+        override suspend fun deleteReceivedByFriendAndStatuses(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ) = Unit
+        override suspend fun deleteReceivedByFriendAndStatusesExcept(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>,
+            ids: List<String>
+        ) = Unit
     }
 }

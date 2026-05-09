@@ -204,6 +204,24 @@ class RefreshWorkspaceUseCaseTest {
         override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
             Result.failure(UnsupportedOperationException())
 
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf(
+                when (status) {
+                    AssignmentFeedStatus.ACTIVE -> activeReceived
+                    AssignmentFeedStatus.HISTORY -> historyReceived
+                    AssignmentFeedStatus.PENDING -> emptyList()
+                }
+            )
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf(emptyList())
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> = flowOf(emptyList())
+
         override suspend fun decideBundleItems(
             bundleId: String,
             decisions: Map<String, AssignmentDecision>

@@ -5,6 +5,7 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_7_8
+import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_8_9
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
@@ -97,14 +98,121 @@ class AppDatabaseMigrationTest {
         testDb.close()
     }
 
+    @Test
+    fun migration8To9_createsAssignedTodoCacheTablesAndIndexes() {
+        val testDb = createVersion8Database("${TEST_DB}_assigned_cache")
+
+        val migrated = testDb.database.apply { MIGRATION_8_9.migrate(this) }
+
+        assertThat(migrated.columnNames("assigned_todo")).containsAtLeast(
+            "id",
+            "ownerUserId",
+            "cacheKey",
+            "bundleId",
+            "title",
+            "dueDateEpochDay",
+            "dueTimeMinutes",
+            "priority",
+            "status",
+            "progressPercent",
+            "senderUserId",
+            "receiverUserId",
+            "reminderAt",
+            "receivedCached",
+            "sentCached",
+            "cacheUpdatedAt"
+        )
+        assertThat(migrated.columnNames("assigned_todo_checklist_item")).containsAtLeast(
+            "ownerUserId",
+            "assignedTodoId",
+            "assignedTodoCacheKey",
+            "id",
+            "title",
+            "completed",
+            "sortOrder"
+        )
+        assertThat(migrated.indexNames("assigned_todo")).containsAtLeast(
+            "index_assigned_todo_ownerUserId_receivedCached_status",
+            "index_assigned_todo_ownerUserId_sentCached_status",
+            "index_assigned_todo_ownerUserId_senderUserId_status",
+            "index_assigned_todo_ownerUserId_receiverUserId_status",
+            "index_assigned_todo_cacheKey"
+        )
+        assertThat(migrated.indexNames("assigned_todo_checklist_item"))
+            .containsAtLeast(
+                "index_assigned_todo_checklist_item_ownerUserId_assignedTodoId",
+                "index_assigned_todo_checklist_item_assignedTodoCacheKey"
+            )
+        testDb.close()
+    }
+
+    @Test
+    fun migration8To9_preservesExistingTodoAndOutboxRows() {
+        val testDb = createVersion8Database("${TEST_DB}_assigned_cache_preserve")
+        testDb.database.apply {
+            execSQL(
+                """
+                INSERT INTO todo (
+                    id, title, isDone, dueDateEpochDay, createdAt, updatedAt, categoryId,
+                    reminderAtEpochMillis, isReminderEnabled, reminderRepeatType,
+                    reminderRepeatDaysMask, dueTimeMinutes, reminderLeadMinutes, priority,
+                    serverId, clientId, ownerUserId, syncStatus, serverRevision, deletedAt, lastSyncError
+                ) VALUES (
+                    1, 'keep me', 0, NULL, 100, 100, NULL,
+                    NULL, 0, 'NONE', 0, NULL, NULL, 'MEDIUM',
+                    'server-1', 'client-1', 'user-1', 'SYNCED', 'rev-1', NULL, NULL
+                )
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO todo_outbox (
+                    id, ownerUserId, clientMutationId, todoLocalId, serverId, clientId,
+                    type, payloadJson, createdAt, retryCount, lastError
+                ) VALUES (
+                    1, 'user-1', 'mutation-1', 1, 'server-1', 'client-1',
+                    'UPDATE', '{}', 100, 0, NULL
+                )
+                """.trimIndent()
+            )
+        }
+
+        val migrated = testDb.database.apply { MIGRATION_8_9.migrate(this) }
+
+        migrated.query("SELECT title, ownerUserId, syncStatus FROM todo WHERE id = 1").use { cursor ->
+            assertThat(cursor.moveToFirst()).isTrue()
+            assertThat(cursor.getString(0)).isEqualTo("keep me")
+            assertThat(cursor.getString(1)).isEqualTo("user-1")
+            assertThat(cursor.getString(2)).isEqualTo("SYNCED")
+        }
+        migrated.query("SELECT clientMutationId, ownerUserId FROM todo_outbox WHERE id = 1").use { cursor ->
+            assertThat(cursor.moveToFirst()).isTrue()
+            assertThat(cursor.getString(0)).isEqualTo("mutation-1")
+            assertThat(cursor.getString(1)).isEqualTo("user-1")
+        }
+        testDb.close()
+    }
+
     private fun createVersion7Database(name: String): TestDatabase {
+        return createDatabase(name, version = 7, includeSyncColumns = false)
+    }
+
+    private fun createVersion8Database(name: String): TestDatabase {
+        return createDatabase(name, version = 8, includeSyncColumns = true)
+    }
+
+    private fun createDatabase(
+        name: String,
+        version: Int,
+        includeSyncColumns: Boolean
+    ): TestDatabase {
         val context = RuntimeEnvironment.getApplication()
         context.deleteDatabase(name)
         val helper = FrameworkSQLiteOpenHelperFactory().create(
             SupportSQLiteOpenHelper.Configuration.builder(context)
                 .name(name)
                 .callback(
-                    object : SupportSQLiteOpenHelper.Callback(7) {
+                    object : SupportSQLiteOpenHelper.Callback(version) {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             db.execSQL(
                                 """
@@ -123,9 +231,29 @@ class AppDatabaseMigrationTest {
                                     `dueTimeMinutes` INTEGER,
                                     `reminderLeadMinutes` INTEGER,
                                     `priority` TEXT NOT NULL
+                                    ${if (includeSyncColumns) ", `serverId` TEXT, `clientId` TEXT, `ownerUserId` TEXT, `syncStatus` TEXT NOT NULL DEFAULT 'LOCAL_ONLY', `serverRevision` TEXT, `deletedAt` INTEGER, `lastSyncError` TEXT" else ""}
                                 )
                                 """.trimIndent()
                             )
+                            if (includeSyncColumns) {
+                                db.execSQL(
+                                    """
+                                    CREATE TABLE IF NOT EXISTS `todo_outbox` (
+                                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                                        `ownerUserId` TEXT NOT NULL,
+                                        `clientMutationId` TEXT NOT NULL,
+                                        `todoLocalId` INTEGER,
+                                        `serverId` TEXT,
+                                        `clientId` TEXT,
+                                        `type` TEXT NOT NULL,
+                                        `payloadJson` TEXT NOT NULL,
+                                        `createdAt` INTEGER NOT NULL,
+                                        `retryCount` INTEGER NOT NULL DEFAULT 0,
+                                        `lastError` TEXT
+                                    )
+                                    """.trimIndent()
+                                )
+                            }
                         }
 
                         override fun onUpgrade(

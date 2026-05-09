@@ -5,6 +5,9 @@ import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 class GetAssignedTodosUseCase @Inject constructor(
     private val repository: AssignmentRepository
@@ -12,6 +15,20 @@ class GetAssignedTodosUseCase @Inject constructor(
     suspend fun received(status: AssignmentFeedStatus) = repository.getReceivedAssignedTodos(status)
 
     suspend fun sent(status: AssignmentFeedStatus) = repository.getSentAssignedTodos(status)
+
+    fun observeReceived(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+        repository.observeReceivedAssignedTodos(status)
+
+    fun observeSent(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+        repository.observeSentAssignedTodos(status)
+
+    fun observeVisibleReceived(): Flow<List<AssignedTodo>> =
+        combine(
+            repository.observeReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE),
+            repository.observeReceivedAssignedTodos(AssignmentFeedStatus.HISTORY)
+        ) { active, history ->
+            visibleTaskSurfaceAssignedTodos(active, history)
+        }
 
     suspend fun visibleReceived(): Result<List<AssignedTodo>> {
         val active = repository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE)
@@ -24,6 +41,47 @@ class GetAssignedTodosUseCase @Inject constructor(
         direction: AssignmentDirection,
         status: AssignmentFeedStatus
     ) = repository.getFriendAssignedTodos(friendUserId, direction, status)
+
+    fun observeByFriend(
+        friendUserId: String,
+        direction: AssignmentDirection,
+        status: AssignmentFeedStatus
+    ): Flow<List<AssignedTodo>> =
+        repository.observeFriendAssignedTodos(friendUserId, direction, status)
+
+    fun observeVisibleByFriend(
+        friendUserId: String,
+        direction: AssignmentDirection
+    ): Flow<List<AssignedTodo>> =
+        combine(
+            repository.observeFriendAssignedTodos(
+                friendUserId = friendUserId,
+                direction = direction,
+                status = AssignmentFeedStatus.PENDING
+            ),
+            repository.observeFriendAssignedTodos(
+                friendUserId = friendUserId,
+                direction = direction,
+                status = AssignmentFeedStatus.ACTIVE
+            ),
+            repository.observeFriendAssignedTodos(
+                friendUserId = friendUserId,
+                direction = direction,
+                status = AssignmentFeedStatus.HISTORY
+            )
+        ) { pending, active, history ->
+            visibleFriendDetailAssignedTodos(pending, active, history)
+        }
+
+    fun observeCompletedHistoryByFriend(
+        friendUserId: String,
+        direction: AssignmentDirection
+    ): Flow<List<AssignedTodo>> =
+        repository.observeFriendAssignedTodos(
+            friendUserId = friendUserId,
+            direction = direction,
+            status = AssignmentFeedStatus.HISTORY
+        ).map { completedFriendDetailHistoryAssignedTodos(it) }
 
     suspend fun visibleByFriend(
         friendUserId: String,

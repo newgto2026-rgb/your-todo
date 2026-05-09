@@ -13,6 +13,7 @@ import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 
 internal class CalendarMonthWidgetPresenter @Inject constructor(
     private val summarySource: CalendarMonthSummarySource,
@@ -32,7 +33,7 @@ internal class CalendarMonthWidgetPresenter @Inject constructor(
             val summaries = summarySource.summariesFor(currentMonth)
                 .withAssignedTodos(
                     yearMonth = currentMonth,
-                    assignedTodos = getAssignedTodosUseCase.visibleReceived().getOrDefault(emptyList())
+                    assignedTodos = getAssignedTodosUseCase.observeVisibleReceived().first()
                 )
             CalendarMonthWidgetState(
                 monthLabel = monthLabel,

@@ -20,6 +20,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.Locale
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -330,6 +332,24 @@ class CalendarMonthWidgetPresenterTest {
 
         override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
             error("unused")
+
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf(
+                when (status) {
+                    AssignmentFeedStatus.ACTIVE -> assignedTodos.filter { it.status != AssignedTodoStatus.DONE }
+                    AssignmentFeedStatus.HISTORY -> assignedTodos.filter { it.status == AssignedTodoStatus.DONE }
+                    AssignmentFeedStatus.PENDING -> emptyList()
+                }
+            )
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf(emptyList())
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> = flowOf(emptyList())
 
         override suspend fun decideBundleItems(
             bundleId: String,

@@ -1,5 +1,6 @@
 package com.neo.yourtodo.core.data.repository
 
+import com.neo.yourtodo.core.database.dao.AssignedTodoDao
 import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
@@ -18,7 +19,8 @@ class AuthRepositoryImpl @Inject constructor(
     private val networkDataSource: AuthNetworkDataSource,
     private val preferencesDataSource: UserPreferencesDataSource,
     private val todoDao: TodoDao,
-    private val todoOutboxDao: TodoOutboxDao
+    private val todoOutboxDao: TodoOutboxDao,
+    private val assignedTodoDao: AssignedTodoDao
 ) : AuthRepository {
 
     override val authSession: Flow<AuthSession?> =
@@ -58,6 +60,7 @@ class AuthRepositoryImpl @Inject constructor(
         preferencesDataSource.authSession.first()?.let { session ->
             todoOutboxDao.deleteByOwner(session.userId)
             todoDao.deleteSyncedTodosByOwner(session.userId)
+            assignedTodoDao.deleteByOwner(session.userId)
         }
         preferencesDataSource.clearTodoSyncState()
         preferencesDataSource.clearAuthSession()
