@@ -2,11 +2,14 @@ package com.neo.yourtodo.feature.todo.impl.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
@@ -17,6 +20,7 @@ import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -41,6 +45,8 @@ class TodoListViewModel @Inject constructor(
     private val deleteTodoUseCase: DeleteTodoUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val syncTodosUseCase: SyncTodosUseCase,
+    private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
+    private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
     private val getTodoUseCase: GetTodoUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
@@ -52,6 +58,7 @@ class TodoListViewModel @Inject constructor(
     private val todoItems = observeTodosUseCase()
     private val authSession = observeAuthSessionUseCase()
     private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private val receivedAssignedTodos = MutableStateFlow<List<AssignedTodo>>(emptyList())
     private var syncJob: Job? = null
     private var foregroundSyncJob: Job? = null
 
@@ -59,13 +66,15 @@ class TodoListViewModel @Inject constructor(
 
     val uiState: StateFlow<TodoListUiState> = combine(
         todoItems,
+        receivedAssignedTodos,
         authSession,
         localPriorityFilter,
         uiLocalState
-    ) { items, session, localPriorityFilter, localState ->
+    ) { items, assignedItems, session, localPriorityFilter, localState ->
         buildTodoListUiState(
             localState = localState,
             items = items,
+            assignedItems = assignedItems,
             selectedFilter = localState.selectedFilter,
             selectedPriorityFilter = localPriorityFilter,
             profileInitial = session?.user?.nickname
@@ -78,6 +87,7 @@ class TodoListViewModel @Inject constructor(
 
     init {
         syncTodosQuietly()
+        refreshAssignedTodosQuietly()
     }
 
     fun setRouteFilter(filter: TodoFilter) {
@@ -135,13 +145,19 @@ class TodoListViewModel @Inject constructor(
 
             TodoListAction.OnSaveClick -> saveTodo()
             is TodoListAction.OnToggleDone -> toggleDone(action.id)
+            is TodoListAction.OnToggleAssignedDone -> completeAssignedTodo(action.assignedTodoId)
             is TodoListAction.OnMoveToTomorrow -> moveToTomorrow(action.id)
             is TodoListAction.OnClearSchedule -> clearSchedule(action.id)
             TodoListAction.OnUndoLastQuickAction -> undoLastQuickAction()
             TodoListAction.OnUndoSnackbarDismissed -> clearPendingUndo()
             is TodoListAction.OnEditClick -> openEditDialog(action.id)
             is TodoListAction.OnDeleteRequest -> requestTodoDelete(action.id)
-            TodoListAction.OnDeleteCancel -> updateLocalState { copy(deleteConfirmation = null) }
+            is TodoListAction.OnAssignedDeleteRequest -> updateLocalState {
+                copy(pendingAssignedDeleteId = action.assignedTodoId)
+            }
+            TodoListAction.OnDeleteCancel -> updateLocalState {
+                copy(deleteConfirmation = null, pendingAssignedDeleteId = null)
+            }
             TodoListAction.OnDeleteConfirm -> confirmDelete()
             TodoListAction.OnClearCompletedClick -> requestCompletedTodoDelete()
             is TodoListAction.OnFilterChange -> updateFilter(action.filter)
@@ -291,8 +307,21 @@ class TodoListViewModel @Inject constructor(
         }
     }
 
+    private fun completeAssignedTodo(assignedTodoId: String) {
+        viewModelScope.launch {
+            manageAssignedTodoUseCase.complete(assignedTodoId)
+                .onSuccess { refreshAssignedTodosQuietly() }
+                .onFailure {
+                    sideEffectMutable.emit(
+                        TodoListSideEffect.ShowSnackbar(R.string.todo_error_toggle_done_failed)
+                    )
+                }
+        }
+    }
+
     private fun openEditDialog(id: Long) {
         val target = uiState.value.items.firstOrNull { it.id == id } ?: return
+        if (target.isAssigned) return
         uiLocalState.value = uiLocalState.value.copy(
             isEditDialogVisible = true,
             editingItem = target.toTodoEditModel(),
@@ -320,6 +349,10 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun confirmDelete() {
+        uiLocalState.value.pendingAssignedDeleteId?.let { assignedTodoId ->
+            confirmAssignedDelete(assignedTodoId)
+            return
+        }
         val confirmation = uiLocalState.value.deleteConfirmation ?: return
         viewModelScope.launch {
             val previousSingle = (confirmation as? TodoDeleteConfirmation.Single)
@@ -364,6 +397,22 @@ class TodoListViewModel @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    private fun confirmAssignedDelete(assignedTodoId: String) {
+        viewModelScope.launch {
+            manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
+                .onSuccess {
+                    updateLocalState { copy(pendingAssignedDeleteId = null) }
+                    refreshAssignedTodosQuietly()
+                }
+                .onFailure {
+                    updateLocalState { copy(pendingAssignedDeleteId = null) }
+                    sideEffectMutable.emit(
+                        TodoListSideEffect.ShowSnackbar(R.string.todo_error_delete_failed)
+                    )
+                }
         }
     }
 
@@ -539,11 +588,19 @@ class TodoListViewModel @Inject constructor(
         }
     }
 
+    private fun refreshAssignedTodosQuietly() {
+        viewModelScope.launch {
+            getAssignedTodosUseCase.received(AssignmentFeedStatus.ACTIVE)
+                .onSuccess { receivedAssignedTodos.value = it }
+        }
+    }
+
     private fun startForegroundSync() {
         if (foregroundSyncJob?.isActive == true) return
         foregroundSyncJob = viewModelScope.launch {
             while (true) {
                 syncTodosQuietly()
+                refreshAssignedTodosQuietly()
                 delay(ForegroundSyncIntervalMillis)
             }
         }

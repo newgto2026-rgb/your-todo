@@ -1,6 +1,9 @@
 package com.neo.yourtodo.core.network.di
 
 import com.neo.yourtodo.core.network.BuildConfig
+import com.neo.yourtodo.core.network.assignments.AssignmentApi
+import com.neo.yourtodo.core.network.assignments.AssignmentNetworkDataSource
+import com.neo.yourtodo.core.network.assignments.RetrofitAssignmentNetworkDataSource
 import com.neo.yourtodo.core.network.auth.AuthApi
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.RetrofitAuthNetworkDataSource
@@ -72,6 +75,11 @@ internal object NetworkProvidesModule {
     @Provides
     @Singleton
     fun provideFriendApi(retrofit: Retrofit): FriendApi = retrofit.create(FriendApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideAssignmentApi(retrofit: Retrofit): AssignmentApi =
+        retrofit.create(AssignmentApi::class.java)
 }
 
 @Module
@@ -94,4 +102,10 @@ internal abstract class NetworkBindsModule {
     abstract fun bindFriendNetworkDataSource(
         impl: RetrofitFriendNetworkDataSource
     ): FriendNetworkDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindAssignmentNetworkDataSource(
+        impl: RetrofitAssignmentNetworkDataSource
+    ): AssignmentNetworkDataSource
 }

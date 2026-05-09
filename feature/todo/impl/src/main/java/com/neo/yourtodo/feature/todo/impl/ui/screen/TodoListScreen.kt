@@ -203,6 +203,7 @@ private fun TodoListScreen(
     val completionProgress = completionProgress(uiState)
     val rowCompletedText = stringResource(R.string.todo_row_subtitle_completed)
     val rowTodayText = stringResource(R.string.todo_row_subtitle_today)
+    val assignedFromText = stringResource(R.string.todo_row_assigned_from)
     val shouldShowQuickAdd = uiState.selectedFilter != TodoFilter.COMPLETED
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
@@ -341,10 +342,13 @@ private fun TodoListScreen(
                                         rowCompletedText = rowCompletedText,
                                         rowTodayText = rowTodayText,
                                         dueDateFormat = dueDateFormat,
+                                        assignedFromText = assignedFromText,
                                         onAction = onAction,
                                         onEditRequested = onEditRequested,
                                         onDeleteRequest = {
-                                            onAction(TodoListAction.OnDeleteRequest(item.id))
+                                            item.assignedTodoId?.let {
+                                                onAction(TodoListAction.OnAssignedDeleteRequest(it))
+                                            } ?: onAction(TodoListAction.OnDeleteRequest(item.id))
                                         },
                                         showQuickActions = true
                                     )
@@ -358,10 +362,13 @@ private fun TodoListScreen(
                                 rowCompletedText = rowCompletedText,
                                 rowTodayText = rowTodayText,
                                 dueDateFormat = dueDateFormat,
+                                assignedFromText = assignedFromText,
                                 onAction = onAction,
                                 onEditRequested = onEditRequested,
                                 onDeleteRequest = {
-                                    onAction(TodoListAction.OnDeleteRequest(item.id))
+                                    item.assignedTodoId?.let {
+                                        onAction(TodoListAction.OnAssignedDeleteRequest(it))
+                                    } ?: onAction(TodoListAction.OnDeleteRequest(item.id))
                                 },
                                 showQuickActions = false
                             )
@@ -388,6 +395,13 @@ private fun TodoListScreen(
     uiState.deleteConfirmation?.let { confirmation ->
         DeleteConfirmationDialog(
             confirmation = confirmation,
+            onConfirm = { onAction(TodoListAction.OnDeleteConfirm) },
+            onDismiss = { onAction(TodoListAction.OnDeleteCancel) }
+        )
+    }
+    uiState.pendingAssignedDeleteId?.let {
+        DeleteConfirmationDialog(
+            confirmation = TodoDeleteConfirmation.Single(0),
             onConfirm = { onAction(TodoListAction.OnDeleteConfirm) },
             onDismiss = { onAction(TodoListAction.OnDeleteCancel) }
         )
@@ -576,6 +590,7 @@ private fun TodoPlannerRow(
     rowCompletedText: String,
     rowTodayText: String,
     dueDateFormat: String,
+    assignedFromText: String,
     onAction: (TodoListAction) -> Unit,
     onEditRequested: (Long) -> Unit,
     onDeleteRequest: () -> Unit,
@@ -603,6 +618,7 @@ private fun TodoPlannerRow(
     val rowDueLabel = when {
         item.isDone -> rowCompletedText
         !dueLabel.isNullOrBlank() -> dueLabel
+        item.senderNickname != null -> "$assignedFromText ${item.senderNickname}"
         else -> null
     }
 
@@ -615,8 +631,16 @@ private fun TodoPlannerRow(
             isDone = item.isDone,
             isEmphasized = !item.isDone && dueDateLabel == rowTodayText,
             isReminderEnabled = item.isReminderEnabled,
-            onToggleDone = { onAction(TodoListAction.OnToggleDone(item.id)) },
-            onClick = { onEditRequested(item.id) },
+            onToggleDone = {
+                item.assignedTodoId?.let {
+                    onAction(TodoListAction.OnToggleAssignedDone(it))
+                } ?: onAction(TodoListAction.OnToggleDone(item.id))
+            },
+            onClick = {
+                if (!item.isAssigned) {
+                    onEditRequested(item.id)
+                }
+            },
             onDeleteRequest = onDeleteRequest,
             priorityLabel = priorityLabel(item.priority),
             priorityColor = priorityColor(item.priority)

@@ -22,12 +22,14 @@ sealed interface TodoListAction {
     data class OnPrioritySelectedInEditor(val priority: TodoPriority) : TodoListAction
     data object OnSaveClick : TodoListAction
     data class OnToggleDone(val id: Long) : TodoListAction
+    data class OnToggleAssignedDone(val assignedTodoId: String) : TodoListAction
     data class OnMoveToTomorrow(val id: Long) : TodoListAction
     data class OnClearSchedule(val id: Long) : TodoListAction
     data object OnUndoLastQuickAction : TodoListAction
     data object OnUndoSnackbarDismissed : TodoListAction
     data class OnEditClick(val id: Long) : TodoListAction
     data class OnDeleteRequest(val id: Long) : TodoListAction
+    data class OnAssignedDeleteRequest(val assignedTodoId: String) : TodoListAction
     data object OnDeleteCancel : TodoListAction
     data object OnDeleteConfirm : TodoListAction
     data object OnClearCompletedClick : TodoListAction

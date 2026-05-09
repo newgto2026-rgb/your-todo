@@ -16,7 +16,6 @@
     <string name="friends_outgoing_pending">대기 중</string>
     <string name="friends_accept">수락</string>
     <string name="friends_decline">거절</string>
-    <string name="friends_more">더보기</string>
     <string name="friends_remove_dialog_title">친구를 끊을까요?</string>
     <string name="friends_remove_dialog_message">친구를 끊으면 새 할 일 요청을 주고받을 수 없어요.</string>
     <string name="friends_remove_cancel">취소</string>
@@ -27,6 +26,25 @@
     <string name="friends_request_accepted">친구가 되었어요.</string>
     <string name="friends_request_declined">요청을 거절했어요.</string>
     <string name="friends_removed">친구를 끊었어요.</string>
+    <string name="friends_assignment_dialog_title">%1$s님과 공유한 일</string>
+    <string name="friends_assignment_sent_title">내가 준 일</string>
+    <string name="friends_assignment_received_title">내가 받은 일</string>
+    <string name="friends_assignment_sent_metric">준 일</string>
+    <string name="friends_assignment_received_metric">받은 일</string>
+    <string name="friends_assignment_metric_value">%1$d개 · %2$d%%</string>
+    <string name="friends_assignment_empty">진행 중인 공유 할 일이 없어요.</string>
+    <string name="friends_assignment_item_summary">%1$s · %2$d%%</string>
+    <string name="friends_assignment_title_placeholder">할 일 제목</string>
+    <string name="friends_assignment_description_placeholder">내용</string>
+    <string name="friends_assignment_due_date_placeholder">YYYY-MM-DD</string>
+    <string name="friends_assignment_add_draft">묶음에 추가</string>
+    <string name="friends_assignment_send_now">즉시 보내기</string>
+    <string name="friends_assignment_send_batch">묶어서 보내기</string>
+    <string name="friends_assignment_draft_count">묶음 %1$d개</string>
+    <string name="friends_assignment_priority_low">낮음</string>
+    <string name="friends_assignment_priority_medium">보통</string>
+    <string name="friends_assignment_priority_high">높음</string>
+    <string name="friends_assignment_sent">공유 할 일을 보냈어요.</string>
     <string name="friends_error_auth_required">다시 로그인해 주세요.</string>
     <string name="friends_error_network">친구 정보를 처리하지 못했어요. 다시 시도해 주세요.</string>
 </resources>

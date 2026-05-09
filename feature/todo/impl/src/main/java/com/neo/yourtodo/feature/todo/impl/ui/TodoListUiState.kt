@@ -33,6 +33,7 @@ data class TodoListUiState(
     val quickAddTitle: String = "",
     @StringRes val quickAddErrorMessageRes: Int? = null,
     val pendingUndoTodo: TodoItem? = null,
+    val pendingAssignedDeleteId: String? = null,
     @StringRes val errorMessageRes: Int? = null
 )
 

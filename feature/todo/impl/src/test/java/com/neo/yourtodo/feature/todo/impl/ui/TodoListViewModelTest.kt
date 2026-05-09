@@ -2,10 +2,15 @@ package com.neo.yourtodo.feature.todo.impl.ui
 
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
+import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
+import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
@@ -17,6 +22,13 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
@@ -47,6 +59,7 @@ class TodoListViewModelTest {
 
     private lateinit var repository: FakeTodoRepository
     private lateinit var authRepository: FakeAuthRepository
+    private lateinit var assignmentRepository: FakeAssignmentRepository
     private lateinit var reminderScheduler: RecordingReminderScheduler
     private lateinit var calendarWidgetUpdater: RecordingCalendarWidgetUpdater
     private lateinit var viewModel: TodoListViewModel
@@ -56,6 +69,7 @@ class TodoListViewModelTest {
     fun setUp() {
         repository = FakeTodoRepository()
         authRepository = FakeAuthRepository()
+        assignmentRepository = FakeAssignmentRepository()
         reminderScheduler = RecordingReminderScheduler()
         calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
         viewModel = TodoListViewModel(
@@ -66,6 +80,8 @@ class TodoListViewModelTest {
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             syncTodosUseCase = SyncTodosUseCase(repository),
+            getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,
@@ -882,6 +898,42 @@ class TodoListViewModelTest {
             .containsExactly(lowCompletedId, highCompletedId)
     }
 
+    @Test
+    fun receivedAssignedTodoAppearsInListAndCompletesOnToggle() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-1"))
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        val assigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-1" }
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone(checkNotNull(assigned.assignedTodoId)))
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.completedAssignedTodoId).isEqualTo("assigned-1")
+    }
+
+    @Test
+    fun receivedAssignedTodoDeleteUsesServerDeleteReceived() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-1"))
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnAssignedDeleteRequest("assigned-1"))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.pendingAssignedDeleteId).isEqualTo("assigned-1")
+
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.deletedAssignedTodoId).isEqualTo("assigned-1")
+        assertThat(viewModel.uiState.value.pendingAssignedDeleteId).isNull()
+    }
+
     private class RecordingReminderScheduler : TodoReminderScheduler {
         val cancelledTodoIds = mutableListOf<Long>()
 
@@ -926,4 +978,77 @@ class TodoListViewModelTest {
 
         override suspend fun signOut() = Unit
     }
+
+    private class FakeAssignmentRepository : AssignmentRepository {
+        var receivedItems = emptyList<AssignedTodo>()
+        var completedAssignedTodoId: String? = null
+        var deletedAssignedTodoId: String? = null
+
+        override suspend fun createBundle(
+            receiverUserId: String,
+            items: List<AssignmentDraftItem>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Result<List<AssignedTodo>> = Result.success(emptyList())
+
+        override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(receivedItems)
+
+        override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(emptyList())
+
+        override suspend fun decideBundleItems(
+            bundleId: String,
+            decisions: Map<String, AssignmentDecision>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            completedAssignedTodoId = assignedTodoId
+            receivedItems = receivedItems.map {
+                if (it.id == assignedTodoId) {
+                    it.copy(status = AssignedTodoStatus.DONE, progressPercent = 100)
+                } else {
+                    it
+                }
+            }
+            return Result.success(receivedItems.firstOrNull { it.id == assignedTodoId } ?: assignedTodo())
+        }
+
+        override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            deletedAssignedTodoId = assignedTodoId
+            receivedItems = receivedItems.filterNot { it.id == assignedTodoId }
+            return Result.success(assignedTodo(id = assignedTodoId, status = AssignedTodoStatus.REJECTED))
+        }
+
+        override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+    }
 }
+
+private fun assignedTodo(
+    id: String = "assigned-1",
+    title: String = "Shared todo",
+    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+) = AssignedTodo(
+    id = id,
+    bundleId = "bundle-1",
+    title = title,
+    description = null,
+    dueDate = null,
+    priority = TodoPriority.MEDIUM,
+    category = null,
+    status = status,
+    terminalReason = null,
+    progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
+    sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
+    receiver = AssignedTodoUser(id = "me", nickname = "tester"),
+    reminder = null,
+    checklist = emptyList()
+)

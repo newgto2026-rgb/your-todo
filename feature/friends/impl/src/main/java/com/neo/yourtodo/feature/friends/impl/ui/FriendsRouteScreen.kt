@@ -2,6 +2,7 @@ package com.neo.yourtodo.feature.friends.impl.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,18 +22,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -41,6 +46,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,6 +67,10 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
+import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.ui.YourTodoBrandHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.friends.impl.R
@@ -174,6 +184,7 @@ private fun FriendsScreen(
                             FriendRow(
                                 friend = friend,
                                 removing = uiState.runningActionKey == "remove:${friend.friendshipId}",
+                                onClick = { onAction(FriendsAction.OnFriendClick(friend)) },
                                 onRemove = { onAction(FriendsAction.OnRemoveFriend(friend.friendshipId)) }
                             )
                         }
@@ -192,6 +203,14 @@ private fun FriendsScreen(
                 }
             }
         }
+    }
+
+    uiState.selectedFriend?.let { friend ->
+        FriendAssignmentDialog(
+            uiState = uiState,
+            friend = friend,
+            onAction = onAction
+        )
     }
 }
 
@@ -362,6 +381,7 @@ private fun IncomingRequestRow(
 private fun FriendRow(
     friend: Friend,
     removing: Boolean,
+    onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
     var showRemoveDialog by remember(friend.friendshipId) { mutableStateOf(false) }
@@ -390,7 +410,10 @@ private fun FriendRow(
         )
     }
 
-    FriendSurface(testTag = "friends_friend_${friend.userId}") {
+    FriendSurface(
+        testTag = "friends_friend_${friend.userId}",
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
         FriendIdentity(
             initial = friend.initial,
             nickname = friend.nickname,
@@ -405,7 +428,7 @@ private fun FriendRow(
             if (removing) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
-                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.friends_more))
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.friends_remove_confirm))
             }
         }
     }
@@ -424,16 +447,286 @@ private fun OutgoingRequestRow(request: FriendRequest) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FriendAssignmentDialog(
+    uiState: FriendsUiState,
+    friend: Friend,
+    onAction: (FriendsAction) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = { onAction(FriendsAction.OnCloseFriendDetail) },
+        sheetState = sheetState,
+        containerColor = Color.White,
+        modifier = Modifier.testTag("friends_assignment_dialog"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            FriendIdentity(
+                initial = friend.initial,
+                nickname = stringResource(R.string.friends_assignment_dialog_title, friend.nickname),
+                subtitle = stringResource(R.string.friends_subtitle)
+            )
+            if (uiState.friendDetailLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            AssignmentSummaryBlock(
+                sent = uiState.friendAssignmentSummary?.sent,
+                received = uiState.friendAssignmentSummary?.received
+            )
+            AssignmentPreviewList(
+                title = stringResource(R.string.friends_assignment_sent_title),
+                items = uiState.friendSentAssignedTodos
+            )
+            AssignmentPreviewList(
+                title = stringResource(R.string.friends_assignment_received_title),
+                items = uiState.friendReceivedAssignedTodos
+            )
+            AssignmentDraftForm(
+                uiState = uiState,
+                onAction = onAction
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = { onAction(FriendsAction.OnCloseFriendDetail) }) {
+                    Text(stringResource(R.string.friends_remove_cancel))
+                }
+                TextButton(
+                    onClick = { onAction(FriendsAction.OnSendAssignmentDrafts) },
+                    enabled = uiState.assignmentDraftItems.isNotEmpty() ||
+                        uiState.assignmentTitleInput.trim().isNotEmpty(),
+                    modifier = Modifier.testTag("friends_assignment_send_batch")
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = stringResource(R.string.friends_assignment_send_batch),
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssignmentSummaryBlock(
+    sent: AssignmentSummary?,
+    received: AssignmentSummary?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AssignmentMetric(
+            label = stringResource(R.string.friends_assignment_sent_metric),
+            count = sent?.totalCount ?: 0,
+            progress = sent?.progressPercent ?: 0,
+            modifier = Modifier.weight(1f)
+        )
+        AssignmentMetric(
+            label = stringResource(R.string.friends_assignment_received_metric),
+            count = received?.totalCount ?: 0,
+            progress = received?.progressPercent ?: 0,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun AssignmentMetric(
+    label: String,
+    count: Int,
+    progress: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFF4F7FC)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(0xFF647286)
+            )
+            Text(
+                text = stringResource(R.string.friends_assignment_metric_value, count, progress),
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = Color(0xFF303440)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AssignmentPreviewList(
+    title: String,
+    items: List<AssignedTodo>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF4E5D73)
+        )
+        if (items.isEmpty()) {
+            Text(
+                text = stringResource(R.string.friends_assignment_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF7A8595)
+            )
+        } else {
+            items.take(3).forEach { item ->
+                Text(
+                    text = stringResource(
+                        R.string.friends_assignment_item_summary,
+                        item.title,
+                        item.progressPercent
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF303440)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssignmentDraftForm(
+    uiState: FriendsUiState,
+    onAction: (FriendsAction) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = uiState.assignmentTitleInput,
+            onValueChange = { onAction(FriendsAction.OnAssignmentTitleChanged(it)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("friends_assignment_title"),
+            placeholder = { Text(stringResource(R.string.friends_assignment_title_placeholder)) },
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = uiState.assignmentDescriptionInput,
+            onValueChange = { onAction(FriendsAction.OnAssignmentDescriptionChanged(it)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("friends_assignment_description"),
+            placeholder = { Text(stringResource(R.string.friends_assignment_description_placeholder)) },
+            minLines = 2
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = uiState.assignmentDueDateInput,
+                onValueChange = { onAction(FriendsAction.OnAssignmentDueDateChanged(it)) },
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("friends_assignment_due_date"),
+                placeholder = { Text(stringResource(R.string.friends_assignment_due_date_placeholder)) },
+                singleLine = true
+            )
+            TodoPriority.entries.forEach { priority ->
+                TextButton(
+                    onClick = { onAction(FriendsAction.OnAssignmentPriorityChanged(priority)) },
+                    modifier = Modifier.testTag("friends_assignment_priority_${priority.name.lowercase()}")
+                ) {
+                    Text(
+                        text = stringResource(priority.shortLabelRes()),
+                        color = if (uiState.assignmentPriority == priority) {
+                            Color(0xFF676CB4)
+                        } else {
+                            Color(0xFF647286)
+                        }
+                    )
+                }
+            }
+        }
+        DraftItemsRow(
+            items = uiState.assignmentDraftItems,
+            onRemove = { onAction(FriendsAction.OnRemoveAssignmentDraft(it)) }
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(
+                onClick = { onAction(FriendsAction.OnAddAssignmentDraft) },
+                enabled = uiState.assignmentTitleInput.trim().isNotEmpty(),
+                modifier = Modifier.testTag("friends_assignment_add_draft")
+            ) {
+                Text(stringResource(R.string.friends_assignment_add_draft))
+            }
+            Button(
+                onClick = { onAction(FriendsAction.OnSendAssignmentNow) },
+                enabled = uiState.assignmentTitleInput.trim().isNotEmpty(),
+                modifier = Modifier.testTag("friends_assignment_send_now"),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF676CB4))
+            ) {
+                Text(stringResource(R.string.friends_assignment_send_now))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DraftItemsRow(
+    items: List<AssignmentDraftItem>,
+    onRemove: (Int) -> Unit
+) {
+    if (items.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = stringResource(R.string.friends_assignment_draft_count, items.size),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color(0xFF647286)
+        )
+        items.forEachIndexed { index, item ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF303440)
+                )
+                IconButton(
+                    onClick = { onRemove(index) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+    }
+}
+
+private fun TodoPriority.shortLabelRes(): Int = when (this) {
+    TodoPriority.LOW -> R.string.friends_assignment_priority_low
+    TodoPriority.MEDIUM -> R.string.friends_assignment_priority_medium
+    TodoPriority.HIGH -> R.string.friends_assignment_priority_high
+}
+
 @Composable
 private fun FriendSurface(
     testTag: String,
+    modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = Color.White.copy(alpha = 0.78f),
         border = BorderStroke(1.dp, Color(0xFFE2E8F2)),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .testTag(testTag)
     ) {

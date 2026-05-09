@@ -71,6 +71,7 @@
 
     <string name="todo_row_subtitle_completed">@string/todo_filter_completed</string>
     <string name="todo_row_subtitle_today">@string/todo_filter_today</string>
+    <string name="todo_row_assigned_from">받은 일</string>
 
     <string name="todo_error_title_required">제목을 입력해주세요.</string>
     <string name="todo_error_due_date_format">날짜 형식은 yyyy-MM-dd 입니다.</string>

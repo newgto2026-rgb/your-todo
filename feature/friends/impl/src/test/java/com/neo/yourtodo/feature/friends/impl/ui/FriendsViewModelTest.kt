@@ -3,14 +3,30 @@ package com.neo.yourtodo.feature.friends.impl.ui
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
+import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
+import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
+import com.neo.yourtodo.core.domain.usecase.CreateAssignmentBundleUseCase
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.GetFriendAssignmentSummaryUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundleStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
+import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
 import com.neo.yourtodo.core.model.friends.Friend
@@ -274,8 +290,62 @@ class FriendsViewModelTest {
         }
     }
 
+    @Test
+    fun friendClickLoadsAssignmentSummaryAndLists() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            sentItems = listOf(assignedTodo(id = "sent-1", title = "Sent"))
+            receivedItems = listOf(assignedTodo(id = "received-1", title = "Received"))
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+
+            val loaded = awaitItem()
+            assertThat(loaded.selectedFriend?.userId).isEqualTo("friend-1")
+            assertThat(loaded.friendAssignmentSummary).isNotNull()
+            assertThat(loaded.friendSentAssignedTodos).hasSize(1)
+            assertThat(loaded.friendReceivedAssignedTodos).hasSize(1)
+        }
+    }
+
+    @Test
+    fun sendAssignmentNowCallsRepositoryAndClearsDraft() = runTest {
+        val assignmentRepository = FakeAssignmentRepository()
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Buy milk"))
+            assertThat(awaitItem().assignmentTitleInput).isEqualTo("Buy milk")
+
+            viewModel.onAction(FriendsAction.OnSendAssignmentNow)
+            assertThat(awaitItem().runningActionKey).isEqualTo("assignment:friend-1")
+
+            val sent = awaitItem()
+            assertThat(assignmentRepository.lastReceiverUserId).isEqualTo("friend-1")
+            assertThat(assignmentRepository.lastItems).hasSize(1)
+            assertThat(sent.assignmentTitleInput).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     private fun FakeFriendRepository.createViewModel(
-        authRepository: FakeAuthRepository = FakeAuthRepository()
+        authRepository: FakeAuthRepository = FakeAuthRepository(),
+        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
     ) =
         FriendsViewModel(
             getFriends = GetFriendsUseCase(this),
@@ -283,6 +353,9 @@ class FriendsViewModelTest {
             sendFriendRequest = SendFriendRequestUseCase(this),
             respondFriendRequest = RespondFriendRequestUseCase(this),
             removeFriend = RemoveFriendUseCase(this),
+            createAssignmentBundle = CreateAssignmentBundleUseCase(assignmentRepository),
+            getFriendAssignmentSummary = GetFriendAssignmentSummaryUseCase(assignmentRepository),
+            getAssignedTodos = GetAssignedTodosUseCase(assignmentRepository),
             observeAuthSession = ObserveAuthSessionUseCase(authRepository)
         )
 
@@ -333,6 +406,58 @@ class FriendsViewModelTest {
 
         override suspend fun removeFriend(friendshipId: String): Result<Unit> = removeResult
     }
+
+    private class FakeAssignmentRepository : AssignmentRepository {
+        var sentItems = emptyList<AssignedTodo>()
+        var receivedItems = emptyList<AssignedTodo>()
+        var lastReceiverUserId: String? = null
+        var lastItems: List<AssignmentDraftItem> = emptyList()
+
+        override suspend fun createBundle(
+            receiverUserId: String,
+            items: List<AssignmentDraftItem>
+        ): Result<AssignmentBundle> {
+            lastReceiverUserId = receiverUserId
+            lastItems = items
+            return Result.success(assignmentBundle(items))
+        }
+
+        override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
+            Result.success(
+                FriendAssignmentSummary(
+                    friendUserId = friendUserId,
+                    sent = assignmentSummary(totalCount = sentItems.size),
+                    received = assignmentSummary(totalCount = receivedItems.size)
+                )
+            )
+
+        override suspend fun getFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Result<List<AssignedTodo>> =
+            Result.success(if (direction == AssignmentDirection.SENT) sentItems else receivedItems)
+
+        override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(receivedItems)
+
+        override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(sentItems)
+
+        override suspend fun decideBundleItems(
+            bundleId: String,
+            decisions: Map<String, AssignmentDecision>
+        ): Result<AssignmentBundle> = Result.success(assignmentBundle(emptyList()))
+
+        override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.success(assignedTodo(assignedTodoId))
+
+        override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.success(assignedTodo(assignedTodoId, status = AssignedTodoStatus.REJECTED))
+
+        override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.success(assignedTodo(assignedTodoId, status = AssignedTodoStatus.CANCELED))
+    }
 }
 
 private fun authSession(nickname: String) = AuthSession(
@@ -372,4 +497,47 @@ private fun request(
     status = FriendRequestStatus.PENDING,
     createdAt = "2026-05-09T00:00:00Z",
     respondedAt = null
+)
+
+private fun assignedTodo(
+    id: String = "assigned-1",
+    title: String = "Shared todo",
+    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+) = AssignedTodo(
+    id = id,
+    bundleId = "bundle-1",
+    title = title,
+    description = null,
+    dueDate = null,
+    priority = TodoPriority.MEDIUM,
+    category = null,
+    status = status,
+    terminalReason = null,
+    progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
+    sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
+    receiver = AssignedTodoUser(id = "me", nickname = "tester"),
+    reminder = null,
+    checklist = emptyList()
+)
+
+private fun assignmentSummary(totalCount: Int = 0) = AssignmentSummary(
+    totalCount = totalCount,
+    pendingCount = 0,
+    acceptedCount = totalCount,
+    inProgressCount = 0,
+    doneCount = 0,
+    rejectedCount = 0,
+    canceledCount = 0,
+    progressPercent = 0
+)
+
+private fun assignmentBundle(items: List<AssignmentDraftItem>) = AssignmentBundle(
+    id = "bundle-1",
+    sender = AssignedTodoUser(id = "me", nickname = "tester"),
+    receiver = AssignedTodoUser(id = "friend-1", nickname = "monday"),
+    status = AssignmentBundleStatus.SENT,
+    summary = assignmentSummary(totalCount = items.size),
+    items = items.mapIndexed { index, item ->
+        assignedTodo(id = "assigned-$index", title = item.title, status = AssignedTodoStatus.PENDING_ACCEPTANCE)
+    }
 )

@@ -16,7 +16,6 @@
     <string name="friends_outgoing_pending">Waiting</string>
     <string name="friends_accept">Accept</string>
     <string name="friends_decline">Decline</string>
-    <string name="friends_more">More</string>
     <string name="friends_remove_dialog_title">Remove friend?</string>
     <string name="friends_remove_dialog_message">You cannot send new shared todo requests after removing this friend.</string>
     <string name="friends_remove_cancel">Cancel</string>
@@ -27,6 +26,25 @@
     <string name="friends_request_accepted">You are friends now.</string>
     <string name="friends_request_declined">Friend request declined.</string>
     <string name="friends_removed">Friend removed.</string>
+    <string name="friends_assignment_dialog_title">Shared todos with %1$s</string>
+    <string name="friends_assignment_sent_title">I gave</string>
+    <string name="friends_assignment_received_title">I received</string>
+    <string name="friends_assignment_sent_metric">Given</string>
+    <string name="friends_assignment_received_metric">Received</string>
+    <string name="friends_assignment_metric_value">%1$d · %2$d%%</string>
+    <string name="friends_assignment_empty">No active shared todos.</string>
+    <string name="friends_assignment_item_summary">%1$s · %2$d%%</string>
+    <string name="friends_assignment_title_placeholder">Todo title</string>
+    <string name="friends_assignment_description_placeholder">Details</string>
+    <string name="friends_assignment_due_date_placeholder">YYYY-MM-DD</string>
+    <string name="friends_assignment_add_draft">Add to bundle</string>
+    <string name="friends_assignment_send_now">Send now</string>
+    <string name="friends_assignment_send_batch">Send bundle</string>
+    <string name="friends_assignment_draft_count">%1$d</string>
+    <string name="friends_assignment_priority_low">L</string>
+    <string name="friends_assignment_priority_medium">M</string>
+    <string name="friends_assignment_priority_high">H</string>
+    <string name="friends_assignment_sent">Shared todo sent.</string>
     <string name="friends_error_auth_required">Please sign in again.</string>
     <string name="friends_error_network">Could not update friends. Please try again.</string>
 </resources>

@@ -162,7 +162,7 @@ class TodoEditorViewModelTest {
     fun saveEditUpdatesTodoAndSchedulesReminder() = runTest {
         val id = repository.addTodo(
             title = "Old",
-            dueDate = LocalDate.of(2026, 5, 9),
+            dueDate = LocalDate.of(2026, 5, 10),
             categoryId = null,
             dueTimeMinutes = 8 * 60,
             reminderAtEpochMillis = null,
