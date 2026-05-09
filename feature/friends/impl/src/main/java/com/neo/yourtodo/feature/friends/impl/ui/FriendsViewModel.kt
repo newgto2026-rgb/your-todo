@@ -41,6 +41,9 @@ class FriendsViewModel @Inject constructor(
             FriendsAction.OnToggleAddFriend -> mutableUiState.update {
                 it.copy(addFriendExpanded = !it.addFriendExpanded, error = null)
             }
+            FriendsAction.OnCloseAddFriend -> mutableUiState.update {
+                it.copy(addFriendExpanded = false, nicknameInput = "", error = null)
+            }
             is FriendsAction.OnNicknameChanged -> mutableUiState.update {
                 it.copy(nicknameInput = action.value.take(MaxNicknameLength), error = null)
             }

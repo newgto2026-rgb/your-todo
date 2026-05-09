@@ -77,6 +77,18 @@ class FriendsUiTest {
         composeTestRule.onNodeWithText("neo").assertIsDisplayed()
     }
 
+    @Test
+    fun friendsTabCanCloseAddFriendCard() {
+        composeTestRule.onNodeWithTag("app_tab_friends").performClick()
+        composeTestRule.waitUntilNodeExists("friends_screen")
+
+        composeTestRule.onNodeWithTag("friends_add_toggle").performClick()
+        composeTestRule.waitUntilNodeExists("friends_nickname_input")
+        composeTestRule.onNodeWithTag("friends_add_close").performClick()
+
+        composeTestRule.waitUntilNodeGone("friends_nickname_input")
+    }
+
     private fun ComposeTestRule.waitUntilNodeExists(
         testTag: String,
         timeoutMillis: Long = 15_000L
@@ -85,6 +97,17 @@ class FriendsUiTest {
             onAllNodes(hasTestTag(testTag))
                 .fetchSemanticsNodes(atLeastOneRootRequired = false)
                 .isNotEmpty()
+        }
+    }
+
+    private fun ComposeTestRule.waitUntilNodeGone(
+        testTag: String,
+        timeoutMillis: Long = 15_000L
+    ) {
+        waitUntil(timeoutMillis) {
+            onAllNodes(hasTestTag(testTag))
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
+                .isEmpty()
         }
     }
 }

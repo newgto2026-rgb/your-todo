@@ -4,6 +4,7 @@
     <string name="friends_refresh">Refresh</string>
     <string name="friends_add">Add friend</string>
     <string name="friends_add_title">Add by nickname</string>
+    <string name="friends_add_close">Close add friend</string>
     <string name="friends_nickname_placeholder">Friend nickname</string>
     <string name="friends_send_request">Send request</string>
     <string name="friends_incoming_title">Incoming requests</string>

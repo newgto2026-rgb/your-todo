@@ -129,7 +129,8 @@ private fun FriendsScreen(
                             canSend = uiState.canSendRequest,
                             isSending = uiState.runningActionKey == "send",
                             onNicknameChanged = { onAction(FriendsAction.OnNicknameChanged(it)) },
-                            onSend = { onAction(FriendsAction.OnSendRequest) }
+                            onSend = { onAction(FriendsAction.OnSendRequest) },
+                            onClose = { onAction(FriendsAction.OnCloseAddFriend) }
                         )
                     }
                 }
@@ -238,7 +239,8 @@ private fun FriendAddPanel(
     canSend: Boolean,
     isSending: Boolean,
     onNicknameChanged: (String) -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    onClose: () -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(24.dp),
@@ -250,11 +252,30 @@ private fun FriendAddPanel(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = stringResource(R.string.friends_add_title),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF303440)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.friends_add_title),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF303440)
+                )
+                IconButton(
+                    onClick = onClose,
+                    enabled = !isSending,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag("friends_add_close")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.friends_add_close),
+                        tint = Color(0xFF647286)
+                    )
+                }
+            }
             OutlinedTextField(
                 value = nickname,
                 onValueChange = onNicknameChanged,

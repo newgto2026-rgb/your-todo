@@ -70,6 +70,27 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun closeAddFriendCollapsesPanelAndClearsInput() = runTest {
+        val repository = FakeFriendRepository()
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnToggleAddFriend)
+            assertThat(awaitItem().addFriendExpanded).isTrue()
+
+            viewModel.onAction(FriendsAction.OnNicknameChanged("monday"))
+            assertThat(awaitItem().nicknameInput).isEqualTo("monday")
+
+            viewModel.onAction(FriendsAction.OnCloseAddFriend)
+            val closed = awaitItem()
+            assertThat(closed.addFriendExpanded).isFalse()
+            assertThat(closed.nicknameInput).isEmpty()
+        }
+    }
+
+    @Test
     fun acceptRequestRefreshesFriendsAndRemovesIncomingRequest() = runTest {
         val repository = FakeFriendRepository().apply {
             incoming = listOf(request(id = "request-1"))

@@ -4,6 +4,7 @@
     <string name="friends_refresh">새로고침</string>
     <string name="friends_add">친구 추가</string>
     <string name="friends_add_title">닉네임으로 친구 추가</string>
+    <string name="friends_add_close">친구 추가 닫기</string>
     <string name="friends_nickname_placeholder">친구 닉네임</string>
     <string name="friends_send_request">요청 보내기</string>
     <string name="friends_incoming_title">받은 요청</string>

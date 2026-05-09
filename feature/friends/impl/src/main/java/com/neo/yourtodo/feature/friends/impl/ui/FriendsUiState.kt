@@ -23,6 +23,7 @@ data class FriendsUiState(
 sealed interface FriendsAction {
     data object OnRefresh : FriendsAction
     data object OnToggleAddFriend : FriendsAction
+    data object OnCloseAddFriend : FriendsAction
     data class OnNicknameChanged(val value: String) : FriendsAction
     data object OnSendRequest : FriendsAction
     data class OnAcceptRequest(val requestId: String) : FriendsAction
