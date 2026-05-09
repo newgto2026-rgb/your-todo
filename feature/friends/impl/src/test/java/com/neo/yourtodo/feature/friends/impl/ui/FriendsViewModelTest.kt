@@ -456,6 +456,7 @@ class FriendsViewModelTest {
                 mapOf("pending-1" to AssignmentDecision.ACCEPT)
             )
             assertThat(refreshed.selectedPendingAssignmentIds).isEmpty()
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -550,6 +551,7 @@ class FriendsViewModelTest {
             assertThat(failed.selectedPendingAssignmentIds).containsExactly("pending-2")
             assertThat(failed.friendReceivedAssignedTodos.map { it.id }).containsExactly("pending-2", "pending-1")
             assertThat(failed.error).isEqualTo(FriendsError.NETWORK)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -809,12 +811,42 @@ class FriendsViewModelTest {
     }
 
     private class FakeAssignmentRepository : AssignmentRepository {
-        var sentItems = emptyList<AssignedTodo>()
-        var sentPendingItems = emptyList<AssignedTodo>()
-        var sentHistoryItems = emptyList<AssignedTodo>()
-        var receivedItems = emptyList<AssignedTodo>()
-        var receivedPendingItems = emptyList<AssignedTodo>()
-        var receivedHistoryItems = emptyList<AssignedTodo>()
+        private val sentItemsState = MutableStateFlow<List<AssignedTodo>>(emptyList())
+        private val sentPendingItemsState = MutableStateFlow<List<AssignedTodo>>(emptyList())
+        private val sentHistoryItemsState = MutableStateFlow<List<AssignedTodo>>(emptyList())
+        private val receivedItemsState = MutableStateFlow<List<AssignedTodo>>(emptyList())
+        private val receivedPendingItemsState = MutableStateFlow<List<AssignedTodo>>(emptyList())
+        private val receivedHistoryItemsState = MutableStateFlow<List<AssignedTodo>>(emptyList())
+        var sentItems: List<AssignedTodo>
+            get() = sentItemsState.value
+            set(value) {
+                sentItemsState.value = value
+            }
+        var sentPendingItems: List<AssignedTodo>
+            get() = sentPendingItemsState.value
+            set(value) {
+                sentPendingItemsState.value = value
+            }
+        var sentHistoryItems: List<AssignedTodo>
+            get() = sentHistoryItemsState.value
+            set(value) {
+                sentHistoryItemsState.value = value
+            }
+        var receivedItems: List<AssignedTodo>
+            get() = receivedItemsState.value
+            set(value) {
+                receivedItemsState.value = value
+            }
+        var receivedPendingItems: List<AssignedTodo>
+            get() = receivedPendingItemsState.value
+            set(value) {
+                receivedPendingItemsState.value = value
+            }
+        var receivedHistoryItems: List<AssignedTodo>
+            get() = receivedHistoryItemsState.value
+            set(value) {
+                receivedHistoryItemsState.value = value
+            }
         var lastReceiverUserId: String? = null
         var lastItems: List<AssignmentDraftItem> = emptyList()
         var failedBundleIds = emptySet<String>()
@@ -863,6 +895,29 @@ class FriendsViewModelTest {
 
         override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
             Result.success(if (status == AssignmentFeedStatus.PENDING) sentPendingItems else sentItems)
+
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            when (status) {
+                AssignmentFeedStatus.ACTIVE -> receivedItemsState
+                AssignmentFeedStatus.PENDING -> receivedPendingItemsState
+                AssignmentFeedStatus.HISTORY -> receivedHistoryItemsState
+            }
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            when (status) {
+                AssignmentFeedStatus.ACTIVE -> sentItemsState
+                AssignmentFeedStatus.PENDING -> sentPendingItemsState
+                AssignmentFeedStatus.HISTORY -> sentHistoryItemsState
+            }
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> = when (direction) {
+            AssignmentDirection.SENT -> observeSentAssignedTodos(status)
+            AssignmentDirection.RECEIVED -> observeReceivedAssignedTodos(status)
+        }
 
         override suspend fun decideBundleItems(
             bundleId: String,

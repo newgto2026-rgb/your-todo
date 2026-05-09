@@ -513,6 +513,19 @@ class AssignmentUseCasesTest {
             return sentResult
         }
 
+        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf((receivedResults[status] ?: receivedResult).getOrDefault(emptyList()))
+
+        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
+            flowOf(sentResult.getOrDefault(emptyList()))
+
+        override fun observeFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Flow<List<AssignedTodo>> =
+            flowOf((friendTodosResults[status] ?: friendTodosResult).getOrDefault(emptyList()))
+
         override suspend fun decideBundleItems(
             bundleId: String,
             decisions: Map<String, AssignmentDecision>

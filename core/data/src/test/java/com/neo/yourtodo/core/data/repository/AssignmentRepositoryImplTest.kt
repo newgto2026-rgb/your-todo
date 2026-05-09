@@ -1,6 +1,10 @@
 package com.neo.yourtodo.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
+import com.neo.yourtodo.core.database.dao.AssignedTodoDao
+import com.neo.yourtodo.core.database.entity.AssignedTodoChecklistItemEntity
+import com.neo.yourtodo.core.database.entity.AssignedTodoEntity
+import com.neo.yourtodo.core.database.entity.AssignedTodoWithChecklist
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
@@ -38,6 +42,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -171,23 +176,57 @@ class AssignmentRepositoryImplTest {
         assertThat(prefs.authSession.first()).isNull()
     }
 
+    @Test
+    fun getReceivedAssignedTodosCachesItemsForObservers() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val repository = repository(prefs = prefs, assignedTodoDao = assignedTodoDao)
+
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.PENDING).getOrThrow()
+
+        val observed = repository.observeReceivedAssignedTodos(AssignmentFeedStatus.PENDING).first()
+        assertThat(observed.map { it.id }).containsExactly("assigned-1")
+        assertThat(observed.single().checklist.single().title).isEqualTo("Step")
+        assertThat(observed.single().sender?.nickname).isEqualTo("monday")
+    }
+
+    @Test
+    fun assignedTodoObserversAreScopedToCurrentUser() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val repository = repository(prefs = prefs, assignedTodoDao = assignedTodoDao)
+
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.PENDING).getOrThrow()
+        prefs.saveAuthSession(authSession(accessToken = "other-access", userId = "other-user"))
+
+        assertThat(repository.observeReceivedAssignedTodos(AssignmentFeedStatus.PENDING).first()).isEmpty()
+
+        prefs.saveAuthSession(authSession())
+
+        assertThat(repository.observeReceivedAssignedTodos(AssignmentFeedStatus.PENDING).first().map { it.id })
+            .containsExactly("assigned-1")
+    }
+
     private fun repository(
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeAssignmentNetworkDataSource = FakeAssignmentNetworkDataSource(),
-        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource()
+        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
+        assignedTodoDao: FakeAssignedTodoDao = FakeAssignedTodoDao()
     ) = AssignmentRepositoryImpl(
         userPreferencesDataSource = prefs,
         assignmentNetworkDataSource = network,
+        assignedTodoDao = assignedTodoDao,
         authNetworkDataSource = authNetwork
     )
 
     private fun authSession(
         accessToken: String = "access-token",
-        refreshToken: String = "refresh-token"
+        refreshToken: String = "refresh-token",
+        userId: String = "user-id"
     ) = AuthSessionData(
         accessToken = accessToken,
         refreshToken = refreshToken,
-        userId = "user-id",
+        userId = userId,
         nickname = "neo",
         email = "neo@example.com",
         onboardingRequired = false
@@ -241,6 +280,188 @@ class AssignmentRepositoryImplTest {
             syncHaltReasonFlow.value = null
         }
     }
+
+    private class FakeAssignedTodoDao : AssignedTodoDao {
+        private val state = MutableStateFlow(CacheState())
+
+        override fun observeReceivedAssignedTodos(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> =
+            state.map { cache ->
+                cache.items.values
+                    .filter { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses }
+                    .toWithChecklist(cache)
+            }
+
+        override fun observeSentAssignedTodos(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> =
+            state.map { cache ->
+                cache.items.values
+                    .filter { it.ownerUserId == ownerUserId && it.sentCached && it.status in statuses }
+                    .toWithChecklist(cache)
+            }
+
+        override fun observeSentAssignedTodosByFriend(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> =
+            state.map { cache ->
+                cache.items.values
+                    .filter {
+                        it.ownerUserId == ownerUserId &&
+                            it.sentCached &&
+                            it.receiverUserId == friendUserId &&
+                            it.status in statuses
+                    }
+                    .toWithChecklist(cache)
+            }
+
+        override fun observeReceivedAssignedTodosByFriend(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<List<AssignedTodoWithChecklist>> =
+            state.map { cache ->
+                cache.items.values
+                    .filter {
+                        it.ownerUserId == ownerUserId &&
+                            it.receivedCached &&
+                            it.senderUserId == friendUserId &&
+                            it.status in statuses
+                    }
+                    .toWithChecklist(cache)
+            }
+
+        override suspend fun getAssignedTodoById(ownerUserId: String, id: String): AssignedTodoEntity? =
+            state.value.items[id]?.takeIf { it.ownerUserId == ownerUserId }
+
+        override suspend fun deleteByOwner(ownerUserId: String) {
+            deleteWhere { it.ownerUserId == ownerUserId }
+        }
+
+        override suspend fun upsertAssignedTodos(items: List<AssignedTodoEntity>) {
+            state.value = state.value.copy(
+                items = state.value.items + items.associateBy { it.id }
+            )
+        }
+
+        override suspend fun upsertChecklistItems(items: List<AssignedTodoChecklistItemEntity>) {
+            state.value = state.value.copy(
+                checklist = state.value.checklist + items.groupBy { it.assignedTodoId }
+            )
+        }
+
+        override suspend fun deleteChecklistItems(assignedTodoIds: List<String>) {
+            state.value = state.value.copy(checklist = state.value.checklist - assignedTodoIds.toSet())
+        }
+
+        override suspend fun deleteReceivedByStatuses(ownerUserId: String, statuses: List<String>) {
+            deleteWhere { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses }
+        }
+
+        override suspend fun deleteReceivedByStatusesExcept(
+            ownerUserId: String,
+            statuses: List<String>,
+            ids: List<String>
+        ) {
+            deleteWhere { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses && it.id !in ids }
+        }
+
+        override suspend fun deleteSentByStatuses(ownerUserId: String, statuses: List<String>) {
+            deleteWhere { it.ownerUserId == ownerUserId && it.sentCached && it.status in statuses }
+        }
+
+        override suspend fun deleteSentByStatusesExcept(ownerUserId: String, statuses: List<String>, ids: List<String>) {
+            deleteWhere { it.ownerUserId == ownerUserId && it.sentCached && it.status in statuses && it.id !in ids }
+        }
+
+        override suspend fun deleteSentByFriendAndStatuses(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ) {
+            deleteWhere {
+                it.ownerUserId == ownerUserId &&
+                    it.sentCached &&
+                    it.receiverUserId == friendUserId &&
+                    it.status in statuses
+            }
+        }
+
+        override suspend fun deleteSentByFriendAndStatusesExcept(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>,
+            ids: List<String>
+        ) {
+            deleteWhere {
+                it.ownerUserId == ownerUserId &&
+                    it.sentCached &&
+                    it.receiverUserId == friendUserId &&
+                    it.status in statuses &&
+                    it.id !in ids
+            }
+        }
+
+        override suspend fun deleteReceivedByFriendAndStatuses(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ) {
+            deleteWhere {
+                it.ownerUserId == ownerUserId &&
+                    it.receivedCached &&
+                    it.senderUserId == friendUserId &&
+                    it.status in statuses
+            }
+        }
+
+        override suspend fun deleteReceivedByFriendAndStatusesExcept(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>,
+            ids: List<String>
+        ) {
+            deleteWhere {
+                it.ownerUserId == ownerUserId &&
+                    it.receivedCached &&
+                    it.senderUserId == friendUserId &&
+                    it.status in statuses &&
+                    it.id !in ids
+            }
+        }
+
+        private fun deleteWhere(predicate: (AssignedTodoEntity) -> Boolean) {
+            val removedIds = state.value.items.values
+                .filter(predicate)
+                .map { it.id }
+                .toSet()
+            state.value = state.value.copy(
+                items = state.value.items.filterKeys { it !in removedIds },
+                checklist = state.value.checklist.filterKeys { it !in removedIds }
+            )
+        }
+
+        private fun Collection<AssignedTodoEntity>.toWithChecklist(
+            cache: CacheState
+        ): List<AssignedTodoWithChecklist> =
+            sortedWith(compareByDescending<AssignedTodoEntity> { it.createdAtEpochMillis ?: 0L }.thenBy { it.id })
+                .map { item ->
+                    AssignedTodoWithChecklist(
+                        assignedTodo = item,
+                        checklist = cache.checklist[item.id].orEmpty()
+                    )
+                }
+    }
+
+    private data class CacheState(
+        val items: Map<String, AssignedTodoEntity> = emptyMap(),
+        val checklist: Map<String, List<AssignedTodoChecklistItemEntity>> = emptyMap()
+    )
 
     private class FakeAuthNetworkDataSource(
         private val refreshFails: Boolean = false

@@ -9,13 +9,11 @@ import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
-import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
-import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.feature.calendar.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -52,12 +50,16 @@ class CalendarViewModel @Inject constructor(
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
-    private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
-    private val workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
+    private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase
 ) : ViewModel() {
     private val monthState = MutableStateFlow(savedStateHandle.initialMonth())
     private val selectedDateState = MutableStateFlow(savedStateHandle.initialSelectedDate())
-    private val receivedAssignedTodos = MutableStateFlow<List<AssignedTodo>>(emptyList())
+    private val receivedAssignedTodos = getAssignedTodosUseCase.observeVisibleReceived()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
     private val sideEffectMutable = MutableSharedFlow<CalendarSideEffect>()
 
     val sideEffect = sideEffectMutable.asSharedFlow()
@@ -200,7 +202,6 @@ class CalendarViewModel @Inject constructor(
 
     init {
         refreshAssignedTodosQuietly()
-        observeWorkspaceSync()
     }
 
     fun selectRouteDate(rawDate: String) {
@@ -240,32 +241,10 @@ class CalendarViewModel @Inject constructor(
             if (assignedTodoId != null) {
                 val target = receivedAssignedTodos.value.firstOrNull { it.id == assignedTodoId }
                 if (target?.isDone == true) {
-                    receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(
-                        target.copy(
-                            status = AssignedTodoStatus.ACCEPTED,
-                            progressPercent = 0,
-                            completedAt = null
-                        )
-                    )
                     manageAssignedTodoUseCase.reopen(assignedTodoId)
-                        .onSuccess { updated ->
-                            receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
-                        }
                         .onFailure { refreshAssignedTodosQuietly() }
                 } else {
-                    if (target != null) {
-                        receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(
-                            target.copy(
-                                status = AssignedTodoStatus.DONE,
-                                progressPercent = 100,
-                                completedAt = Instant.now()
-                            )
-                        )
-                    }
                     manageAssignedTodoUseCase.complete(assignedTodoId)
-                        .onSuccess { updated ->
-                            receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
-                        }
                         .onFailure { refreshAssignedTodosQuietly() }
                 }
             } else {
@@ -280,19 +259,8 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    private fun observeWorkspaceSync() {
-        viewModelScope.launch {
-            workspaceSyncNotifier.snapshots.collect { snapshot ->
-                if (snapshot != null) {
-                    receivedAssignedTodos.value = snapshot.visibleReceivedAssignedTodos
-                }
-            }
-        }
-    }
-
     private suspend fun refreshAssignedTodos(): Result<Unit> =
         getAssignedTodosUseCase.visibleReceived()
-            .onSuccess { receivedAssignedTodos.value = it }
             .map { Unit }
 }
 
@@ -431,13 +399,6 @@ internal fun Map<LocalDate, DateTodoSummary>.withAssignedTodos(
         }
     return mutable
 }
-
-internal fun List<AssignedTodo>.replaceAssignedTodo(updated: AssignedTodo): List<AssignedTodo> =
-    if (any { it.id == updated.id }) {
-        map { if (it.id == updated.id) updated else it }
-    } else {
-        this + updated
-    }
 
 private fun AssignedTodo.reminderLeadMinutes(reminderEpochMillis: Long?): Int? {
     val dueDate = dueDate ?: return null
