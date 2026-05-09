@@ -129,16 +129,47 @@ class AssignmentUseCasesTest {
 
     @Test
     fun friendDetailVisibilityIncludesPendingDecisionItems() {
-        val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
-        val accepted = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "accepted")
+        val pending = testTodo(
+            status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+            createdAt = Instant.parse("2026-05-02T00:00:00Z")
+        ).copy(id = "pending")
+        val accepted = testTodo(
+            status = AssignedTodoStatus.ACCEPTED,
+            createdAt = Instant.parse("2026-05-03T00:00:00Z")
+        ).copy(id = "accepted")
         val done = testTodo(
             status = AssignedTodoStatus.DONE,
+            createdAt = Instant.parse("2026-05-04T00:00:00Z"),
             completedAt = Instant.now()
         ).copy(id = "done")
 
         val result = visibleFriendDetailAssignedTodos(listOf(accepted, pending, done))
 
         assertThat(result).containsExactly(pending, accepted, done).inOrder()
+    }
+
+    @Test
+    fun friendDetailVisibilitySortsItemsByNewestRequestWithinStatus() {
+        val olderPending = testTodo(
+            status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+            createdAt = Instant.parse("2026-05-01T00:00:00Z")
+        ).copy(id = "older-pending")
+        val newerPending = testTodo(
+            status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+            createdAt = Instant.parse("2026-05-03T00:00:00Z")
+        ).copy(id = "newer-pending")
+        val active = testTodo(
+            status = AssignedTodoStatus.ACCEPTED,
+            createdAt = Instant.parse("2026-05-04T00:00:00Z")
+        ).copy(id = "active")
+
+        val result = visibleFriendDetailAssignedTodos(listOf(olderPending, active, newerPending))
+
+        assertThat(result.map { it.id }).containsExactly(
+            "newer-pending",
+            "older-pending",
+            "active"
+        ).inOrder()
     }
 
     @Test
@@ -321,6 +352,7 @@ class AssignmentUseCasesTest {
 
     private fun testTodo(
         status: AssignedTodoStatus = AssignedTodoStatus.PENDING_ACCEPTANCE,
+        createdAt: Instant? = null,
         completedAt: Instant? = null
     ) = AssignedTodo(
         id = "assigned-1",
@@ -337,6 +369,7 @@ class AssignmentUseCasesTest {
         sender = AssignedTodoUser(id = "user-1", nickname = "neo"),
         receiver = AssignedTodoUser(id = "friend-1", nickname = "monday"),
         reminder = null,
+        createdAt = createdAt,
         completedAt = completedAt
     )
 

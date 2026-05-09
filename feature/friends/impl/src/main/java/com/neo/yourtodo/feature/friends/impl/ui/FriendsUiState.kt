@@ -28,6 +28,7 @@ data class FriendsUiState(
     val friendSentCompletedHistoryTodos: List<AssignedTodo> = emptyList(),
     val friendReceivedCompletedHistoryTodos: List<AssignedTodo> = emptyList(),
     val showFriendAssignmentHistory: Boolean = false,
+    val expandedAssignmentSections: Set<FriendAssignmentSection> = emptySet(),
     val selectedPendingAssignmentIds: Set<String> = emptySet(),
     val assignmentTitleInput: String = "",
     val assignmentDueDateInput: String = "",
@@ -89,6 +90,13 @@ data class FriendAssignmentDetailUiModel(
     val hasPendingSelection: Boolean = false,
     val isDecisionRunning: Boolean = false
 )
+
+enum class FriendAssignmentSection {
+    SENT,
+    RECEIVED,
+    SENT_HISTORY,
+    RECEIVED_HISTORY
+}
 
 data class AssignmentTodoUiModel(
     val id: String,
@@ -152,6 +160,7 @@ sealed interface FriendsAction {
     data class OnFriendClick(val friend: Friend) : FriendsAction
     data object OnCloseFriendDetail : FriendsAction
     data object OnToggleAssignmentHistory : FriendsAction
+    data class OnToggleAssignmentSection(val section: FriendAssignmentSection) : FriendsAction
     data class OnTogglePendingAssignment(val assignedTodoId: String) : FriendsAction
     data object OnToggleAllPendingAssignments : FriendsAction
     data object OnAcceptSelectedAssignments : FriendsAction

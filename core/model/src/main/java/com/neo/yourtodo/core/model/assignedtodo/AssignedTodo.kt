@@ -20,6 +20,7 @@ data class AssignedTodo(
     val receiver: AssignedTodoUser?,
     val reminder: AssignedTodoReminder?,
     val checklist: List<AssignedTodoChecklistItem> = emptyList(),
+    val createdAt: Instant? = null,
     val completedAt: Instant? = null
 ) {
     val isDone: Boolean

@@ -32,6 +32,7 @@ internal fun visibleFriendDetailAssignedTodos(
         .distinctBy { it.id }
         .sortedWith(
             compareBy<AssignedTodo> { it.status.sortRank() }
+                .thenByDescending { it.createdAt ?: Instant.EPOCH }
                 .thenBy { it.dueDate }
                 .thenBy { it.dueTimeMinutes ?: Int.MAX_VALUE }
                 .thenBy { it.title }

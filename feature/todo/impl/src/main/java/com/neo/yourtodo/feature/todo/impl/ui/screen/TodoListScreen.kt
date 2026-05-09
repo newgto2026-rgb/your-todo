@@ -277,7 +277,7 @@ private fun TodoListScreen(
             )
             if (
                 uiState.selectedFilter == TodoFilter.COMPLETED &&
-                uiState.completedTodoIds.isNotEmpty()
+                uiState.hasClearableCompletedItems
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -838,8 +838,8 @@ private fun DeleteConfirmationDialog(
         is TodoDeleteConfirmation.Single -> stringResource(R.string.todo_delete_confirm_message)
         is TodoDeleteConfirmation.Completed -> pluralStringResource(
             R.plurals.todo_clear_completed_confirm_message,
-            confirmation.ids.size,
-            confirmation.ids.size
+            confirmation.itemCount,
+            confirmation.itemCount
         )
     }
 

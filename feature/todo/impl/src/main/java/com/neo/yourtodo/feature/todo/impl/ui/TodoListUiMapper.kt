@@ -20,7 +20,10 @@ internal fun buildTodoListUiState(
     selectedPriorityFilter: TodoPriorityFilter,
     profileInitial: String?
 ): TodoListUiState {
-    val uiItems = items.map { it.toUiModel() } + assignedItems.map { it.toUiModel() }
+    val optimisticCompletedAssignedTodoIds = localState.optimisticCompletedAssignedTodoIds
+    val uiItems = items.map { it.toUiModel() } + assignedItems.map {
+        it.toUiModel(isOptimisticallyDone = it.id in optimisticCompletedAssignedTodoIds)
+    }
     val filteredItems = uiItems
         .filterBy(selectedFilter)
         .filterByPriority(selectedPriorityFilter)
@@ -30,6 +33,9 @@ internal fun buildTodoListUiState(
         profileInitial = profileInitial,
         items = filteredItems,
         completedTodoIds = items.filter { it.isDone }.map { it.id },
+        completedAssignedTodoIds = assignedItems
+            .filter { it.isDone || it.id in optimisticCompletedAssignedTodoIds }
+            .map { it.id },
         selectedFilter = selectedFilter,
         selectedPriorityFilter = selectedPriorityFilter,
         isLoading = false
@@ -115,13 +121,13 @@ private fun TodoItem.toUiModel(): TodoItemUiModel =
         priority = priority
     )
 
-private fun AssignedTodo.toUiModel(): TodoItemUiModel =
+private fun AssignedTodo.toUiModel(isOptimisticallyDone: Boolean): TodoItemUiModel =
     reminderAtEpochMillis().let { reminderEpochMillis ->
         val reminderLeadMinutes = reminderLeadMinutes(reminderEpochMillis)
         TodoItemUiModel(
             id = stableAssignedRowId(id),
             title = title,
-            isDone = isDone,
+            isDone = isDone || isOptimisticallyDone,
             dueDate = dueDate,
             dueDateText = dueDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
             dueTimeText = dueTimeMinutes?.let(::minutesToDueTimeText),

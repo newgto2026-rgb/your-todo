@@ -894,7 +894,7 @@ class TodoListViewModelTest {
         advanceUntilIdle()
         val confirmation = viewModel.uiState.value.deleteConfirmation
         assertThat(confirmation).isInstanceOf(TodoDeleteConfirmation.Completed::class.java)
-        assertThat(checkNotNull(confirmation).ids)
+        assertThat((checkNotNull(confirmation) as TodoDeleteConfirmation.Completed).todoIds)
             .containsExactly(lowCompletedId, highCompletedId)
 
         viewModel.onAction(TodoListAction.OnDeleteConfirm)
@@ -905,6 +905,34 @@ class TodoListViewModelTest {
         assertThat(repository.getTodo(activeHighId)).isNotNull()
         assertThat(reminderScheduler.cancelledTodoIds)
             .containsExactly(lowCompletedId, highCompletedId)
+    }
+
+    @Test
+    fun clearCompletedDeletesCompletedReceivedAssignedTodos() = runTest {
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(id = "assigned-done", status = AssignedTodoStatus.DONE)
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.COMPLETED))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.hasClearableCompletedItems).isTrue()
+
+        viewModel.onAction(TodoListAction.OnClearCompletedClick)
+        advanceUntilIdle()
+        val confirmation = viewModel.uiState.value.deleteConfirmation as TodoDeleteConfirmation.Completed
+        assertThat(confirmation.todoIds).isEmpty()
+        assertThat(confirmation.assignedTodoIds).containsExactly("assigned-done")
+
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.deletedAssignedTodoIds).containsExactly("assigned-done")
+        assertThat(viewModel.uiState.value.items.map { it.assignedTodoId }).doesNotContain("assigned-done")
     }
 
     @Test
@@ -921,6 +949,25 @@ class TodoListViewModelTest {
         advanceUntilIdle()
 
         assertThat(assignmentRepository.completedAssignedTodoId).isEqualTo("assigned-1")
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).containsExactly("assigned-1")
+    }
+
+    @Test
+    fun receivedAssignedTodoCompleteRollsBackWhenServerFails() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-fail"))
+        assignmentRepository.completeFailure = IllegalStateException("server failed")
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-fail"))
+        advanceUntilIdle()
+
+        val assigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-fail" }
+        assertThat(assigned.isDone).isFalse()
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).isEmpty()
     }
 
     @Test
@@ -1080,6 +1127,8 @@ class TodoListViewModelTest {
         var receivedItems = emptyList<AssignedTodo>()
         var completedAssignedTodoId: String? = null
         var deletedAssignedTodoId: String? = null
+        val deletedAssignedTodoIds = mutableListOf<String>()
+        var completeFailure: Throwable? = null
         var upsertedReminder: Pair<String, String>? = null
         var deletedReminderAssignedTodoId: String? = null
 
@@ -1109,6 +1158,7 @@ class TodoListViewModelTest {
         ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
 
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            completeFailure?.let { return Result.failure(it) }
             completedAssignedTodoId = assignedTodoId
             receivedItems = receivedItems.map {
                 if (it.id == assignedTodoId) {
@@ -1122,6 +1172,7 @@ class TodoListViewModelTest {
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
             deletedAssignedTodoId = assignedTodoId
+            deletedAssignedTodoIds += assignedTodoId
             receivedItems = receivedItems.filterNot { it.id == assignedTodoId }
             return Result.success(assignedTodo(id = assignedTodoId, status = AssignedTodoStatus.REJECTED))
         }

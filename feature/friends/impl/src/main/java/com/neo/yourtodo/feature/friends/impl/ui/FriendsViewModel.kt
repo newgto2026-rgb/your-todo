@@ -95,12 +95,17 @@ class FriendsViewModel @Inject constructor(
                     friendSentCompletedHistoryTodos = emptyList(),
                     friendReceivedCompletedHistoryTodos = emptyList(),
                     showFriendAssignmentHistory = false,
+                    expandedAssignmentSections = emptySet(),
                     selectedPendingAssignmentIds = emptySet()
                 )
             }
             FriendsAction.OnToggleAssignmentHistory -> mutableUiState.update {
-                it.copy(showFriendAssignmentHistory = !it.showFriendAssignmentHistory)
+                it.copy(
+                    showFriendAssignmentHistory = !it.showFriendAssignmentHistory,
+                    expandedAssignmentSections = emptySet()
+                )
             }
+            is FriendsAction.OnToggleAssignmentSection -> toggleAssignmentSection(action.section)
             is FriendsAction.OnTogglePendingAssignment -> togglePendingAssignment(action.assignedTodoId)
             FriendsAction.OnToggleAllPendingAssignments -> toggleAllPendingAssignments()
             FriendsAction.OnAcceptSelectedAssignments -> decideSelectedAssignments(
@@ -262,6 +267,7 @@ class FriendsViewModel @Inject constructor(
                 friendSentCompletedHistoryTodos = emptyList(),
                 friendReceivedCompletedHistoryTodos = emptyList(),
                 showFriendAssignmentHistory = false,
+                expandedAssignmentSections = emptySet(),
                 selectedPendingAssignmentIds = emptySet(),
                 error = null
             )
@@ -341,6 +347,17 @@ class FriendsViewModel @Inject constructor(
             friendUserId = friendUserId,
             direction = direction
         )
+
+    private fun toggleAssignmentSection(section: FriendAssignmentSection) {
+        mutableUiState.update {
+            val sections = if (section in it.expandedAssignmentSections) {
+                it.expandedAssignmentSections - section
+            } else {
+                it.expandedAssignmentSections + section
+            }
+            it.copy(expandedAssignmentSections = sections)
+        }
+    }
 
     private fun togglePendingAssignment(assignedTodoId: String) {
         val pendingIds = uiState.value.decisionPendingAssignedTodos().map { it.id }.toSet()

@@ -232,6 +232,7 @@ class AssignmentRepositoryImpl @Inject constructor(
             receiver = receiver?.toDomain(),
             reminder = reminder?.toDomain(),
             checklist = checklist.map { it.toDomain() },
+            createdAt = createdAt.toInstantOrNull(),
             completedAt = completedAt.toInstantOrNull()
         )
 

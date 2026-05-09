@@ -316,10 +316,16 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun completeAssignedTodo(assignedTodoId: String) {
+        updateLocalState {
+            copy(optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds + assignedTodoId)
+        }
         viewModelScope.launch {
             manageAssignedTodoUseCase.complete(assignedTodoId)
                 .onSuccess { refreshAssignedTodosQuietly() }
                 .onFailure {
+                    updateLocalState {
+                        copy(optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId)
+                    }
                     sideEffectMutable.emit(
                         TodoListSideEffect.ShowSnackbar(R.string.todo_error_toggle_done_failed)
                     )
@@ -379,10 +385,15 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun requestCompletedTodoDelete() {
-        val completedIds = uiState.value.completedTodoIds
-        if (completedIds.isEmpty()) return
+        val current = uiState.value
+        if (!current.hasClearableCompletedItems) return
         updateLocalState {
-            copy(deleteConfirmation = TodoDeleteConfirmation.Completed(completedIds))
+            copy(
+                deleteConfirmation = TodoDeleteConfirmation.Completed(
+                    todoIds = current.completedTodoIds,
+                    assignedTodoIds = current.completedAssignedTodoIds
+                )
+            )
         }
     }
 
@@ -395,9 +406,18 @@ class TodoListViewModel @Inject constructor(
         viewModelScope.launch {
             val previousSingle = (confirmation as? TodoDeleteConfirmation.Single)
                 ?.let { getTodoUseCase(it.id) }
+            val todoIds = when (confirmation) {
+                is TodoDeleteConfirmation.Single -> listOf(confirmation.id)
+                is TodoDeleteConfirmation.Completed -> confirmation.todoIds
+            }
+            val assignedTodoIds = when (confirmation) {
+                is TodoDeleteConfirmation.Single -> emptyList()
+                is TodoDeleteConfirmation.Completed -> confirmation.assignedTodoIds
+            }
             val deletedIds = mutableSetOf<Long>()
+            val deletedAssignedIds = mutableSetOf<String>()
             var hasFailure = false
-            confirmation.ids.forEach { id ->
+            todoIds.forEach { id ->
                 deleteTodoUseCase(id)
                     .onSuccess {
                         deletedIds += id
@@ -407,15 +427,30 @@ class TodoListViewModel @Inject constructor(
                         hasFailure = true
                     }
             }
+            assignedTodoIds.forEach { assignedTodoId ->
+                manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
+                    .onSuccess {
+                        deletedAssignedIds += assignedTodoId
+                    }
+                    .onFailure {
+                        hasFailure = true
+                    }
+            }
             updateLocalState {
                 val shouldDismissEditor = editingItem?.id?.let { it in deletedIds } == true
                 val clearedState = if (shouldDismissEditor) dismissTodoEditor() else this
-                clearedState.copy(deleteConfirmation = null)
+                clearedState.copy(
+                    deleteConfirmation = null,
+                    optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - deletedAssignedIds
+                )
             }
 
             if (deletedIds.isNotEmpty()) {
                 notifyCalendarWidgetChanged()
                 syncTodosQuietly()
+            }
+            if (deletedAssignedIds.isNotEmpty()) {
+                refreshAssignedTodosQuietly()
             }
 
             if (hasFailure) {
@@ -441,7 +476,12 @@ class TodoListViewModel @Inject constructor(
         viewModelScope.launch {
             manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
                 .onSuccess {
-                    updateLocalState { copy(pendingAssignedDeleteId = null) }
+                    updateLocalState {
+                        copy(
+                            pendingAssignedDeleteId = null,
+                            optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId
+                        )
+                    }
                     refreshAssignedTodosQuietly()
                 }
                 .onFailure {

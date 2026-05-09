@@ -15,6 +15,7 @@ data class TodoListUiState(
     val profileInitial: String? = null,
     val items: List<TodoItemUiModel> = emptyList(),
     val completedTodoIds: List<Long> = emptyList(),
+    val completedAssignedTodoIds: List<String> = emptyList(),
     val selectedFilter: TodoFilter = TodoFilter.ALL,
     val selectedPriorityFilter: TodoPriorityFilter = TodoPriorityFilter.ALL,
     val selectedSortOption: TodoSortOption = TodoSortOption.DEFAULT,
@@ -36,18 +37,27 @@ data class TodoListUiState(
     @StringRes val quickAddErrorMessageRes: Int? = null,
     val pendingUndoTodo: TodoItem? = null,
     val pendingAssignedDeleteId: String? = null,
+    val optimisticCompletedAssignedTodoIds: Set<String> = emptySet(),
     @StringRes val errorMessageRes: Int? = null
-)
+) {
+    val hasClearableCompletedItems: Boolean
+        get() = completedTodoIds.isNotEmpty() || completedAssignedTodoIds.isNotEmpty()
+}
 
 @Immutable
 sealed interface TodoDeleteConfirmation {
-    val ids: List<Long>
+    val itemCount: Int
 
     data class Single(val id: Long) : TodoDeleteConfirmation {
-        override val ids: List<Long> = listOf(id)
+        override val itemCount: Int = 1
     }
 
-    data class Completed(override val ids: List<Long>) : TodoDeleteConfirmation
+    data class Completed(
+        val todoIds: List<Long>,
+        val assignedTodoIds: List<String>
+    ) : TodoDeleteConfirmation {
+        override val itemCount: Int = todoIds.size + assignedTodoIds.size
+    }
 }
 
 enum class TodoSortOption {

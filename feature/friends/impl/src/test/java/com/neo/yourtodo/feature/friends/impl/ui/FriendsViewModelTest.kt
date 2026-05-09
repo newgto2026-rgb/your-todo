@@ -477,6 +477,22 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun toggleAssignmentSectionExpandsAndCollapsesSection() = runTest {
+        val repository = FakeFriendRepository()
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnToggleAssignmentSection(FriendAssignmentSection.RECEIVED))
+            assertThat(awaitItem().expandedAssignmentSections).containsExactly(FriendAssignmentSection.RECEIVED)
+
+            viewModel.onAction(FriendsAction.OnToggleAssignmentSection(FriendAssignmentSection.RECEIVED))
+            assertThat(awaitItem().expandedAssignmentSections).isEmpty()
+        }
+    }
+
+    @Test
     fun acceptSelectedPendingAssignmentsRefreshesPartialSuccessWhenLaterBundleFails() = runTest {
         val assignmentRepository = FakeAssignmentRepository().apply {
             receivedPendingItems = listOf(

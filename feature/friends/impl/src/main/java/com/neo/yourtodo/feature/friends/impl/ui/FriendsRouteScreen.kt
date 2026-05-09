@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -543,6 +544,11 @@ private fun FriendAssignmentMonitorDialog(
                             title = stringResource(R.string.friends_assignment_sent_history_title),
                             caption = stringResource(R.string.friends_assignment_sent_history_caption),
                             items = detail.sentHistoryItems,
+                            expanded = FriendAssignmentSection.SENT_HISTORY in uiState.expandedAssignmentSections,
+                            onToggleExpanded = {
+                                onAction(FriendsAction.OnToggleAssignmentSection(FriendAssignmentSection.SENT_HISTORY))
+                            },
+                            expandTestTag = "friends_assignment_expand_sent_history",
                             accentColor = Color(0xFF6771C7),
                             containerColor = Color(0xFFF0F3FF)
                         )
@@ -550,6 +556,11 @@ private fun FriendAssignmentMonitorDialog(
                             title = stringResource(R.string.friends_assignment_received_history_title),
                             caption = stringResource(R.string.friends_assignment_received_history_caption),
                             items = detail.receivedHistoryItems,
+                            expanded = FriendAssignmentSection.RECEIVED_HISTORY in uiState.expandedAssignmentSections,
+                            onToggleExpanded = {
+                                onAction(FriendsAction.OnToggleAssignmentSection(FriendAssignmentSection.RECEIVED_HISTORY))
+                            },
+                            expandTestTag = "friends_assignment_expand_received_history",
                             accentColor = Color(0xFF4B9A82),
                             containerColor = Color(0xFFEFF8F4)
                         )
@@ -558,6 +569,11 @@ private fun FriendAssignmentMonitorDialog(
                             title = stringResource(R.string.friends_assignment_sent_title),
                             caption = stringResource(R.string.friends_assignment_sent_caption),
                             items = detail.sentItems,
+                            expanded = FriendAssignmentSection.SENT in uiState.expandedAssignmentSections,
+                            onToggleExpanded = {
+                                onAction(FriendsAction.OnToggleAssignmentSection(FriendAssignmentSection.SENT))
+                            },
+                            expandTestTag = "friends_assignment_expand_sent",
                             accentColor = Color(0xFF6771C7),
                             containerColor = Color(0xFFF0F3FF)
                         )
@@ -565,6 +581,11 @@ private fun FriendAssignmentMonitorDialog(
                             title = stringResource(R.string.friends_assignment_received_title),
                             caption = stringResource(R.string.friends_assignment_received_caption),
                             items = detail.activeReceivedItems,
+                            expanded = FriendAssignmentSection.RECEIVED in uiState.expandedAssignmentSections,
+                            onToggleExpanded = {
+                                onAction(FriendsAction.OnToggleAssignmentSection(FriendAssignmentSection.RECEIVED))
+                            },
+                            expandTestTag = "friends_assignment_expand_received",
                             accentColor = Color(0xFF4B9A82),
                             containerColor = Color(0xFFEFF8F4)
                         )
@@ -841,9 +862,18 @@ private fun AssignmentPreviewList(
     title: String,
     caption: String,
     items: List<AssignmentTodoUiModel>,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    expandTestTag: String,
     accentColor: Color,
     containerColor: Color
 ) {
+    val visibleItems = if (expanded) {
+        items
+    } else {
+        items.take(AssignmentPreviewCollapsedCount)
+    }
+    val hiddenCount = items.size - AssignmentPreviewCollapsedCount
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -879,11 +909,31 @@ private fun AssignmentPreviewList(
             if (items.isEmpty()) {
                 EmptyAssignmentTodoCard(accentColor = accentColor)
             } else {
-                items.take(3).forEach { item ->
+                visibleItems.forEach { item ->
                     AssignmentTodoCard(
                         item = item,
                         accentColor = accentColor
                     )
+                }
+                if (items.size > AssignmentPreviewCollapsedCount) {
+                    TextButton(
+                        onClick = onToggleExpanded,
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .testTag(expandTestTag)
+                    ) {
+                        Text(
+                            text = if (expanded) {
+                                stringResource(R.string.friends_assignment_collapse)
+                            } else {
+                                pluralStringResource(
+                                    R.plurals.friends_assignment_expand_more,
+                                    hiddenCount,
+                                    hiddenCount
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1552,3 +1602,5 @@ private fun LoadingBlock() {
         CircularProgressIndicator()
     }
 }
+
+private const val AssignmentPreviewCollapsedCount = 3

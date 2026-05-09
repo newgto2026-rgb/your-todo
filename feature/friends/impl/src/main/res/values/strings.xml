@@ -42,6 +42,11 @@
     <string name="friends_assignment_received_history_title">Received history</string>
     <string name="friends_assignment_sent_history_caption">Completed requests you sent.</string>
     <string name="friends_assignment_received_history_caption">Completed requests you received.</string>
+    <string name="friends_assignment_collapse">Show less</string>
+    <plurals name="friends_assignment_expand_more">
+        <item quantity="one">Show %1$d more</item>
+        <item quantity="other">Show %1$d more</item>
+    </plurals>
     <string name="friends_dialog_close">Close</string>
     <string name="friends_assignment_sent_metric">Requested by you</string>
     <string name="friends_assignment_received_metric">Received</string>

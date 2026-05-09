@@ -42,6 +42,10 @@
     <string name="friends_assignment_received_history_title">요청받은 일 기록</string>
     <string name="friends_assignment_sent_history_caption">내가 요청했고 완료된 일이에요.</string>
     <string name="friends_assignment_received_history_caption">친구가 요청했고 완료된 일이에요.</string>
+    <string name="friends_assignment_collapse">접기</string>
+    <plurals name="friends_assignment_expand_more">
+        <item quantity="other">%1$d개 더 보기</item>
+    </plurals>
     <string name="friends_dialog_close">닫기</string>
     <string name="friends_assignment_sent_metric">요청함</string>
     <string name="friends_assignment_received_metric">요청받음</string>
