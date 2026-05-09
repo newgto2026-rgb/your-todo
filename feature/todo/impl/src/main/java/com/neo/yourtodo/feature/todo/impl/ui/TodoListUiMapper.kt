@@ -96,6 +96,7 @@ private fun dueDateTodoComparator(): Comparator<TodoItemUiModel> =
     compareBy<TodoItemUiModel> { it.isDone }
         .thenBy { it.dueDate == null }
         .thenBy { it.dueDate ?: LocalDate.MAX }
+        .thenBy { it.dueTimeText == null }
         .thenBy { it.dueTimeText.orEmpty() }
         .thenByDescending { it.priority.sortRank() }
         .thenBy { it.id }
@@ -105,6 +106,7 @@ private fun priorityTodoComparator(): Comparator<TodoItemUiModel> =
         .thenByDescending { it.priority.sortRank() }
         .thenBy { it.dueDate == null }
         .thenBy { it.dueDate ?: LocalDate.MAX }
+        .thenBy { it.dueTimeText == null }
         .thenBy { it.dueTimeText.orEmpty() }
         .thenBy { it.id }
 

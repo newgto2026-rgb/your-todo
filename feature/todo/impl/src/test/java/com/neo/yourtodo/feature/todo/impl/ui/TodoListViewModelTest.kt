@@ -392,6 +392,12 @@ class TodoListViewModelTest {
             priority = TodoPriority.MEDIUM
         )
         repository.addTodo(
+            title = "Today no time",
+            dueDate = today,
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        )
+        repository.addTodo(
             title = "Today early",
             dueDate = today,
             categoryId = null,
@@ -414,6 +420,7 @@ class TodoListViewModelTest {
         assertThat(state.items.map { it.title }).containsExactly(
             "Today early",
             "Today late",
+            "Today no time",
             "Future",
             "No date",
             "Completed urgent"
@@ -436,9 +443,16 @@ class TodoListViewModelTest {
             priority = TodoPriority.HIGH
         )
         repository.addTodo(
-            title = "High today",
+            title = "High today no time",
             dueDate = today,
             categoryId = null,
+            priority = TodoPriority.HIGH
+        )
+        repository.addTodo(
+            title = "High today early",
+            dueDate = today,
+            categoryId = null,
+            dueTimeMinutes = 8 * 60,
             priority = TodoPriority.HIGH
         )
         repository.addTodo(
@@ -454,7 +468,8 @@ class TodoListViewModelTest {
         val state = viewModel.uiState.value
         assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.PRIORITY)
         assertThat(state.items.map { it.title }).containsExactly(
-            "High today",
+            "High today early",
+            "High today no time",
             "High future",
             "Medium overdue",
             "Low today"
