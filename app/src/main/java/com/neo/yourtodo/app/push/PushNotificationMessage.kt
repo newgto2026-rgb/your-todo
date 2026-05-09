@@ -12,6 +12,7 @@ object PushNotificationMessage {
             "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
             "ASSIGNMENT_BUNDLE_FULLY_DECIDED" -> R.string.push_assignment_decided_title
             "ASSIGNED_TODO_COMPLETED" -> R.string.push_assigned_todo_completed_title
+            "ASSIGNED_TODO_REOPENED" -> R.string.push_assigned_todo_reopened_title
             "ASSIGNED_TODO_CANCELED" -> R.string.push_assigned_todo_canceled_title
             else -> R.string.push_default_title
         }
@@ -24,6 +25,7 @@ object PushNotificationMessage {
             "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
             "ASSIGNMENT_BUNDLE_FULLY_DECIDED" -> R.string.push_assignment_decided_body
             "ASSIGNED_TODO_COMPLETED" -> R.string.push_assigned_todo_completed_body
+            "ASSIGNED_TODO_REOPENED" -> R.string.push_assigned_todo_reopened_body
             "ASSIGNED_TODO_CANCELED" -> R.string.push_assigned_todo_canceled_body
             else -> R.string.push_default_body
         }

@@ -48,6 +48,20 @@ class PushNotificationMessageTest {
     }
 
     @Test
+    fun defaultMessage_mapsFakeReopenedPayload() {
+        val data = mapOf(
+            PushNotificationContract.EXTRA_TYPE to "ASSIGNED_TODO_REOPENED",
+            PushNotificationContract.EXTRA_DEEP_LINK to "yourtodo://assigned-todos/sent/assigned-id",
+            PushNotificationContract.EXTRA_ASSIGNED_TODO_ID to "assigned-id"
+        )
+
+        assertThat(PushNotificationMessage.defaultTitle(data))
+            .isEqualTo(R.string.push_assigned_todo_reopened_title)
+        assertThat(PushNotificationMessage.defaultBody(data))
+            .isEqualTo(R.string.push_assigned_todo_reopened_body)
+    }
+
+    @Test
     fun defaultMessage_unknownPayloadFallsBackToGenericUpdate() {
         val data = mapOf(PushNotificationContract.EXTRA_TYPE to "UNKNOWN")
 

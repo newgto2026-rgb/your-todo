@@ -11,6 +11,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.neo.yourtodo.R
 import com.neo.yourtodo.app.MainActivity
 
@@ -49,6 +50,9 @@ object PushNotificationHelper {
         val contentIntent = Intent(context, MainActivity::class.java).apply {
             action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            data[PushNotificationContract.EXTRA_DEEP_LINK]
+                ?.takeIf { it.isNotBlank() }
+                ?.let { deepLink -> setData(deepLink.toUri()) }
             data.forEach { (key, value) -> putExtra(key, value) }
         }
         val pendingIntent = PendingIntent.getActivity(

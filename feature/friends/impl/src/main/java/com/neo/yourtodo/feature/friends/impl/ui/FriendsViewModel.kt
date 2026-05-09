@@ -20,8 +20,11 @@ import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.feature.friends.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -57,6 +61,7 @@ class FriendsViewModel @Inject constructor(
     private var friendDetailObservationJob: Job? = null
     private var pendingIncomingAssignmentTarget: IncomingAssignmentTarget? = null
     private var pendingIncomingAssignmentResolutionJob: Job? = null
+    private var pendingIncomingAssignmentBundleSelectionId: String? = null
 
     init {
         viewModelScope.launch {
@@ -96,6 +101,7 @@ class FriendsViewModel @Inject constructor(
             is FriendsAction.OnFriendClick -> openFriendDetail(action.friend)
             is FriendsAction.OnOpenIncomingAssignment -> openIncomingAssignment(
                 friendUserId = action.friendUserId,
+                friendNickname = action.friendNickname,
                 bundleId = action.bundleId
             )
             FriendsAction.OnCloseFriendDetail -> {
@@ -273,9 +279,10 @@ class FriendsViewModel @Inject constructor(
         }
     }
 
-    private fun openIncomingAssignment(friendUserId: String?, bundleId: String?) {
+    private fun openIncomingAssignment(friendUserId: String?, friendNickname: String?, bundleId: String?) {
         pendingIncomingAssignmentTarget = IncomingAssignmentTarget(
             friendUserId = friendUserId?.takeIf { it.isNotBlank() },
+            friendNickname = friendNickname?.takeIf { it.isNotBlank() },
             bundleId = bundleId?.takeIf { it.isNotBlank() }
         )
         openPendingIncomingAssignmentIfReady()
@@ -284,7 +291,10 @@ class FriendsViewModel @Inject constructor(
     private fun openPendingIncomingAssignmentIfReady() {
         val target = pendingIncomingAssignmentTarget ?: return
         val friend = target.friendUserId
-            ?.let { friendUserId -> uiState.value.friends.firstOrNull { it.userId == friendUserId } }
+            ?.let { friendUserId ->
+                uiState.value.friends.firstOrNull { it.userId == friendUserId }
+                    ?: target.toIncomingAssignmentFriendOrNull()
+            }
             ?: run {
                 resolvePendingIncomingAssignmentByBundle(target)
                 return
@@ -297,15 +307,21 @@ class FriendsViewModel @Inject constructor(
         val bundleId = target.bundleId ?: return
         if (pendingIncomingAssignmentResolutionJob?.isActive == true) return
         pendingIncomingAssignmentResolutionJob = viewModelScope.launch {
-            val senderUserId = getAssignedTodos.received(AssignmentFeedStatus.PENDING)
-                .getOrDefault(emptyList())
+            val pendingItem = getAssignedTodos.observeReceived(AssignmentFeedStatus.PENDING)
+                .first()
                 .firstOrNull { item -> item.bundleId == bundleId }
-                ?.sender
-                ?.id
+                ?: getAssignedTodos.received(AssignmentFeedStatus.PENDING)
+                    .getOrDefault(emptyList())
+                    .firstOrNull { item -> item.bundleId == bundleId }
+            val sender = pendingItem?.sender
             val currentTarget = pendingIncomingAssignmentTarget
-            if (senderUserId == null || currentTarget?.bundleId != bundleId) return@launch
-            pendingIncomingAssignmentTarget = currentTarget.copy(friendUserId = senderUserId)
-            openPendingIncomingAssignmentIfReady()
+            if (sender == null || currentTarget?.bundleId != bundleId) return@launch
+            pendingIncomingAssignmentTarget = null
+            openFriendDetail(
+                friend = uiState.value.friends.firstOrNull { it.userId == sender.id }
+                    ?: sender.toIncomingAssignmentFriend(),
+                initialBundleId = bundleId
+            )
         }
     }
 
@@ -313,6 +329,7 @@ class FriendsViewModel @Inject constructor(
         friend: com.neo.yourtodo.core.model.friends.Friend,
         initialBundleId: String? = null
     ) {
+        pendingIncomingAssignmentBundleSelectionId = initialBundleId?.takeIf { it.isNotBlank() }
         observeFriendAssignmentCache(friend)
         mutableUiState.update {
             it.copy(
@@ -362,6 +379,12 @@ class FriendsViewModel @Inject constructor(
                     receivedHistory = receivedHistory
                 )
             }.collect { snapshot ->
+                val bundleSelectedIds = pendingIncomingAssignmentBundleSelectionId
+                    ?.let { bundleId -> snapshot.received.pendingBundleItemIds(bundleId) }
+                    .orEmpty()
+                if (bundleSelectedIds.isNotEmpty()) {
+                    pendingIncomingAssignmentBundleSelectionId = null
+                }
                 mutableUiState.update {
                     if (it.selectedFriend?.userId != friend.userId) {
                         it
@@ -375,7 +398,11 @@ class FriendsViewModel @Inject constructor(
                             friendReceivedAssignedTodos = snapshot.received,
                             friendSentCompletedHistoryTodos = snapshot.sentHistory,
                             friendReceivedCompletedHistoryTodos = snapshot.receivedHistory,
-                            selectedPendingAssignmentIds = it.selectedPendingAssignmentIds.intersect(validPendingIds)
+                            selectedPendingAssignmentIds = if (bundleSelectedIds.isNotEmpty()) {
+                                bundleSelectedIds
+                            } else {
+                                it.selectedPendingAssignmentIds.intersect(validPendingIds)
+                            }
                         )
                     }
                 }
@@ -416,15 +443,14 @@ class FriendsViewModel @Inject constructor(
             ) {
                 val receivedItems = received.getOrThrow()
                 val validPendingIds = receivedItems.pendingDecisionItems().map { item -> item.id }.toSet()
-                val initialSelectedIds = initialBundleId
+                val initialSelectedIds = (initialBundleId ?: pendingIncomingAssignmentBundleSelectionId)
                     ?.let { bundleId ->
-                        receivedItems
-                            .pendingDecisionItems()
-                            .filter { item -> item.bundleId == bundleId }
-                            .map { item -> item.id }
-                            .toSet()
+                        receivedItems.pendingBundleItemIds(bundleId)
                     }
                     .orEmpty()
+                if (initialSelectedIds.isNotEmpty()) {
+                    pendingIncomingAssignmentBundleSelectionId = null
+                }
                 it.copy(
                     selectedFriend = friend,
                     friendDetailLoading = false,
@@ -700,10 +726,34 @@ private data class FriendAssignmentCacheSnapshot(
     val receivedHistory: List<AssignedTodo>
 )
 
-private data class IncomingAssignmentTarget(
+internal data class IncomingAssignmentTarget(
     val friendUserId: String?,
+    val friendNickname: String?,
     val bundleId: String?
 )
+
+internal fun IncomingAssignmentTarget.toIncomingAssignmentFriendOrNull(): Friend? {
+    val userId = friendUserId ?: return null
+    val nickname = friendNickname ?: return null
+    return Friend(
+        friendshipId = userId,
+        userId = userId,
+        nickname = nickname,
+        status = FriendshipStatus.ACTIVE,
+        createdAt = "",
+        removedAt = null
+    )
+}
+
+internal fun AssignedTodoUser.toIncomingAssignmentFriend(): Friend =
+    Friend(
+        friendshipId = id,
+        userId = id,
+        nickname = nickname,
+        status = FriendshipStatus.ACTIVE,
+        createdAt = "",
+        removedAt = null
+    )
 
 internal fun FriendsUiState.decisionPendingAssignedTodos(): List<AssignedTodo> =
     friendReceivedAssignedTodos.pendingDecisionItems()
@@ -712,6 +762,12 @@ internal fun List<AssignedTodo>.pendingDecisionItems(): List<AssignedTodo> =
     filter { item ->
         item.status == AssignedTodoStatus.PENDING_ACCEPTANCE && item.bundleId != null
     }
+
+internal fun List<AssignedTodo>.pendingBundleItemIds(bundleId: String): Set<String> =
+    pendingDecisionItems()
+        .filter { item -> item.bundleId == bundleId }
+        .map { item -> item.id }
+        .toSet()
 
 internal fun dueTimeTextToMinutes(value: String): Int? {
     if (value.isBlank()) return null

@@ -103,7 +103,9 @@ import kotlinx.coroutines.flow.StateFlow
 fun FriendsRouteScreen(
     workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
     onWorkspaceSyncClick: () -> Unit = {},
+    initialFriendsRouteKey: Any = Unit,
     initialIncomingAssignmentFriendUserId: String? = null,
+    initialIncomingAssignmentFriendNickname: String? = null,
     initialIncomingAssignmentBundleId: String? = null,
     viewModel: FriendsViewModel = hiltViewModel()
 ) {
@@ -126,11 +128,12 @@ fun FriendsRouteScreen(
             }
         }
     }
-    LaunchedEffect(initialIncomingAssignmentFriendUserId, initialIncomingAssignmentBundleId) {
+    LaunchedEffect(initialFriendsRouteKey, initialIncomingAssignmentFriendUserId, initialIncomingAssignmentBundleId) {
         if (!initialIncomingAssignmentFriendUserId.isNullOrBlank() || !initialIncomingAssignmentBundleId.isNullOrBlank()) {
             viewModel.onAction(
                 FriendsAction.OnOpenIncomingAssignment(
                     friendUserId = initialIncomingAssignmentFriendUserId,
+                    friendNickname = initialIncomingAssignmentFriendNickname,
                     bundleId = initialIncomingAssignmentBundleId
                 )
             )

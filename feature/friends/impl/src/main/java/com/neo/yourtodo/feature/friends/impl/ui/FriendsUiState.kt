@@ -160,6 +160,7 @@ sealed interface FriendsAction {
     data class OnFriendClick(val friend: Friend) : FriendsAction
     data class OnOpenIncomingAssignment(
         val friendUserId: String?,
+        val friendNickname: String? = null,
         val bundleId: String?
     ) : FriendsAction
     data object OnCloseFriendDetail : FriendsAction

@@ -20,6 +20,8 @@
     <string name="push_assignment_decided_body">Open Friends to check the response.</string>
     <string name="push_assigned_todo_completed_title">Shared todo completed</string>
     <string name="push_assigned_todo_completed_body">Open Friends to check the completed todo.</string>
+    <string name="push_assigned_todo_reopened_title">Shared todo reopened</string>
+    <string name="push_assigned_todo_reopened_body">Open Friends to check the reopened todo.</string>
     <string name="push_assigned_todo_canceled_title">Shared todo canceled</string>
     <string name="push_assigned_todo_canceled_body">Open Friends to check the canceled todo.</string>
 </resources>
