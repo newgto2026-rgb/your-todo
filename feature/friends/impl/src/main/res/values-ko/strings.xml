@@ -26,7 +26,11 @@
     <string name="friends_request_accepted">친구가 되었어요.</string>
     <string name="friends_request_declined">요청을 거절했어요.</string>
     <string name="friends_removed">친구를 끊었어요.</string>
+    <string name="friends_assignment_open_editor">할 일</string>
     <string name="friends_assignment_dialog_title">%1$s님과 공유한 일</string>
+    <string name="friends_assignment_monitor_subtitle">주고받은 할 일과 진척률만 확인해요.</string>
+    <string name="friends_assignment_editor_title">%1$s님에게 할 일 보내기</string>
+    <string name="friends_assignment_editor_subtitle">일반 할 일처럼 작성하고, 리마인더만 빼고 보내요.</string>
     <string name="friends_assignment_sent_title">내가 준 일</string>
     <string name="friends_assignment_received_title">내가 받은 일</string>
     <string name="friends_assignment_sent_metric">준 일</string>
@@ -36,7 +40,8 @@
     <string name="friends_assignment_item_summary">%1$s · %2$d%%</string>
     <string name="friends_assignment_title_placeholder">할 일 제목</string>
     <string name="friends_assignment_description_placeholder">내용</string>
-    <string name="friends_assignment_due_date_placeholder">YYYY-MM-DD</string>
+    <string name="friends_assignment_due_date_placeholder">마감일 선택</string>
+    <string name="friends_assignment_due_date_clear">지우기</string>
     <string name="friends_assignment_add_draft">묶음에 추가</string>
     <string name="friends_assignment_send_now">즉시 보내기</string>
     <string name="friends_assignment_send_batch">묶어서 보내기</string>

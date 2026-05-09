@@ -326,8 +326,8 @@ class FriendsViewModelTest {
         viewModel.uiState.test {
             skipItems(2)
 
-            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
-            skipItems(2)
+            viewModel.onAction(FriendsAction.OnOpenAssignmentEditor(friend()))
+            assertThat(awaitItem().assignmentTargetFriend?.userId).isEqualTo("friend-1")
 
             viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Buy milk"))
             assertThat(awaitItem().assignmentTitleInput).isEqualTo("Buy milk")
@@ -339,6 +339,7 @@ class FriendsViewModelTest {
             assertThat(assignmentRepository.lastReceiverUserId).isEqualTo("friend-1")
             assertThat(assignmentRepository.lastItems).hasSize(1)
             assertThat(sent.assignmentTitleInput).isEmpty()
+            assertThat(sent.assignmentTargetFriend).isNull()
             cancelAndIgnoreRemainingEvents()
         }
     }

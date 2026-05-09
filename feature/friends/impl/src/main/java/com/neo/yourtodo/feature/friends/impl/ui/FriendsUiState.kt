@@ -19,6 +19,7 @@ data class FriendsUiState(
     val addFriendExpanded: Boolean = false,
     val nicknameInput: String = "",
     val selectedFriend: Friend? = null,
+    val assignmentTargetFriend: Friend? = null,
     val friendDetailLoading: Boolean = false,
     val friendAssignmentSummary: FriendAssignmentSummary? = null,
     val friendSentAssignedTodos: List<AssignedTodo> = emptyList(),
@@ -46,6 +47,8 @@ sealed interface FriendsAction {
     data class OnRemoveFriend(val friendshipId: String) : FriendsAction
     data class OnFriendClick(val friend: Friend) : FriendsAction
     data object OnCloseFriendDetail : FriendsAction
+    data class OnOpenAssignmentEditor(val friend: Friend) : FriendsAction
+    data object OnCloseAssignmentEditor : FriendsAction
     data class OnAssignmentTitleChanged(val value: String) : FriendsAction
     data class OnAssignmentDescriptionChanged(val value: String) : FriendsAction
     data class OnAssignmentDueDateChanged(val value: String) : FriendsAction

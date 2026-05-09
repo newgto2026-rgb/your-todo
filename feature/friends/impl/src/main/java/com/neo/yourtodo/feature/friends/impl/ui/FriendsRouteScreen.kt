@@ -3,6 +3,7 @@ package com.neo.yourtodo.feature.friends.impl.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,9 +24,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -32,6 +37,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,7 +53,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +72,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,6 +85,9 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.ui.YourTodoBrandHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.friends.impl.R
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 @Composable
 fun FriendsRouteScreen(
@@ -185,6 +199,7 @@ private fun FriendsScreen(
                                 friend = friend,
                                 removing = uiState.runningActionKey == "remove:${friend.friendshipId}",
                                 onClick = { onAction(FriendsAction.OnFriendClick(friend)) },
+                                onSendTodo = { onAction(FriendsAction.OnOpenAssignmentEditor(friend)) },
                                 onRemove = { onAction(FriendsAction.OnRemoveFriend(friend.friendshipId)) }
                             )
                         }
@@ -206,7 +221,14 @@ private fun FriendsScreen(
     }
 
     uiState.selectedFriend?.let { friend ->
-        FriendAssignmentDialog(
+        FriendAssignmentMonitorSheet(
+            uiState = uiState,
+            friend = friend,
+            onAction = onAction
+        )
+    }
+    uiState.assignmentTargetFriend?.let { friend ->
+        FriendAssignmentEditorSheet(
             uiState = uiState,
             friend = friend,
             onAction = onAction
@@ -382,6 +404,7 @@ private fun FriendRow(
     friend: Friend,
     removing: Boolean,
     onClick: () -> Unit,
+    onSendTodo: () -> Unit,
     onRemove: () -> Unit
 ) {
     var showRemoveDialog by remember(friend.friendshipId) { mutableStateOf(false) }
@@ -420,6 +443,17 @@ private fun FriendRow(
             subtitle = null,
             modifier = Modifier.weight(1f)
         )
+        TextButton(
+            onClick = onSendTodo,
+            enabled = !removing,
+            modifier = Modifier.testTag("friends_send_todo_${friend.userId}")
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+            Text(
+                text = stringResource(R.string.friends_assignment_open_editor),
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
         IconButton(
             onClick = { showRemoveDialog = true },
             enabled = !removing,
@@ -449,7 +483,7 @@ private fun OutgoingRequestRow(request: FriendRequest) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FriendAssignmentDialog(
+private fun FriendAssignmentMonitorSheet(
     uiState: FriendsUiState,
     friend: Friend,
     onAction: (FriendsAction) -> Unit
@@ -459,7 +493,7 @@ private fun FriendAssignmentDialog(
         onDismissRequest = { onAction(FriendsAction.OnCloseFriendDetail) },
         sheetState = sheetState,
         containerColor = Color.White,
-        modifier = Modifier.testTag("friends_assignment_dialog"),
+        modifier = Modifier.testTag("friends_assignment_monitor_sheet"),
     ) {
         Column(
             modifier = Modifier
@@ -471,7 +505,7 @@ private fun FriendAssignmentDialog(
             FriendIdentity(
                 initial = friend.initial,
                 nickname = stringResource(R.string.friends_assignment_dialog_title, friend.nickname),
-                subtitle = stringResource(R.string.friends_subtitle)
+                subtitle = stringResource(R.string.friends_assignment_monitor_subtitle)
             )
             if (uiState.friendDetailLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -488,28 +522,12 @@ private fun FriendAssignmentDialog(
                 title = stringResource(R.string.friends_assignment_received_title),
                 items = uiState.friendReceivedAssignedTodos
             )
-            AssignmentDraftForm(
-                uiState = uiState,
-                onAction = onAction
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = { onAction(FriendsAction.OnCloseFriendDetail) }) {
                     Text(stringResource(R.string.friends_remove_cancel))
-                }
-                TextButton(
-                    onClick = { onAction(FriendsAction.OnSendAssignmentDrafts) },
-                    enabled = uiState.assignmentDraftItems.isNotEmpty() ||
-                        uiState.assignmentTitleInput.trim().isNotEmpty(),
-                    modifier = Modifier.testTag("friends_assignment_send_batch")
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(
-                        text = stringResource(R.string.friends_assignment_send_batch),
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
                 }
             }
         }
@@ -601,47 +619,221 @@ private fun AssignmentPreviewList(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AssignmentDraftForm(
+private fun FriendAssignmentEditorSheet(
+    uiState: FriendsUiState,
+    friend: Friend,
+    onAction: (FriendsAction) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scrollState = rememberScrollState()
+
+    ModalBottomSheet(
+        onDismissRequest = { onAction(FriendsAction.OnCloseAssignmentEditor) },
+        sheetState = sheetState,
+        containerColor = Color(0xFFF6F7FB),
+        modifier = Modifier.testTag("friends_assignment_editor_sheet")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.friends_assignment_editor_title, friend.nickname),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF323640)
+                    )
+                    Text(
+                        text = stringResource(R.string.friends_assignment_editor_subtitle),
+                        modifier = Modifier.padding(top = 4.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF647286)
+                    )
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFEAECF3),
+                    onClick = { onAction(FriendsAction.OnCloseAssignmentEditor) },
+                    modifier = Modifier.testTag("friends_assignment_editor_close")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = null,
+                        modifier = Modifier.padding(10.dp),
+                        tint = Color(0xFF5C6170)
+                    )
+                }
+            }
+
+            AssignmentEditorForm(uiState = uiState, onAction = onAction)
+
+            DraftItemsRow(
+                items = uiState.assignmentDraftItems,
+                onRemove = { onAction(FriendsAction.OnRemoveAssignmentDraft(it)) }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                TextButton(
+                    onClick = { onAction(FriendsAction.OnAddAssignmentDraft) },
+                    enabled = uiState.assignmentTitleInput.trim().isNotEmpty(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                        .testTag("friends_assignment_add_draft")
+                ) {
+                    Text(stringResource(R.string.friends_assignment_add_draft))
+                }
+                Button(
+                    onClick = { onAction(FriendsAction.OnSendAssignmentNow) },
+                    enabled = uiState.assignmentTitleInput.trim().isNotEmpty(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                        .testTag("friends_assignment_send_now"),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF676CB4))
+                ) {
+                    Text(stringResource(R.string.friends_assignment_send_now))
+                }
+            }
+            Button(
+                onClick = { onAction(FriendsAction.OnSendAssignmentDrafts) },
+                enabled = uiState.assignmentDraftItems.isNotEmpty() ||
+                    uiState.assignmentTitleInput.trim().isNotEmpty(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("friends_assignment_send_batch"),
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF303440))
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(
+                    text = stringResource(R.string.friends_assignment_send_batch),
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AssignmentEditorForm(
     uiState: FriendsUiState,
     onAction: (FriendsAction) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        TextField(
             value = uiState.assignmentTitleInput,
             onValueChange = { onAction(FriendsAction.OnAssignmentTitleChanged(it)) },
             modifier = Modifier
                 .fillMaxWidth()
+                .height(96.dp)
                 .testTag("friends_assignment_title"),
             placeholder = { Text(stringResource(R.string.friends_assignment_title_placeholder)) },
-            singleLine = true
+            singleLine = false,
+            shape = RoundedCornerShape(14.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            colors = editorTextFieldColors()
         )
-        OutlinedTextField(
+        TextField(
             value = uiState.assignmentDescriptionInput,
             onValueChange = { onAction(FriendsAction.OnAssignmentDescriptionChanged(it)) },
             modifier = Modifier
                 .fillMaxWidth()
+                .height(96.dp)
                 .testTag("friends_assignment_description"),
             placeholder = { Text(stringResource(R.string.friends_assignment_description_placeholder)) },
-            minLines = 2
+            singleLine = false,
+            shape = RoundedCornerShape(14.dp),
+            colors = editorTextFieldColors()
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = uiState.assignmentDueDateInput,
-                onValueChange = { onAction(FriendsAction.OnAssignmentDueDateChanged(it)) },
+        Surface(
+            onClick = { showDatePicker = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("friends_assignment_due_date"),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFFEBEDF4)
+        ) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .testTag("friends_assignment_due_date"),
-                placeholder = { Text(stringResource(R.string.friends_assignment_due_date_placeholder)) },
-                singleLine = true
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarMonth,
+                    contentDescription = null,
+                    tint = Color(0xFF5C6170)
+                )
+                Spacer(Modifier.size(10.dp))
+                Text(
+                    text = uiState.assignmentDueDateInput.ifBlank {
+                        stringResource(R.string.friends_assignment_due_date_placeholder)
+                    },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (uiState.assignmentDueDateInput.isBlank()) {
+                        Color(0xFF8E94A3)
+                    } else {
+                        Color(0xFF2F3441)
+                    }
+                )
+                if (uiState.assignmentDueDateInput.isNotBlank()) {
+                    TextButton(
+                        onClick = { onAction(FriendsAction.OnAssignmentDueDateChanged("")) },
+                        modifier = Modifier.testTag("friends_assignment_due_date_clear")
+                    ) {
+                        Text(stringResource(R.string.friends_assignment_due_date_clear))
+                    }
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             TodoPriority.entries.forEach { priority ->
-                TextButton(
+                Surface(
                     onClick = { onAction(FriendsAction.OnAssignmentPriorityChanged(priority)) },
-                    modifier = Modifier.testTag("friends_assignment_priority_${priority.name.lowercase()}")
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("friends_assignment_priority_${priority.name.lowercase()}"),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (uiState.assignmentPriority == priority) {
+                        Color(0xFFE7E9FF)
+                    } else {
+                        Color(0xFFEBEDF4)
+                    },
+                    border = if (uiState.assignmentPriority == priority) {
+                        BorderStroke(1.dp, Color(0xFF676CB4))
+                    } else {
+                        null
+                    }
                 ) {
                     Text(
                         text = stringResource(priority.shortLabelRes()),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        textAlign = TextAlign.Center,
                         color = if (uiState.assignmentPriority == priority) {
                             Color(0xFF676CB4)
                         } else {
@@ -651,30 +843,35 @@ private fun AssignmentDraftForm(
                 }
             }
         }
-        DraftItemsRow(
-            items = uiState.assignmentDraftItems,
-            onRemove = { onAction(FriendsAction.OnRemoveAssignmentDraft(it)) }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = isoDateToUtcMillis(uiState.assignmentDueDateInput)
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onAction(
+                            FriendsAction.OnAssignmentDueDateChanged(
+                                utcMillisToIsoDate(datePickerState.selectedDateMillis)
+                            )
+                        )
+                        showDatePicker = false
+                    }
+                ) {
+                    Text(stringResource(R.string.friends_accept))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(R.string.friends_remove_cancel))
+                }
+            }
         ) {
-            TextButton(
-                onClick = { onAction(FriendsAction.OnAddAssignmentDraft) },
-                enabled = uiState.assignmentTitleInput.trim().isNotEmpty(),
-                modifier = Modifier.testTag("friends_assignment_add_draft")
-            ) {
-                Text(stringResource(R.string.friends_assignment_add_draft))
-            }
-            Button(
-                onClick = { onAction(FriendsAction.OnSendAssignmentNow) },
-                enabled = uiState.assignmentTitleInput.trim().isNotEmpty(),
-                modifier = Modifier.testTag("friends_assignment_send_now"),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF676CB4))
-            ) {
-                Text(stringResource(R.string.friends_assignment_send_now))
-            }
+            DatePicker(state = datePickerState)
         }
     }
 }
@@ -715,6 +912,30 @@ private fun TodoPriority.shortLabelRes(): Int = when (this) {
     TodoPriority.MEDIUM -> R.string.friends_assignment_priority_medium
     TodoPriority.HIGH -> R.string.friends_assignment_priority_high
 }
+
+@Composable
+private fun editorTextFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = Color(0xFFEBEDF4),
+    unfocusedContainerColor = Color(0xFFEBEDF4),
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent
+)
+
+private fun isoDateToUtcMillis(value: String): Long? =
+    runCatching {
+        LocalDate.parse(value)
+            .atStartOfDay()
+            .toInstant(ZoneOffset.UTC)
+            .toEpochMilli()
+    }.getOrNull()
+
+private fun utcMillisToIsoDate(value: Long?): String =
+    value?.let {
+        Instant.ofEpochMilli(it)
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
+            .toString()
+    }.orEmpty()
 
 @Composable
 private fun FriendSurface(

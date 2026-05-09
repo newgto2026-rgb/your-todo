@@ -14,6 +14,7 @@ import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -82,7 +83,23 @@ class FriendsViewModel @Inject constructor(
                     selectedFriend = null,
                     friendAssignmentSummary = null,
                     friendSentAssignedTodos = emptyList(),
-                    friendReceivedAssignedTodos = emptyList(),
+                    friendReceivedAssignedTodos = emptyList()
+                )
+            }
+            is FriendsAction.OnOpenAssignmentEditor -> mutableUiState.update {
+                it.copy(
+                    assignmentTargetFriend = action.friend,
+                    assignmentDraftItems = emptyList(),
+                    assignmentTitleInput = "",
+                    assignmentDescriptionInput = "",
+                    assignmentDueDateInput = "",
+                    assignmentPriority = TodoPriority.MEDIUM,
+                    error = null
+                )
+            }
+            FriendsAction.OnCloseAssignmentEditor -> mutableUiState.update {
+                it.copy(
+                    assignmentTargetFriend = null,
                     assignmentDraftItems = emptyList(),
                     assignmentTitleInput = "",
                     assignmentDescriptionInput = "",
@@ -235,7 +252,7 @@ class FriendsViewModel @Inject constructor(
 
     private fun sendAssignment(includeDrafts: Boolean) {
         val state = uiState.value
-        val friend = state.selectedFriend ?: return
+        val friend = state.assignmentTargetFriend ?: return
         val currentDraft = currentAssignmentDraftOrNull()
         val items = if (includeDrafts) {
             state.assignmentDraftItems + listOfNotNull(currentDraft)
@@ -250,6 +267,7 @@ class FriendsViewModel @Inject constructor(
             onSuccess = {
                 mutableUiState.update {
                     it.copy(
+                        assignmentTargetFriend = null,
                         assignmentDraftItems = emptyList(),
                         assignmentTitleInput = "",
                         assignmentDescriptionInput = "",
@@ -259,7 +277,9 @@ class FriendsViewModel @Inject constructor(
             }
         ) {
             createAssignmentBundle(friend.userId, items).also { result ->
-                if (result.isSuccess) refreshFriendDetail(friend.userId)
+                if (result.isSuccess && uiState.value.selectedFriend?.userId == friend.userId) {
+                    refreshFriendDetail(friend.userId)
+                }
             }.map { Unit }
         }
     }
