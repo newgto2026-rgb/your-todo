@@ -4,6 +4,7 @@ import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoItem
+import com.neo.yourtodo.core.model.TodoSyncStatus
 import java.time.LocalDate
 
 fun TodoEntity.toDomain(): TodoItem =
@@ -21,7 +22,14 @@ fun TodoEntity.toDomain(): TodoItem =
         reminderRepeatType = ReminderRepeatType.valueOf(reminderRepeatType),
         reminderRepeatDaysMask = reminderRepeatDaysMask,
         reminderLeadMinutes = reminderLeadMinutes,
-        priority = TodoPriority.entries.find { it.name == priority } ?: TodoPriority.MEDIUM
+        priority = TodoPriority.entries.find { it.name == priority } ?: TodoPriority.MEDIUM,
+        serverId = serverId,
+        clientId = clientId,
+        ownerUserId = ownerUserId,
+        syncStatus = TodoSyncStatus.entries.find { it.name == syncStatus } ?: TodoSyncStatus.LOCAL_ONLY,
+        serverRevision = serverRevision,
+        deletedAt = deletedAt,
+        lastSyncError = lastSyncError
     )
 
 fun TodoItem.toEntity(): TodoEntity =
@@ -39,5 +47,12 @@ fun TodoItem.toEntity(): TodoEntity =
         createdAt = createdAt,
         updatedAt = updatedAt,
         categoryId = categoryId,
-        priority = priority.name
+        priority = priority.name,
+        serverId = serverId,
+        clientId = clientId,
+        ownerUserId = ownerUserId,
+        syncStatus = syncStatus.name,
+        serverRevision = serverRevision,
+        deletedAt = deletedAt,
+        lastSyncError = lastSyncError
     )

@@ -17,7 +17,10 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["categoryId"]),
-        Index(value = ["isReminderEnabled", "reminderAtEpochMillis"])
+        Index(value = ["isReminderEnabled", "reminderAtEpochMillis"]),
+        Index(value = ["ownerUserId", "serverId"], unique = true),
+        Index(value = ["ownerUserId", "clientId"], unique = true),
+        Index(value = ["syncStatus"])
     ]
 )
 data class TodoEntity(
@@ -35,5 +38,12 @@ data class TodoEntity(
     val reminderRepeatDaysMask: Int = 0,
     val dueTimeMinutes: Int? = null,
     val reminderLeadMinutes: Int? = null,
-    val priority: String = "MEDIUM"
+    val priority: String = "MEDIUM",
+    val serverId: String? = null,
+    val clientId: String? = null,
+    val ownerUserId: String? = null,
+    val syncStatus: String = "LOCAL_ONLY",
+    val serverRevision: String? = null,
+    val deletedAt: Long? = null,
+    val lastSyncError: String? = null
 )

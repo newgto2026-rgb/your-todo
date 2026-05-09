@@ -8,6 +8,7 @@ import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
@@ -64,6 +65,7 @@ class TodoListViewModelTest {
             updateTodoUseCase = UpdateTodoUseCase(repository),
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
+            syncTodosUseCase = SyncTodosUseCase(repository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,
@@ -85,6 +87,24 @@ class TodoListViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.profileInitial).isEqualTo("taeyunlive")
+    }
+
+    @Test
+    fun screenStartedKeepsSyncingUntilScreenStopped() = runTest {
+        advanceUntilIdle()
+        val initialSyncCount = repository.syncCount
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        assertThat(repository.syncCount).isGreaterThan(initialSyncCount)
+
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        val stoppedSyncCount = repository.syncCount
+        mainDispatcherRule.testDispatcher.scheduler.advanceTimeBy(30_000)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        assertThat(repository.syncCount).isEqualTo(stoppedSyncCount)
     }
 
     @Test

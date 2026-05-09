@@ -8,6 +8,9 @@ internal class RetrofitAuthNetworkDataSource @Inject constructor(
     override suspend fun signInWithGoogle(idToken: String): NetworkAuthSession =
         authApi.signInWithGoogle(GoogleSignInRequest(idToken = idToken))
 
+    override suspend fun refreshSession(refreshToken: String): NetworkAuthSession =
+        authApi.refreshSession(RefreshTokenRequest(refreshToken = refreshToken))
+
     override suspend fun completeNicknameOnboarding(
         accessToken: String,
         nickname: String

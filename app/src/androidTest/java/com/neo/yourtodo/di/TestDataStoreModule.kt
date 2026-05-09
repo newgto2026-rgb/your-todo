@@ -30,11 +30,15 @@ private class InMemoryUserPreferencesDataSource : UserPreferencesDataSource {
     private val selectedFilter = MutableStateFlow(TodoFilter.ALL)
     private val selectedCategoryFilter = MutableStateFlow<Long?>(null)
     private val selectedPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private val todoSyncCursorFlow = MutableStateFlow<String?>(null)
+    private val todoSyncHaltReasonFlow = MutableStateFlow<String?>(null)
 
     override val authSession: Flow<AuthSessionData?> = authSessionFlow
     override val selectedTodoFilter: Flow<TodoFilter> = selectedFilter
     override val selectedTodoCategoryFilter: Flow<Long?> = selectedCategoryFilter
     override val selectedTodoPriorityFilter: Flow<TodoPriorityFilter> = selectedPriorityFilter
+    override val todoSyncCursor: Flow<String?> = todoSyncCursorFlow
+    override val todoSyncHaltReason: Flow<String?> = todoSyncHaltReasonFlow
 
     override suspend fun saveAuthSession(session: AuthSessionData) {
         authSessionFlow.value = session
@@ -54,6 +58,19 @@ private class InMemoryUserPreferencesDataSource : UserPreferencesDataSource {
 
     override suspend fun setSelectedTodoPriorityFilter(filter: TodoPriorityFilter) {
         selectedPriorityFilter.value = filter
+    }
+
+    override suspend fun setTodoSyncCursor(cursor: String?) {
+        todoSyncCursorFlow.value = cursor
+    }
+
+    override suspend fun setTodoSyncHaltReason(reason: String?) {
+        todoSyncHaltReasonFlow.value = reason
+    }
+
+    override suspend fun clearTodoSyncState() {
+        todoSyncCursorFlow.value = null
+        todoSyncHaltReasonFlow.value = null
     }
 
     private fun testAuthSession() = AuthSessionData(

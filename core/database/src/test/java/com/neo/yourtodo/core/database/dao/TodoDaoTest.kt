@@ -93,6 +93,46 @@ class TodoDaoTest {
     }
 
     @Test
+    fun observeTodos_excludesPendingDeleteAndTombstoneRows() = runTest {
+        dao.insert(
+            TodoEntity(
+                title = "visible",
+                isDone = false,
+                dueDateEpochDay = null,
+                createdAt = 300L,
+                updatedAt = 300L,
+                categoryId = null
+            )
+        )
+        dao.insert(
+            TodoEntity(
+                title = "pending-delete",
+                isDone = false,
+                dueDateEpochDay = null,
+                createdAt = 200L,
+                updatedAt = 200L,
+                categoryId = null,
+                syncStatus = "PENDING_DELETE"
+            )
+        )
+        dao.insert(
+            TodoEntity(
+                title = "tombstone",
+                isDone = false,
+                dueDateEpochDay = null,
+                createdAt = 100L,
+                updatedAt = 100L,
+                categoryId = null,
+                deletedAt = 100L
+            )
+        )
+
+        val list = dao.observeTodos().first()
+
+        assertThat(list.map { it.title }).containsExactly("visible")
+    }
+
+    @Test
     fun observeTodosByDueDateRange_includesMonthBoundariesOnly() = runTest {
         dao.insert(
             TodoEntity(

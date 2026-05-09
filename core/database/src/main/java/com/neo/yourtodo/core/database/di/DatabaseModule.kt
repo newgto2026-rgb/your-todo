@@ -7,6 +7,7 @@ import com.neo.yourtodo.core.database.AppDatabaseMigrations
 import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.dao.TodoDao
+import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,12 +32,16 @@ object DatabaseModule {
             AppDatabaseMigrations.MIGRATION_3_4,
             AppDatabaseMigrations.MIGRATION_4_5,
             AppDatabaseMigrations.MIGRATION_5_6,
-            AppDatabaseMigrations.MIGRATION_6_7
+            AppDatabaseMigrations.MIGRATION_6_7,
+            AppDatabaseMigrations.MIGRATION_7_8
         )
             .build()
 
     @Provides
     fun provideTodoDao(database: AppDatabase): TodoDao = database.todoDao()
+
+    @Provides
+    fun provideTodoOutboxDao(database: AppDatabase): TodoOutboxDao = database.todoOutboxDao()
 
     @Provides
     fun provideCategoryDao(database: AppDatabase): CategoryDao = database.categoryDao()

@@ -1,6 +1,10 @@
 package com.neo.yourtodo.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
+import com.neo.yourtodo.core.database.dao.TodoDao
+import com.neo.yourtodo.core.database.dao.TodoOutboxDao
+import com.neo.yourtodo.core.database.entity.TodoEntity
+import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
@@ -22,7 +26,7 @@ class AuthRepositoryImplTest {
     fun signInWithGoogleSavesNetworkSession() = runTest {
         val network = FakeAuthNetworkDataSource()
         val preferences = FakeUserPreferencesDataSource()
-        val repository = AuthRepositoryImpl(network, preferences)
+        val repository = repository(network, preferences)
 
         val result = repository.signInWithGoogle("google-token")
 
@@ -36,7 +40,9 @@ class AuthRepositoryImplTest {
     fun signOutClearsSavedSession() = runTest {
         val repository = AuthRepositoryImpl(
             networkDataSource = FakeAuthNetworkDataSource(),
-            preferencesDataSource = FakeUserPreferencesDataSource()
+            preferencesDataSource = FakeUserPreferencesDataSource(),
+            todoDao = FakeTodoDao(),
+            todoOutboxDao = FakeTodoOutboxDao()
         )
         repository.signInWithGoogle("google-token")
 
@@ -46,10 +52,125 @@ class AuthRepositoryImplTest {
     }
 
     @Test
+    fun signOutClearsServerScopedTodosOutboxAndSyncState() = runTest {
+        val preferences = FakeUserPreferencesDataSource()
+        val todoDao = FakeTodoDao()
+        val todoOutboxDao = FakeTodoOutboxDao()
+        val repository = repository(
+            preferences = preferences,
+            todoDao = todoDao,
+            todoOutboxDao = todoOutboxDao
+        )
+        repository.signInWithGoogle("google-token")
+        preferences.setTodoSyncCursor("3")
+        preferences.setTodoSyncHaltReason("AUTH_REQUIRED")
+
+        repository.signOut()
+
+        assertThat(todoOutboxDao.deletedOwnerUserId).isEqualTo("user-id")
+        assertThat(todoDao.deletedOwnerUserId).isEqualTo("user-id")
+        assertThat(preferences.todoSyncCursor.first()).isNull()
+        assertThat(preferences.todoSyncHaltReason.first()).isNull()
+        assertThat(repository.authSession.first()).isNull()
+    }
+
+    @Test
+    fun signOutKeepsLocalOnlyTodosAndPreventsPreviousUserServerDataLeak() = runTest {
+        val preferences = FakeUserPreferencesDataSource()
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 1L,
+                    title = "user a local",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    ownerUserId = "user-a",
+                    syncStatus = "LOCAL_ONLY"
+                ),
+                TodoEntity(
+                    id = 2L,
+                    title = "user a server",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    ownerUserId = "user-a",
+                    syncStatus = "SYNCED",
+                    serverId = "server-a"
+                ),
+                TodoEntity(
+                    id = 3L,
+                    title = "user b server",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    ownerUserId = "user-b",
+                    syncStatus = "SYNCED",
+                    serverId = "server-b"
+                )
+            )
+        }
+        val todoOutboxDao = FakeTodoOutboxDao().apply {
+            seed(
+                TodoOutboxEntity(
+                    id = 1L,
+                    ownerUserId = "user-a",
+                    clientMutationId = "mutation-a",
+                    todoLocalId = 2L,
+                    serverId = "server-a",
+                    clientId = "client-a",
+                    type = "UPDATE",
+                    payloadJson = "{}",
+                    createdAt = 1L
+                ),
+                TodoOutboxEntity(
+                    id = 2L,
+                    ownerUserId = "user-b",
+                    clientMutationId = "mutation-b",
+                    todoLocalId = 3L,
+                    serverId = "server-b",
+                    clientId = "client-b",
+                    type = "UPDATE",
+                    payloadJson = "{}",
+                    createdAt = 1L
+                )
+            )
+        }
+        val repository = repository(
+            preferences = preferences,
+            todoDao = todoDao,
+            todoOutboxDao = todoOutboxDao
+        )
+        preferences.saveAuthSession(
+            AuthSessionData(
+                accessToken = "access-a",
+                refreshToken = "refresh-a",
+                userId = "user-a",
+                nickname = "neo-a",
+                email = "a@example.com",
+                onboardingRequired = false
+            )
+        )
+        preferences.setTodoSyncCursor("10")
+
+        repository.signOut()
+
+        assertThat(todoDao.items.map { it.title }).containsExactly("user a local", "user b server")
+        assertThat(todoOutboxDao.items.map { it.ownerUserId }).containsExactly("user-b")
+        assertThat(preferences.todoSyncCursor.first()).isNull()
+    }
+
+    @Test
     fun completeNicknameOnboardingUpdatesSavedSessionUser() = runTest {
         val network = FakeAuthNetworkDataSource()
         val preferences = FakeUserPreferencesDataSource()
-        val repository = AuthRepositoryImpl(network, preferences)
+        val repository = repository(network, preferences)
         repository.signInWithGoogle("google-token")
 
         val result = repository.completeNicknameOnboarding("태윤")
@@ -62,6 +183,19 @@ class AuthRepositoryImplTest {
         assertThat(repository.authSession.first()?.user?.nickname).isEqualTo("태윤")
         assertThat(repository.authSession.first()?.user?.onboardingRequired).isFalse()
     }
+
+    private fun repository(
+        network: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
+        preferences: FakeUserPreferencesDataSource = FakeUserPreferencesDataSource(),
+        todoDao: FakeTodoDao = FakeTodoDao(),
+        todoOutboxDao: FakeTodoOutboxDao = FakeTodoOutboxDao()
+    ): AuthRepositoryImpl =
+        AuthRepositoryImpl(
+            networkDataSource = network,
+            preferencesDataSource = preferences,
+            todoDao = todoDao,
+            todoOutboxDao = todoOutboxDao
+        )
 
     private class FakeAuthNetworkDataSource : AuthNetworkDataSource {
         var lastIdToken: String? = null
@@ -82,6 +216,18 @@ class AuthRepositoryImplTest {
             )
         }
 
+        override suspend fun refreshSession(refreshToken: String): NetworkAuthSession =
+            NetworkAuthSession(
+                accessToken = "refreshed-access-token",
+                refreshToken = "refreshed-refresh-token",
+                user = NetworkAuthUser(
+                    id = "user-id",
+                    nickname = "neo",
+                    email = "neo@example.com",
+                    onboardingRequired = false
+                )
+            )
+
         override suspend fun completeNicknameOnboarding(
             accessToken: String,
             nickname: String
@@ -101,12 +247,16 @@ class AuthRepositoryImplTest {
 
     private class FakeUserPreferencesDataSource : UserPreferencesDataSource {
         private val savedAuthSession = MutableStateFlow<AuthSessionData?>(null)
+        private val syncCursor = MutableStateFlow<String?>(null)
+        private val syncHaltReason = MutableStateFlow<String?>(null)
 
         override val authSession: Flow<AuthSessionData?> = savedAuthSession
         override val selectedTodoFilter: Flow<TodoFilter> = flowOf(TodoFilter.ALL)
         override val selectedTodoCategoryFilter: Flow<Long?> = flowOf(null)
         override val selectedTodoPriorityFilter: Flow<TodoPriorityFilter> =
             flowOf(TodoPriorityFilter.ALL)
+        override val todoSyncCursor: Flow<String?> = syncCursor
+        override val todoSyncHaltReason: Flow<String?> = syncHaltReason
 
         override suspend fun saveAuthSession(session: AuthSessionData) {
             savedAuthSession.value = session
@@ -119,5 +269,95 @@ class AuthRepositoryImplTest {
         override suspend fun setSelectedTodoFilter(filter: TodoFilter) = Unit
         override suspend fun setSelectedTodoCategoryFilter(categoryId: Long?) = Unit
         override suspend fun setSelectedTodoPriorityFilter(filter: TodoPriorityFilter) = Unit
+        override suspend fun setTodoSyncCursor(cursor: String?) {
+            syncCursor.value = cursor
+        }
+
+        override suspend fun setTodoSyncHaltReason(reason: String?) {
+            syncHaltReason.value = reason
+        }
+
+        override suspend fun clearTodoSyncState() {
+            syncCursor.value = null
+            syncHaltReason.value = null
+        }
+    }
+
+    private class FakeTodoDao : TodoDao {
+        var deletedOwnerUserId: String? = null
+        val items = mutableListOf<TodoEntity>()
+
+        fun seed(vararg todos: TodoEntity) {
+            items.clear()
+            items.addAll(todos)
+        }
+
+        override fun observeTodos(): Flow<List<TodoEntity>> = flowOf(items)
+        override fun observeTodosByDueDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<TodoEntity>> =
+            flowOf(emptyList())
+
+        override suspend fun insert(todo: TodoEntity): Long {
+            items.add(todo)
+            return todo.id
+        }
+
+        override suspend fun update(todo: TodoEntity) {
+            items.replaceAll { if (it.id == todo.id) todo else it }
+        }
+
+        override suspend fun delete(todo: TodoEntity) {
+            items.removeAll { it.id == todo.id }
+        }
+
+        override suspend fun getTodoById(id: Long): TodoEntity? = items.firstOrNull { it.id == id }
+        override suspend fun getTodoByServerId(ownerUserId: String, serverId: String): TodoEntity? = null
+        override suspend fun getTodoByClientId(ownerUserId: String, clientId: String): TodoEntity? = null
+        override suspend fun deleteSyncedTodosByOwner(ownerUserId: String) {
+            deletedOwnerUserId = ownerUserId
+            items.removeAll { it.ownerUserId == ownerUserId && it.syncStatus != "LOCAL_ONLY" }
+        }
+        override suspend fun getTodosWithActiveReminder(): List<TodoEntity> = emptyList()
+    }
+
+    private class FakeTodoOutboxDao : TodoOutboxDao {
+        var deletedOwnerUserId: String? = null
+        val items = mutableListOf<TodoOutboxEntity>()
+
+        fun seed(vararg outbox: TodoOutboxEntity) {
+            items.clear()
+            items.addAll(outbox)
+        }
+
+        override suspend fun getPendingMutations(ownerUserId: String): List<TodoOutboxEntity> =
+            items.filter { it.ownerUserId == ownerUserId }
+
+        override suspend fun getByTodoLocalId(todoLocalId: Long): TodoOutboxEntity? =
+            items.firstOrNull { it.todoLocalId == todoLocalId }
+
+        override suspend fun insert(outbox: TodoOutboxEntity): Long {
+            items.add(outbox)
+            return outbox.id
+        }
+
+        override suspend fun update(outbox: TodoOutboxEntity) {
+            items.replaceAll { if (it.id == outbox.id) outbox else it }
+        }
+
+        override suspend fun delete(outbox: TodoOutboxEntity) {
+            items.removeAll { it.id == outbox.id }
+        }
+
+        override suspend fun deleteById(id: Long) {
+            items.removeAll { it.id == id }
+        }
+
+        override suspend fun deleteByTodoLocalId(todoLocalId: Long) {
+            items.removeAll { it.todoLocalId == todoLocalId }
+        }
+
+        override suspend fun deleteByOwner(ownerUserId: String) {
+            deletedOwnerUserId = ownerUserId
+            items.removeAll { it.ownerUserId == ownerUserId }
+        }
     }
 }

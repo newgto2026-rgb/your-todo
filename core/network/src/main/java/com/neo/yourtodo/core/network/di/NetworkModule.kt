@@ -4,6 +4,9 @@ import com.neo.yourtodo.core.network.BuildConfig
 import com.neo.yourtodo.core.network.auth.AuthApi
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.RetrofitAuthNetworkDataSource
+import com.neo.yourtodo.core.network.sync.RetrofitTodoSyncNetworkDataSource
+import com.neo.yourtodo.core.network.sync.TodoSyncApi
+import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -24,7 +27,8 @@ internal object NetworkProvidesModule {
     @Singleton
     fun provideJson(): Json = Json {
         ignoreUnknownKeys = true
-        explicitNulls = false
+        encodeDefaults = true
+        explicitNulls = true
     }
 
     @Provides
@@ -57,6 +61,10 @@ internal object NetworkProvidesModule {
     @Provides
     @Singleton
     fun provideAuthApi(retrofit: Retrofit): AuthApi = retrofit.create(AuthApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideTodoSyncApi(retrofit: Retrofit): TodoSyncApi = retrofit.create(TodoSyncApi::class.java)
 }
 
 @Module
@@ -67,4 +75,10 @@ internal abstract class NetworkBindsModule {
     abstract fun bindAuthNetworkDataSource(
         impl: RetrofitAuthNetworkDataSource
     ): AuthNetworkDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindTodoSyncNetworkDataSource(
+        impl: RetrofitTodoSyncNetworkDataSource
+    ): TodoSyncNetworkDataSource
 }

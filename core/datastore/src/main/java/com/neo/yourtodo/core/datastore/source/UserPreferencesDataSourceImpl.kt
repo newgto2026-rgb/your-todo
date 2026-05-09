@@ -12,6 +12,8 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_NICKN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_CATEGORY_FILTER
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_FILTER
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_PRIORITY_FILTER
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.TODO_SYNC_CURSOR
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.TODO_SYNC_HALT_REASON
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import kotlinx.coroutines.flow.Flow
@@ -63,6 +65,12 @@ class UserPreferencesDataSourceImpl @Inject constructor(
                 ?: TodoPriorityFilter.ALL
         }
 
+    override val todoSyncCursor: Flow<String?> =
+        dataStore.data.map { prefs -> prefs[TODO_SYNC_CURSOR] }
+
+    override val todoSyncHaltReason: Flow<String?> =
+        dataStore.data.map { prefs -> prefs[TODO_SYNC_HALT_REASON] }
+
     override suspend fun saveAuthSession(session: AuthSessionData) {
         dataStore.edit { prefs ->
             prefs[AUTH_ACCESS_TOKEN] = session.accessToken
@@ -108,6 +116,33 @@ class UserPreferencesDataSourceImpl @Inject constructor(
     override suspend fun setSelectedTodoPriorityFilter(filter: TodoPriorityFilter) {
         dataStore.edit { prefs ->
             prefs[SELECTED_TODO_PRIORITY_FILTER] = filter.name
+        }
+    }
+
+    override suspend fun setTodoSyncCursor(cursor: String?) {
+        dataStore.edit { prefs ->
+            if (cursor.isNullOrBlank()) {
+                prefs.remove(TODO_SYNC_CURSOR)
+            } else {
+                prefs[TODO_SYNC_CURSOR] = cursor
+            }
+        }
+    }
+
+    override suspend fun setTodoSyncHaltReason(reason: String?) {
+        dataStore.edit { prefs ->
+            if (reason.isNullOrBlank()) {
+                prefs.remove(TODO_SYNC_HALT_REASON)
+            } else {
+                prefs[TODO_SYNC_HALT_REASON] = reason
+            }
+        }
+    }
+
+    override suspend fun clearTodoSyncState() {
+        dataStore.edit { prefs ->
+            prefs.remove(TODO_SYNC_CURSOR)
+            prefs.remove(TODO_SYNC_HALT_REASON)
         }
     }
 

@@ -54,8 +54,10 @@ import java.util.Locale
 import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -146,6 +148,27 @@ class TodoUiTest {
         composeTestRule.waitUntilDisplayedTodoScreenText("all", title)
         composeTestRule.onDisplayedTodoScreenText("all", title).assertIsDisplayed()
         composeTestRule.onNodeWithTag("quick_add_slot").assertIsDisplayed()
+    }
+
+    @Test
+    fun quickAddFlow_withSignedInSessionCreatesPendingCreateTodo() {
+        val title = "Quick Add Sync Pending ${System.currentTimeMillis()}"
+
+        composeTestRule.onNodeWithTag("quick_add_open").performClick()
+        composeTestRule.waitUntilNodeExists("quick_add_title_input")
+        composeTestRule.onNodeWithTag("quick_add_title_input").performClick().performTextInput(title)
+        composeTestRule.onNodeWithTag("quick_add_submit").performClick()
+
+        composeTestRule.waitUntilDisplayedTodoScreenText("all", title)
+        val saved = runBlocking {
+            appDatabase.todoDao().observeTodos().first().single { it.title == title }
+        }
+        val outbox = runBlocking {
+            appDatabase.todoOutboxDao().getPendingMutations("android-test-user")
+        }
+        assertEquals("PENDING_CREATE", saved.syncStatus)
+        assertEquals("android-test-user", saved.ownerUserId)
+        assertEquals(1, outbox.count { it.todoLocalId == saved.id && it.type == "CREATE" })
     }
 
     @Test

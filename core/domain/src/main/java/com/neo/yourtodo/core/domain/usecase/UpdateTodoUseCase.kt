@@ -26,6 +26,9 @@ class UpdateTodoUseCase @Inject constructor(
         if (normalizedTitle.isBlank()) {
             return Result.failure(IllegalArgumentException("Title must not be blank"))
         }
+        if (normalizedTitle.length > MAX_TITLE_LENGTH) {
+            return Result.failure(IllegalArgumentException("Title must be $MAX_TITLE_LENGTH characters or less"))
+        }
         return repository.updateTodo(
             id = id,
             title = normalizedTitle,
@@ -39,5 +42,9 @@ class UpdateTodoUseCase @Inject constructor(
             reminderLeadMinutes = reminderLeadMinutes,
             priority = priority
         )
+    }
+
+    private companion object {
+        private const val MAX_TITLE_LENGTH = 200
     }
 }

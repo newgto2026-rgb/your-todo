@@ -13,6 +13,11 @@ data class NicknameOnboardingRequest(
 )
 
 @Serializable
+data class RefreshTokenRequest(
+    val refreshToken: String
+)
+
+@Serializable
 data class NetworkAuthSession(
     val accessToken: String,
     val refreshToken: String,

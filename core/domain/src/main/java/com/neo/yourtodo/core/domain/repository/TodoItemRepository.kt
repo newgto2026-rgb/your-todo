@@ -40,4 +40,5 @@ interface TodoItemRepository {
 
     suspend fun deleteTodo(id: Long): Result<Unit>
     suspend fun toggleTodoDone(id: Long): Result<Unit>
+    suspend fun syncTodos(): Result<Unit>
 }

@@ -103,4 +103,39 @@ object AppDatabaseMigrations {
             db.execSQL("ALTER TABLE `todo` ADD COLUMN `priority` TEXT NOT NULL DEFAULT 'MEDIUM'")
         }
     }
+
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `todo` ADD COLUMN `serverId` TEXT")
+            db.execSQL("ALTER TABLE `todo` ADD COLUMN `clientId` TEXT")
+            db.execSQL("ALTER TABLE `todo` ADD COLUMN `ownerUserId` TEXT")
+            db.execSQL("ALTER TABLE `todo` ADD COLUMN `syncStatus` TEXT NOT NULL DEFAULT 'LOCAL_ONLY'")
+            db.execSQL("ALTER TABLE `todo` ADD COLUMN `serverRevision` TEXT")
+            db.execSQL("ALTER TABLE `todo` ADD COLUMN `deletedAt` INTEGER")
+            db.execSQL("ALTER TABLE `todo` ADD COLUMN `lastSyncError` TEXT")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_todo_ownerUserId_serverId` ON `todo` (`ownerUserId`, `serverId`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_todo_ownerUserId_clientId` ON `todo` (`ownerUserId`, `clientId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_syncStatus` ON `todo` (`syncStatus`)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `todo_outbox` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `ownerUserId` TEXT NOT NULL,
+                    `clientMutationId` TEXT NOT NULL,
+                    `todoLocalId` INTEGER,
+                    `serverId` TEXT,
+                    `clientId` TEXT,
+                    `type` TEXT NOT NULL,
+                    `payloadJson` TEXT NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    `retryCount` INTEGER NOT NULL DEFAULT 0,
+                    `lastError` TEXT
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_todo_outbox_clientMutationId` ON `todo_outbox` (`clientMutationId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_outbox_todoLocalId` ON `todo_outbox` (`todoLocalId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_todo_outbox_ownerUserId_createdAt` ON `todo_outbox` (`ownerUserId`, `createdAt`)")
+        }
+    }
 }

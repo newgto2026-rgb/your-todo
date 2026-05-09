@@ -10,6 +10,11 @@ internal interface AuthApi {
         @Body request: GoogleSignInRequest
     ): NetworkAuthSession
 
+    @POST("api/auth/refresh")
+    suspend fun refreshSession(
+        @Body request: RefreshTokenRequest
+    ): NetworkAuthSession
+
     @POST("api/users/me/onboarding")
     suspend fun completeNicknameOnboarding(
         @Header("Authorization") authorization: String,

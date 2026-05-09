@@ -9,6 +9,7 @@ import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
@@ -20,6 +21,8 @@ import com.neo.yourtodo.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,6 +40,7 @@ class TodoListViewModel @Inject constructor(
     private val updateTodoUseCase: UpdateTodoUseCase,
     private val deleteTodoUseCase: DeleteTodoUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
+    private val syncTodosUseCase: SyncTodosUseCase,
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
     private val getTodoUseCase: GetTodoUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
@@ -48,6 +52,8 @@ class TodoListViewModel @Inject constructor(
     private val todoItems = observeTodosUseCase()
     private val authSession = observeAuthSessionUseCase()
     private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private var syncJob: Job? = null
+    private var foregroundSyncJob: Job? = null
 
     val sideEffect = sideEffectMutable.asSharedFlow()
 
@@ -69,6 +75,10 @@ class TodoListViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = TodoListUiState(isLoading = true)
     )
+
+    init {
+        syncTodosQuietly()
+    }
 
     fun setRouteFilter(filter: TodoFilter) {
         if (uiLocalState.value.selectedFilter != filter) {
@@ -137,6 +147,8 @@ class TodoListViewModel @Inject constructor(
             is TodoListAction.OnFilterChange -> updateFilter(action.filter)
             is TodoListAction.OnPriorityFilterChange -> updatePriorityFilter(action.filter)
             is TodoListAction.OnSortOptionChange -> updateSortOption(action.option)
+            TodoListAction.OnScreenStarted -> startForegroundSync()
+            TodoListAction.OnScreenStopped -> stopForegroundSync()
 
             TodoListAction.OnDismissDialog -> updateLocalState { dismissTodoEditor() }
         }
@@ -183,6 +195,7 @@ class TodoListViewModel @Inject constructor(
             if (result.isSuccess) {
                 result.getOrNull()?.let { syncTodoReminder(it) }
                 notifyCalendarWidgetChanged()
+                syncTodosQuietly()
                 uiLocalState.value = current.dismissTodoEditor()
             } else {
                 sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_error_save_failed))
@@ -239,6 +252,7 @@ class TodoListViewModel @Inject constructor(
                 priority = priority
             ).onSuccess {
                 notifyCalendarWidgetChanged()
+                syncTodosQuietly()
                 updateLocalState {
                     copy(
                         isQuickAddVisible = true,
@@ -267,6 +281,7 @@ class TodoListViewModel @Inject constructor(
             toggleTodoDoneUseCase(id)
                 .onSuccess {
                     notifyCalendarWidgetChanged()
+                    syncTodosQuietly()
                 }
                 .onFailure {
                     sideEffectMutable.emit(
@@ -330,6 +345,7 @@ class TodoListViewModel @Inject constructor(
 
             if (deletedIds.isNotEmpty()) {
                 notifyCalendarWidgetChanged()
+                syncTodosQuietly()
             }
 
             if (hasFailure) {
@@ -372,6 +388,7 @@ class TodoListViewModel @Inject constructor(
                 uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = previous)
                 syncTodoReminder(id)
                 notifyCalendarWidgetChanged()
+                syncTodosQuietly()
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
                         messageRes = R.string.todo_action_moved_to_tomorrow,
@@ -406,6 +423,7 @@ class TodoListViewModel @Inject constructor(
                 uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = previous)
                 todoReminderScheduler.cancel(id)
                 notifyCalendarWidgetChanged()
+                syncTodosQuietly()
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(
                         messageRes = R.string.todo_action_schedule_cleared,
@@ -455,6 +473,7 @@ class TodoListViewModel @Inject constructor(
                     uiLocalState.value = uiLocalState.value.copy(pendingUndoTodo = null)
                     syncTodoReminder(previous.id)
                     notifyCalendarWidgetChanged()
+                    syncTodosQuietly()
                     sideEffectMutable.emit(TodoListSideEffect.ShowSnackbar(R.string.todo_action_restored))
                 }
                 .onFailure {
@@ -513,6 +532,28 @@ class TodoListViewModel @Inject constructor(
         }
     }
 
+    private fun syncTodosQuietly() {
+        if (syncJob?.isActive == true) return
+        syncJob = viewModelScope.launch {
+            syncTodosUseCase()
+        }
+    }
+
+    private fun startForegroundSync() {
+        if (foregroundSyncJob?.isActive == true) return
+        foregroundSyncJob = viewModelScope.launch {
+            while (true) {
+                syncTodosQuietly()
+                delay(ForegroundSyncIntervalMillis)
+            }
+        }
+    }
+
+    private fun stopForegroundSync() {
+        foregroundSyncJob?.cancel()
+        foregroundSyncJob = null
+    }
+
     private suspend fun notifyCalendarWidgetChanged() {
         calendarWidgetUpdater.updateCalendarWidgets()
     }
@@ -544,3 +585,5 @@ class TodoListViewModel @Inject constructor(
         return reminderAt.takeIf { it > System.currentTimeMillis() }
     }
 }
+
+private const val ForegroundSyncIntervalMillis = 15_000L

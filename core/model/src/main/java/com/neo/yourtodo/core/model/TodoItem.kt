@@ -16,5 +16,12 @@ data class TodoItem(
     val reminderRepeatDaysMask: Int = 0,
     val dueTimeMinutes: Int? = null,
     val reminderLeadMinutes: Int? = null,
-    val priority: TodoPriority = TodoPriority.MEDIUM
+    val priority: TodoPriority = TodoPriority.MEDIUM,
+    val serverId: String? = null,
+    val clientId: String? = null,
+    val ownerUserId: String? = null,
+    val syncStatus: TodoSyncStatus = TodoSyncStatus.LOCAL_ONLY,
+    val serverRevision: String? = null,
+    val deletedAt: Long? = null,
+    val lastSyncError: String? = null
 )
