@@ -3,18 +3,24 @@ package com.neo.yourtodo.feature.friends.impl.ui
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
+import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.model.auth.AuthSession
+import com.neo.yourtodo.core.model.auth.AuthUser
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.friends.FriendRequestStatus
 import com.neo.yourtodo.core.model.friends.FriendUser
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -88,6 +94,17 @@ class FriendsViewModelTest {
             assertThat(closed.addFriendExpanded).isFalse()
             assertThat(closed.nicknameInput).isEmpty()
         }
+    }
+
+    @Test
+    fun profileInitialComesFromAuthSessionNickname() = runTest {
+        val authRepository = FakeAuthRepository().apply {
+            authSession.value = authSession(nickname = "taeyunlive")
+        }
+        val viewModel = FakeFriendRepository().createViewModel(authRepository)
+
+        val state = viewModel.uiState.first { it.profileInitial == "taeyunlive" }
+        assertThat(state.profileInitial).isEqualTo("taeyunlive")
     }
 
     @Test
@@ -234,14 +251,29 @@ class FriendsViewModelTest {
         }
     }
 
-    private fun FakeFriendRepository.createViewModel() =
+    private fun FakeFriendRepository.createViewModel(
+        authRepository: FakeAuthRepository = FakeAuthRepository()
+    ) =
         FriendsViewModel(
             getFriends = GetFriendsUseCase(this),
             getFriendRequests = GetFriendRequestsUseCase(this),
             sendFriendRequest = SendFriendRequestUseCase(this),
             respondFriendRequest = RespondFriendRequestUseCase(this),
-            removeFriend = RemoveFriendUseCase(this)
+            removeFriend = RemoveFriendUseCase(this),
+            observeAuthSession = ObserveAuthSessionUseCase(authRepository)
         )
+
+    private class FakeAuthRepository : AuthRepository {
+        override val authSession = MutableStateFlow<AuthSession?>(null)
+
+        override suspend fun signInWithGoogle(idToken: String): Result<AuthSession> =
+            error("Not used.")
+
+        override suspend fun completeNicknameOnboarding(nickname: String): Result<AuthSession> =
+            error("Not used.")
+
+        override suspend fun signOut() = Unit
+    }
 
     private class FakeFriendRepository(
         private val getFriendsResult: Result<List<Friend>>? = null,
@@ -279,6 +311,17 @@ class FriendsViewModelTest {
         override suspend fun removeFriend(friendshipId: String): Result<Unit> = removeResult
     }
 }
+
+private fun authSession(nickname: String) = AuthSession(
+    accessToken = "access",
+    refreshToken = "refresh",
+    user = AuthUser(
+        id = "me",
+        nickname = nickname,
+        email = "me@example.com",
+        onboardingRequired = false
+    )
+)
 
 private fun friend() = Friend(
     friendshipId = "friendship-1",

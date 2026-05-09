@@ -8,6 +8,7 @@ import com.neo.yourtodo.feature.friends.impl.R
 data class FriendsUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
+    val profileInitial: String? = null,
     val friends: List<Friend> = emptyList(),
     val incomingRequests: List<FriendRequest> = emptyList(),
     val outgoingRequests: List<FriendRequest> = emptyList(),

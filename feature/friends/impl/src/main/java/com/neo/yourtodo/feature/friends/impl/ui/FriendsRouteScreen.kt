@@ -61,6 +61,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
+import com.neo.yourtodo.core.ui.YourTodoBrandHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.friends.impl.R
 
@@ -116,6 +117,13 @@ private fun FriendsScreen(
             ) {
                 item {
                     Spacer(Modifier.height(10.dp))
+                    YourTodoBrandHeader(
+                        wordmarkContentDescription = stringResource(R.string.friends_app_header_title),
+                        profileContentDescription = stringResource(R.string.friends_header_profile_icon),
+                        profileInitial = uiState.profileInitial
+                    )
+                }
+                item {
                     FriendsHeader(
                         isRefreshing = uiState.isRefreshing,
                         onRefresh = { onAction(FriendsAction.OnRefresh) },

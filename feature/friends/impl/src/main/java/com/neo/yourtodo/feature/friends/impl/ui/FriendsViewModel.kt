@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
@@ -23,7 +24,8 @@ class FriendsViewModel @Inject constructor(
     private val getFriendRequests: GetFriendRequestsUseCase,
     private val sendFriendRequest: SendFriendRequestUseCase,
     private val respondFriendRequest: RespondFriendRequestUseCase,
-    private val removeFriend: RemoveFriendUseCase
+    private val removeFriend: RemoveFriendUseCase,
+    observeAuthSession: ObserveAuthSessionUseCase
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow(FriendsUiState())
     val uiState: StateFlow<FriendsUiState> = mutableUiState
@@ -32,6 +34,11 @@ class FriendsViewModel @Inject constructor(
     val sideEffect: SharedFlow<FriendsSideEffect> = mutableSideEffect
 
     init {
+        viewModelScope.launch {
+            observeAuthSession().collect { session ->
+                mutableUiState.update { it.copy(profileInitial = session?.user?.nickname) }
+            }
+        }
         refresh(initial = true)
     }
 
