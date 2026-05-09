@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
@@ -41,10 +42,14 @@ class GoogleIdTokenReader(
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(googleIdOption)
             .build()
-        val response = credentialManager.getCredential(
-            context = context,
-            request = request
-        )
+        val response = try {
+            credentialManager.getCredential(
+                context = context,
+                request = request
+            )
+        } catch (error: NoCredentialException) {
+            throw IllegalStateException("No Google credential was returned.", error)
+        }
         val credential = response.credential
         if (
             credential !is CustomCredential ||
