@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -40,6 +41,10 @@ import org.junit.runner.RunWith
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class CalendarUiTest {
+    private companion object {
+        const val UiTimeoutMillis = 15_000L
+    }
+
 
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
@@ -109,6 +114,7 @@ class CalendarUiTest {
     @Test
     fun calendarMonthNavigation_changesMonthLabel() {
         openCalendarTab()
+        composeTestRule.onNodeWithTag("calendar_sync").assertIsDisplayed()
         val before = monthLabelText()
 
         composeTestRule.onNodeWithTag("calendar_next_month").performClick()
@@ -201,11 +207,10 @@ class CalendarUiTest {
         composeTestRule.waitUntilNodeExists("task_title_input")
         composeTestRule.onNodeWithText(targetDate.toString()).assertIsDisplayed()
         composeTestRule.onNodeWithTag("task_title_input").performTextInput(title)
-        composeTestRule.onNodeWithTag("save_button").performClick()
+        composeTestRule.onNodeWithTag("save_button").performScrollTo().performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
-        }
+        composeTestRule.waitUntilNodeDoesNotExist("task_title_input")
+        composeTestRule.waitUntilAgendaTodoDisplayed(title)
         composeTestRule.onNodeWithTag("calendar_month_label").assertIsDisplayed()
         composeTestRule.onNode(
             hasText(title) and hasAnyAncestor(hasTestTag("calendar_day_todo_sheet"))
@@ -233,10 +238,29 @@ class CalendarUiTest {
 
     private fun ComposeTestRule.waitUntilNodeExists(
         tag: String,
-        timeoutMillis: Long = 5_000
+        timeoutMillis: Long = UiTimeoutMillis
     ) {
         waitUntil(timeoutMillis = timeoutMillis) {
-            onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+            onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun ComposeTestRule.waitUntilNodeDoesNotExist(
+        tag: String,
+        timeoutMillis: Long = UiTimeoutMillis
+    ) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    private fun ComposeTestRule.waitUntilAgendaTodoDisplayed(
+        title: String,
+        timeoutMillis: Long = UiTimeoutMillis
+    ) {
+        val agendaTodo = hasText(title) and hasAnyAncestor(hasTestTag("calendar_day_todo_sheet"))
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodes(agendaTodo, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

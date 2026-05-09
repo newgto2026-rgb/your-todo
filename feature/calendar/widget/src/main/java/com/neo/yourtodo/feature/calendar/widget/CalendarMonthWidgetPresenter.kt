@@ -1,8 +1,10 @@
 package com.neo.yourtodo.feature.calendar.widget
 
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -14,6 +16,7 @@ import javax.inject.Inject
 
 internal class CalendarMonthWidgetPresenter @Inject constructor(
     private val summarySource: CalendarMonthSummarySource,
+    private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val clock: Clock
 ) {
     suspend fun present(
@@ -27,6 +30,10 @@ internal class CalendarMonthWidgetPresenter @Inject constructor(
 
         return runCatching {
             val summaries = summarySource.summariesFor(currentMonth)
+                .withAssignedTodos(
+                    yearMonth = currentMonth,
+                    assignedTodos = getAssignedTodosUseCase.visibleReceived().getOrDefault(emptyList())
+                )
             CalendarMonthWidgetState(
                 monthLabel = monthLabel,
                 weekdayLabels = buildWeekdayLabels(locale),
@@ -104,6 +111,38 @@ internal class CalendarMonthWidgetPresenter @Inject constructor(
     private val DateTodoSummary.totalCount: Int
         get() = indicatorCount + overflowCount
 
+    private fun Map<LocalDate, DateTodoSummary>.withAssignedTodos(
+        yearMonth: YearMonth,
+        assignedTodos: List<AssignedTodo>
+    ): Map<LocalDate, DateTodoSummary> {
+        val mutable = toMutableMap()
+        assignedTodos
+            .filter { it.dueDate != null && YearMonth.from(it.dueDate) == yearMonth }
+            .groupBy { checkNotNull(it.dueDate) }
+            .forEach { (date, dateAssignedTodos) ->
+                val existing = mutable[date]
+                val assignedSummaries = dateAssignedTodos.map {
+                    TodoSummary(
+                        id = stableAssignedRowId(it.id),
+                        title = it.title,
+                        isDone = it.isDone,
+                        dueTimeMinutes = it.dueTimeMinutes,
+                        priority = it.priority,
+                        createdAt = it.createdAt?.toEpochMilli() ?: 0L
+                    )
+                }
+                val todos = existing?.todos.orEmpty() + assignedSummaries
+                val indicatorCount = minOf(todos.size, 3)
+                mutable[date] = DateTodoSummary(
+                    date = date,
+                    todos = todos,
+                    indicatorCount = indicatorCount,
+                    overflowCount = kotlin.math.max(todos.size - indicatorCount, 0)
+                )
+            }
+        return mutable
+    }
+
     private val todoPreviewComparator: Comparator<TodoSummary> =
         compareBy<TodoSummary> { it.isDone }
             .thenBy { it.dueTimeMinutes ?: Int.MAX_VALUE }
@@ -114,6 +153,11 @@ internal class CalendarMonthWidgetPresenter @Inject constructor(
         TodoPriority.HIGH -> 3
         TodoPriority.MEDIUM -> 2
         TodoPriority.LOW -> 1
+    }
+
+    private fun stableAssignedRowId(id: String): Long {
+        val positiveHash = id.hashCode().toLong().let { if (it == Long.MIN_VALUE) 0 else kotlin.math.abs(it) }
+        return -positiveHash - 1
     }
 
     private companion object {

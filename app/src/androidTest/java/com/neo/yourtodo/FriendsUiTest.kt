@@ -1,5 +1,6 @@
 package com.neo.yourtodo
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
@@ -89,6 +90,21 @@ class FriendsUiTest {
         composeTestRule.onNodeWithTag("friends_add_close").performClick()
 
         composeTestRule.waitUntilNodeGone("friends_nickname_input")
+    }
+
+    @Test
+    fun friendsTabOpensSharedTodoEditorLikeTodoEditor() {
+        composeTestRule.onNodeWithTag("app_tab_friends").performClick()
+        composeTestRule.waitUntilNodeExists("friends_screen")
+
+        composeTestRule.onNodeWithTag("friends_send_todo_friend-1").performClick()
+
+        composeTestRule.waitUntilNodeExists("friends_assignment_editor_sheet")
+        composeTestRule.onNodeWithTag("friends_assignment_title").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("friends_assignment_due_date").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("friends_assignment_due_time").assertIsDisplayed()
+        composeTestRule.onAllNodes(hasTestTag("friends_assignment_description"))
+            .assertCountEquals(0)
     }
 
     private fun ComposeTestRule.waitUntilNodeExists(

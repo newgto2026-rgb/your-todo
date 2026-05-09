@@ -1,8 +1,10 @@
 package com.neo.yourtodo.core.data.di
 
+import com.neo.yourtodo.core.data.repository.AssignmentRepositoryImpl
 import com.neo.yourtodo.core.data.repository.AuthRepositoryImpl
 import com.neo.yourtodo.core.data.repository.ReminderRepositoryImpl
 import com.neo.yourtodo.core.data.repository.TodoRepositoryImpl
+import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.ReminderRepository
 import com.neo.yourtodo.core.domain.repository.TodoCategoryRepository
@@ -21,6 +23,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAssignmentRepository(impl: AssignmentRepositoryImpl): AssignmentRepository
 
     @Binds
     @Singleton

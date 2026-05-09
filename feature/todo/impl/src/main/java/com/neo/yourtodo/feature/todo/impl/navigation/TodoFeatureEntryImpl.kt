@@ -42,7 +42,9 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
                 onAddRequested = { dueDate ->
                     routeActions.openTodoAdd(dueDate?.toString().orEmpty())
                 },
-                onEditRequested = routeActions::openTodoEdit
+                onEditRequested = routeActions::openTodoEdit,
+                workspaceSyncState = routeActions.workspaceSyncState,
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
             )
         }
         entryProviderScope.entry<TodoTodayRoute> {
@@ -53,7 +55,9 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
                 onAddRequested = { dueDate ->
                     routeActions.openTodoAdd(dueDate?.toString().orEmpty())
                 },
-                onEditRequested = routeActions::openTodoEdit
+                onEditRequested = routeActions::openTodoEdit,
+                workspaceSyncState = routeActions.workspaceSyncState,
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
             )
         }
         entryProviderScope.entry<TodoCompletedRoute> {
@@ -64,7 +68,9 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
                 onAddRequested = { dueDate ->
                     routeActions.openTodoAdd(dueDate?.toString().orEmpty())
                 },
-                onEditRequested = routeActions::openTodoEdit
+                onEditRequested = routeActions::openTodoEdit,
+                workspaceSyncState = routeActions.workspaceSyncState,
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
             )
         }
         entryProviderScope.entry<TodoEditorRoute>(
@@ -72,6 +78,7 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
         ) { route ->
             TodoEditorRouteScreen(
                 initialTodoId = route.todoId,
+                initialAssignedTodoId = route.assignedTodoId,
                 initialDueDate = route.dueDate,
                 onExit = routeActions::closeCurrentEntry
             )
@@ -81,6 +88,7 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
         ) { route ->
             TodoEditorRouteScreen(
                 initialTodoId = route.todoId,
+                initialAssignedTodoId = null,
                 initialDueDate = null,
                 onExit = routeActions::closeCurrentEntry
             )
@@ -90,6 +98,7 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
         ) { route ->
             TodoEditorRouteScreen(
                 initialTodoId = null,
+                initialAssignedTodoId = null,
                 initialDueDate = route.dueDate,
                 onExit = routeActions::closeCurrentEntry
             )

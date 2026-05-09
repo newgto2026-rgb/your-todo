@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -37,6 +38,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -48,6 +50,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +70,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -75,6 +79,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.ui.TodoItemRow
+import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
@@ -82,6 +87,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 @Composable
@@ -91,6 +98,8 @@ fun TodoListRoute(
     onBackBlockedChange: (Boolean) -> Unit = {},
     onAddRequested: (LocalDate?) -> Unit = {},
     onEditRequested: (Long) -> Unit = {},
+    workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
+    onWorkspaceSyncClick: () -> Unit = {},
     viewModel: TodoListViewModel = hiltViewModel(key = viewModelKey)
 ) {
     val routeUiState = remember(viewModel, presetFilter) {
@@ -105,6 +114,7 @@ fun TodoListRoute(
     } else {
         TodoListUiState(isLoading = true, selectedFilter = presetFilter)
     }
+    val syncUiState by workspaceSyncState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -164,10 +174,12 @@ fun TodoListRoute(
 
     TodoListScreen(
         uiState = uiState,
+        isSyncing = syncUiState.isSyncing,
         onAction = viewModel::onAction,
         snackbarHostState = snackbarHostState,
         onAddRequested = onAddRequested,
-        onEditRequested = onEditRequested
+        onEditRequested = onEditRequested,
+        onSyncClick = onWorkspaceSyncClick
     )
 }
 
@@ -183,12 +195,15 @@ private fun TodoListLoadingScreen() {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun TodoListScreen(
     uiState: TodoListUiState,
+    isSyncing: Boolean,
     onAction: (TodoListAction) -> Unit,
     snackbarHostState: SnackbarHostState,
     onAddRequested: (LocalDate?) -> Unit,
-    onEditRequested: (Long) -> Unit
+    onEditRequested: (Long) -> Unit,
+    onSyncClick: () -> Unit
 ) {
     val todayHeaderDateFormat = stringResource(R.string.todo_today_header_date_format)
     val (title, subtitle) = headerTextFor(
@@ -206,6 +221,7 @@ private fun TodoListScreen(
     val shouldShowQuickAdd = uiState.selectedFilter != TodoFilter.COMPLETED
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
+    val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(
         uiState.selectedFilter,
@@ -246,7 +262,11 @@ private fun TodoListScreen(
                     .padding(horizontal = 20.dp)
             ) {
             Spacer(Modifier.height(10.dp))
-            AppHeader(profileInitial = uiState.profileInitial)
+            AppHeader(
+                profileInitial = uiState.profileInitial,
+                isSyncing = isSyncing,
+                onSyncClick = onSyncClick
+            )
             Spacer(Modifier.height(12.dp))
 
             HeaderSummary(
@@ -257,7 +277,7 @@ private fun TodoListScreen(
             )
             if (
                 uiState.selectedFilter == TodoFilter.COMPLETED &&
-                uiState.completedTodoIds.isNotEmpty()
+                uiState.hasClearableCompletedItems
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -344,7 +364,9 @@ private fun TodoListScreen(
                                         onAction = onAction,
                                         onEditRequested = onEditRequested,
                                         onDeleteRequest = {
-                                            onAction(TodoListAction.OnDeleteRequest(item.id))
+                                            item.assignedTodoId?.let {
+                                                onAction(TodoListAction.OnAssignedDeleteRequest(it))
+                                            } ?: onAction(TodoListAction.OnDeleteRequest(item.id))
                                         },
                                         showQuickActions = true
                                     )
@@ -361,7 +383,9 @@ private fun TodoListScreen(
                                 onAction = onAction,
                                 onEditRequested = onEditRequested,
                                 onDeleteRequest = {
-                                    onAction(TodoListAction.OnDeleteRequest(item.id))
+                                    item.assignedTodoId?.let {
+                                        onAction(TodoListAction.OnAssignedDeleteRequest(it))
+                                    } ?: onAction(TodoListAction.OnDeleteRequest(item.id))
                                 },
                                 showQuickActions = false
                             )
@@ -391,6 +415,51 @@ private fun TodoListScreen(
             onConfirm = { onAction(TodoListAction.OnDeleteConfirm) },
             onDismiss = { onAction(TodoListAction.OnDeleteCancel) }
         )
+    }
+    uiState.pendingAssignedDeleteId?.let {
+        DeleteConfirmationDialog(
+            confirmation = TodoDeleteConfirmation.Single(0),
+            onConfirm = { onAction(TodoListAction.OnDeleteConfirm) },
+            onDismiss = { onAction(TodoListAction.OnDeleteCancel) }
+        )
+    }
+
+    if (uiState.isEditDialogVisible) {
+        val isAssignedEdit = uiState.editingAssignedTodoId != null
+        ModalBottomSheet(
+            onDismissRequest = { onAction(TodoListAction.OnDismissDialog) },
+            sheetState = editSheetState,
+            containerColor = Color.Transparent,
+            dragHandle = null
+        ) {
+            EditTodoBottomSheet(
+                sheetTitle = stringResource(
+                    when {
+                        isAssignedEdit -> R.string.todo_editor_title_received_task
+                        uiState.editingItem == null -> R.string.todo_editor_title_new_task
+                        else -> R.string.todo_editor_title_edit_task
+                    }
+                ),
+                title = uiState.draftTitle,
+                dueDateInput = uiState.draftDueDateInput,
+                dueTimeInput = uiState.draftDueTimeInput,
+                reminderEnabled = uiState.draftReminderEnabled,
+                reminderLeadMinutes = uiState.draftReminderLeadMinutes ?: DEFAULT_REMINDER_LEAD_MINUTES,
+                selectedPriority = uiState.draftPriority,
+                errorMessageRes = uiState.errorMessageRes,
+                onTitleChange = { onAction(TodoListAction.OnTitleChange(it)) },
+                onDateInputChange = { onAction(TodoListAction.OnDueDateInputChange(it)) },
+                onDueTimeInputChange = { onAction(TodoListAction.OnDueTimeInputChange(it)) },
+                onReminderEnabledChange = { onAction(TodoListAction.OnReminderEnabledChange(it)) },
+                onReminderLeadMinutesChange = { onAction(TodoListAction.OnReminderLeadMinutesChange(it)) },
+                onPrioritySelected = { onAction(TodoListAction.OnPrioritySelectedInEditor(it)) },
+                onDismiss = { onAction(TodoListAction.OnDismissDialog) },
+                onSave = { onAction(TodoListAction.OnSaveClick) },
+                onDelete = { uiState.editingItem?.id?.let { onAction(TodoListAction.OnDeleteRequest(it)) } },
+                showDelete = !isAssignedEdit && uiState.editingItem?.id != null,
+                contentEditable = !isAssignedEdit
+            )
+        }
     }
 }
 
@@ -522,7 +591,8 @@ private fun TodoSortMenu(
                 .height(34.dp)
                 .testTag("todo_sort_menu_button"),
             shape = RoundedCornerShape(999.dp),
-            color = Color.White.copy(alpha = 0.82f)
+            color = Color.White.copy(alpha = 0.9f),
+            border = BorderStroke(1.dp, Color(0xFFE0E6F1))
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = if (showLabel) 10.dp else 8.dp),
@@ -546,16 +616,37 @@ private fun TodoSortMenu(
         }
         DropdownMenu(
             expanded = isExpanded,
-            onDismissRequest = { isExpanded = false }
+            onDismissRequest = { isExpanded = false },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = Color(0xFFFAFBFE),
+            shadowElevation = 8.dp
         ) {
             TodoSortOption.entries.forEach { option ->
+                val isSelected = option == selectedSortOption
                 DropdownMenuItem(
-                    text = { Text(stringResource(option.labelRes())) },
+                    text = {
+                        Column {
+                            Text(
+                                text = stringResource(option.labelRes()),
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF303440)
+                            )
+                            Text(
+                                text = stringResource(option.descriptionRes()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF7A8595)
+                            )
+                        }
+                    },
                     leadingIcon = {
-                        if (option == selectedSortOption) {
+                        SortOptionDot(color = option.accentColor())
+                    },
+                    trailingIcon = {
+                        if (isSelected) {
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = null
+                                contentDescription = null,
+                                tint = Color(0xFF5F5391)
                             )
                         }
                     },
@@ -563,7 +654,9 @@ private fun TodoSortMenu(
                         isExpanded = false
                         onSortOptionSelected(option)
                     },
-                    modifier = Modifier.testTag(option.testTag())
+                    modifier = Modifier
+                        .background(if (isSelected) Color(0xFFF0F3FF) else Color.Transparent)
+                        .testTag(option.testTag())
                 )
             }
         }
@@ -600,6 +693,9 @@ private fun TodoPlannerRow(
     } else {
         null
     }
+    val assignedFromLabel = item.senderNickname?.let {
+        stringResource(R.string.todo_row_assigned_from, it)
+    }
     val rowDueLabel = when {
         item.isDone -> rowCompletedText
         !dueLabel.isNullOrBlank() -> dueLabel
@@ -615,13 +711,24 @@ private fun TodoPlannerRow(
             isDone = item.isDone,
             isEmphasized = !item.isDone && dueDateLabel == rowTodayText,
             isReminderEnabled = item.isReminderEnabled,
-            onToggleDone = { onAction(TodoListAction.OnToggleDone(item.id)) },
-            onClick = { onEditRequested(item.id) },
+            onToggleDone = {
+                item.assignedTodoId?.let {
+                    onAction(TodoListAction.OnToggleAssignedDone(it))
+                } ?: onAction(TodoListAction.OnToggleDone(item.id))
+            },
+            onClick = {
+                if (item.isAssigned) {
+                    onAction(TodoListAction.OnEditClick(item.id))
+                } else {
+                    onEditRequested(item.id)
+                }
+            },
             onDeleteRequest = onDeleteRequest,
             priorityLabel = priorityLabel(item.priority),
-            priorityColor = priorityColor(item.priority)
+            priorityColor = priorityColor(item.priority),
+            assignedFromText = assignedFromLabel
         )
-        if (showQuickActions) {
+        if (showQuickActions && !item.isAssigned) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     onClick = { onAction(TodoListAction.OnMoveToTomorrow(item.id)) },
@@ -656,7 +763,8 @@ private fun DeletableTodoItemRow(
     onClick: () -> Unit,
     onDeleteRequest: () -> Unit,
     priorityLabel: String,
-    priorityColor: Color
+    priorityColor: Color,
+    assignedFromText: String?
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -700,9 +808,20 @@ private fun DeletableTodoItemRow(
             modifier = Modifier.testTag("todo_row_$itemId"),
             priorityLabel = priorityLabel,
             priorityColor = priorityColor,
-            toggleTestTag = "todo_row_toggle_$itemId"
+            toggleTestTag = "todo_row_toggle_$itemId",
+            sourceText = assignedFromText
         )
     }
+}
+
+@Composable
+private fun SortOptionDot(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .background(color)
+    )
 }
 
 @Composable
@@ -719,8 +838,8 @@ private fun DeleteConfirmationDialog(
         is TodoDeleteConfirmation.Single -> stringResource(R.string.todo_delete_confirm_message)
         is TodoDeleteConfirmation.Completed -> pluralStringResource(
             R.plurals.todo_clear_completed_confirm_message,
-            confirmation.ids.size,
-            confirmation.ids.size
+            confirmation.itemCount,
+            confirmation.itemCount
         )
     }
 
@@ -760,9 +879,9 @@ internal fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlann
         !it.isDone && it.dueDate == today && it.dueTimeText.isNullOrBlank()
     }
     return listOf(
-        TodayPlannerSection(R.string.todo_today_section_overdue, overdue),
         TodayPlannerSection(R.string.todo_today_section_timed, timedToday),
-        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed)
+        TodayPlannerSection(R.string.todo_today_section_today, todayUntimed),
+        TodayPlannerSection(R.string.todo_today_section_overdue, overdue)
     )
 }
 
@@ -798,6 +917,18 @@ private fun TodoSortOption.labelRes(): Int = when (this) {
     TodoSortOption.DEFAULT -> R.string.todo_sort_default
     TodoSortOption.DUE_DATE -> R.string.todo_sort_due_date
     TodoSortOption.PRIORITY -> R.string.todo_sort_priority
+}
+
+private fun TodoSortOption.descriptionRes(): Int = when (this) {
+    TodoSortOption.DEFAULT -> R.string.todo_sort_default_description
+    TodoSortOption.DUE_DATE -> R.string.todo_sort_due_date_description
+    TodoSortOption.PRIORITY -> R.string.todo_sort_priority_description
+}
+
+private fun TodoSortOption.accentColor(): Color = when (this) {
+    TodoSortOption.DEFAULT -> Color(0xFF8A93A5)
+    TodoSortOption.DUE_DATE -> Color(0xFF4B83C5)
+    TodoSortOption.PRIORITY -> Color(0xFFC76B7D)
 }
 
 @StringRes

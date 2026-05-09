@@ -2,23 +2,41 @@ package com.neo.yourtodo.feature.todo.impl.ui
 
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
+import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
+import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
+import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoReminder
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
+import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.todo.impl.R
@@ -47,8 +65,10 @@ class TodoListViewModelTest {
 
     private lateinit var repository: FakeTodoRepository
     private lateinit var authRepository: FakeAuthRepository
+    private lateinit var assignmentRepository: FakeAssignmentRepository
     private lateinit var reminderScheduler: RecordingReminderScheduler
     private lateinit var calendarWidgetUpdater: RecordingCalendarWidgetUpdater
+    private lateinit var workspaceSyncNotifier: WorkspaceSyncNotifier
     private lateinit var viewModel: TodoListViewModel
     private lateinit var uiStateCollectionJob: Job
 
@@ -56,8 +76,10 @@ class TodoListViewModelTest {
     fun setUp() {
         repository = FakeTodoRepository()
         authRepository = FakeAuthRepository()
+        assignmentRepository = FakeAssignmentRepository()
         reminderScheduler = RecordingReminderScheduler()
         calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
+        workspaceSyncNotifier = WorkspaceSyncNotifier()
         viewModel = TodoListViewModel(
             observeTodosUseCase = ObserveTodosUseCase(repository),
             observeAuthSessionUseCase = ObserveAuthSessionUseCase(authRepository),
@@ -66,10 +88,22 @@ class TodoListViewModelTest {
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             syncTodosUseCase = SyncTodosUseCase(repository),
+            getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
+                assignmentRepository,
+                RefreshWorkspaceUseCase(
+                    todoRepository = repository,
+                    friendRepository = FakeFriendRepository(),
+                    assignmentRepository = assignmentRepository,
+                    calendarWidgetUpdater = calendarWidgetUpdater,
+                    syncNotifier = workspaceSyncNotifier
+                )
+            ),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,
-            calendarWidgetUpdater = calendarWidgetUpdater
+            calendarWidgetUpdater = calendarWidgetUpdater,
+            workspaceSyncNotifier = workspaceSyncNotifier
         )
         uiStateCollectionJob = CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()
@@ -358,6 +392,12 @@ class TodoListViewModelTest {
             priority = TodoPriority.MEDIUM
         )
         repository.addTodo(
+            title = "Today no time",
+            dueDate = today,
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        )
+        repository.addTodo(
             title = "Today early",
             dueDate = today,
             categoryId = null,
@@ -380,6 +420,7 @@ class TodoListViewModelTest {
         assertThat(state.items.map { it.title }).containsExactly(
             "Today early",
             "Today late",
+            "Today no time",
             "Future",
             "No date",
             "Completed urgent"
@@ -402,9 +443,16 @@ class TodoListViewModelTest {
             priority = TodoPriority.HIGH
         )
         repository.addTodo(
-            title = "High today",
+            title = "High today no time",
             dueDate = today,
             categoryId = null,
+            priority = TodoPriority.HIGH
+        )
+        repository.addTodo(
+            title = "High today early",
+            dueDate = today,
+            categoryId = null,
+            dueTimeMinutes = 8 * 60,
             priority = TodoPriority.HIGH
         )
         repository.addTodo(
@@ -420,7 +468,8 @@ class TodoListViewModelTest {
         val state = viewModel.uiState.value
         assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.PRIORITY)
         assertThat(state.items.map { it.title }).containsExactly(
-            "High today",
+            "High today early",
+            "High today no time",
             "High future",
             "Medium overdue",
             "Low today"
@@ -869,7 +918,7 @@ class TodoListViewModelTest {
         advanceUntilIdle()
         val confirmation = viewModel.uiState.value.deleteConfirmation
         assertThat(confirmation).isInstanceOf(TodoDeleteConfirmation.Completed::class.java)
-        assertThat(checkNotNull(confirmation).ids)
+        assertThat((checkNotNull(confirmation) as TodoDeleteConfirmation.Completed).todoIds)
             .containsExactly(lowCompletedId, highCompletedId)
 
         viewModel.onAction(TodoListAction.OnDeleteConfirm)
@@ -880,6 +929,186 @@ class TodoListViewModelTest {
         assertThat(repository.getTodo(activeHighId)).isNotNull()
         assertThat(reminderScheduler.cancelledTodoIds)
             .containsExactly(lowCompletedId, highCompletedId)
+    }
+
+    @Test
+    fun clearCompletedDeletesCompletedReceivedAssignedTodos() = runTest {
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(id = "assigned-done", status = AssignedTodoStatus.DONE)
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.COMPLETED))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.hasClearableCompletedItems).isTrue()
+
+        viewModel.onAction(TodoListAction.OnClearCompletedClick)
+        advanceUntilIdle()
+        val confirmation = viewModel.uiState.value.deleteConfirmation as TodoDeleteConfirmation.Completed
+        assertThat(confirmation.todoIds).isEmpty()
+        assertThat(confirmation.assignedTodoIds).containsExactly("assigned-done")
+
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.deletedAssignedTodoIds).containsExactly("assigned-done")
+        assertThat(viewModel.uiState.value.items.map { it.assignedTodoId }).doesNotContain("assigned-done")
+    }
+
+    @Test
+    fun receivedAssignedTodoAppearsInListAndCompletesOnToggle() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-1"))
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        val assigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-1" }
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone(checkNotNull(assigned.assignedTodoId)))
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.completedAssignedTodoId).isEqualTo("assigned-1")
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).containsExactly("assigned-1")
+    }
+
+    @Test
+    fun receivedAssignedTodoCompleteRollsBackWhenServerFails() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-fail"))
+        assignmentRepository.completeFailure = IllegalStateException("server failed")
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-fail"))
+        advanceUntilIdle()
+
+        val assigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-fail" }
+        assertThat(assigned.isDone).isFalse()
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).isEmpty()
+    }
+
+    @Test
+    fun completedReceivedAssignedTodoStaysVisibleInCompletedFilter() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-done"))
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-done"))
+        advanceUntilIdle()
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.COMPLETED))
+        advanceUntilIdle()
+
+        val completedAssigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-done" }
+        assertThat(completedAssigned.isDone).isTrue()
+    }
+
+    @Test
+    fun completedReceivedAssignedTodoReopensOnToggle() = runTest {
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(id = "assigned-reopen", status = AssignedTodoStatus.DONE)
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.COMPLETED))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.items.single().isDone).isTrue()
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-reopen"))
+        advanceUntilIdle()
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.ALL))
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.reopenedAssignedTodoId).isEqualTo("assigned-reopen")
+        val reopenedAssigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-reopen" }
+        assertThat(reopenedAssigned.isDone).isFalse()
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).isEmpty()
+    }
+
+    @Test
+    fun workspaceSyncSnapshotRefreshesReceivedAssignments() = runTest {
+        advanceUntilIdle()
+        val initialSyncCount = repository.syncCount
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-2", title = "Accepted share"))
+
+        RefreshWorkspaceUseCase(
+            todoRepository = repository,
+            friendRepository = FakeFriendRepository(),
+            assignmentRepository = assignmentRepository,
+            calendarWidgetUpdater = calendarWidgetUpdater,
+            syncNotifier = workspaceSyncNotifier
+        )()
+        advanceUntilIdle()
+
+        assertThat(repository.syncCount).isEqualTo(initialSyncCount + 1)
+        assertThat(viewModel.uiState.value.items.map { it.title }).contains("Accepted share")
+    }
+
+    @Test
+    fun receivedAssignedTodoDeleteUsesServerDeleteReceived() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-1"))
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnAssignedDeleteRequest("assigned-1"))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.pendingAssignedDeleteId).isEqualTo("assigned-1")
+
+        viewModel.onAction(TodoListAction.OnDeleteConfirm)
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.deletedAssignedTodoId).isEqualTo("assigned-1")
+        assertThat(viewModel.uiState.value.pendingAssignedDeleteId).isNull()
+    }
+
+    @Test
+    fun receivedAssignedTodoClickOpensReadOnlyEditorAndSavesReminder() = runTest {
+        val futureDate = LocalDate.now().plusDays(1)
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "assigned-reminder",
+                title = "Friend task",
+                dueDate = futureDate,
+                dueTimeMinutes = 10 * 60
+            )
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        val assigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-reminder" }
+        viewModel.onAction(TodoListAction.OnEditClick(assigned.id))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.editingAssignedTodoId).isEqualTo("assigned-reminder")
+        assertThat(viewModel.uiState.value.draftTitle).isEqualTo("Friend task")
+
+        viewModel.onAction(TodoListAction.OnReminderEnabledChange(true))
+        viewModel.onAction(TodoListAction.OnReminderLeadMinutesChange(30))
+        viewModel.onAction(TodoListAction.OnSaveClick)
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.upsertedReminder?.first).isEqualTo("assigned-reminder")
+        assertThat(assignmentRepository.upsertedReminder?.second).isNotNull()
+        assertThat(viewModel.uiState.value.isEditDialogVisible).isFalse()
     }
 
     private class RecordingReminderScheduler : TodoReminderScheduler {
@@ -926,4 +1155,132 @@ class TodoListViewModelTest {
 
         override suspend fun signOut() = Unit
     }
+
+    private class FakeFriendRepository : FriendRepository {
+        override suspend fun getFriends(): Result<List<Friend>> = Result.success(emptyList())
+
+        override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun sendRequest(nickname: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun acceptRequest(requestId: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun declineRequest(requestId: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun removeFriend(friendshipId: String): Result<Unit> = Result.success(Unit)
+    }
+
+    private class FakeAssignmentRepository : AssignmentRepository {
+        var receivedItems = emptyList<AssignedTodo>()
+        var completedAssignedTodoId: String? = null
+        var reopenedAssignedTodoId: String? = null
+        var deletedAssignedTodoId: String? = null
+        val deletedAssignedTodoIds = mutableListOf<String>()
+        var completeFailure: Throwable? = null
+        var upsertedReminder: Pair<String, String>? = null
+        var deletedReminderAssignedTodoId: String? = null
+
+        override suspend fun createBundle(
+            receiverUserId: String,
+            items: List<AssignmentDraftItem>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Result<List<AssignedTodo>> = Result.success(emptyList())
+
+        override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(receivedItems)
+
+        override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(emptyList())
+
+        override suspend fun decideBundleItems(
+            bundleId: String,
+            decisions: Map<String, AssignmentDecision>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            completeFailure?.let { return Result.failure(it) }
+            completedAssignedTodoId = assignedTodoId
+            receivedItems = receivedItems.map {
+                if (it.id == assignedTodoId) {
+                    it.copy(status = AssignedTodoStatus.DONE, progressPercent = 100)
+                } else {
+                    it
+                }
+            }
+            return Result.success(receivedItems.firstOrNull { it.id == assignedTodoId } ?: assignedTodo())
+        }
+
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            reopenedAssignedTodoId = assignedTodoId
+            receivedItems = receivedItems.map {
+                if (it.id == assignedTodoId) {
+                    it.copy(status = AssignedTodoStatus.ACCEPTED, progressPercent = 0, completedAt = null)
+                } else {
+                    it
+                }
+            }
+            return Result.success(receivedItems.firstOrNull { it.id == assignedTodoId } ?: assignedTodo())
+        }
+
+        override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            deletedAssignedTodoId = assignedTodoId
+            deletedAssignedTodoIds += assignedTodoId
+            receivedItems = receivedItems.filterNot { it.id == assignedTodoId }
+            return Result.success(assignedTodo(id = assignedTodoId, status = AssignedTodoStatus.REJECTED))
+        }
+
+        override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun upsertAssignedTodoReminder(
+            assignedTodoId: String,
+            reminderAt: String,
+            enabled: Boolean
+        ): Result<Unit> {
+            upsertedReminder = assignedTodoId to reminderAt
+            return Result.success(Unit)
+        }
+
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> {
+            deletedReminderAssignedTodoId = assignedTodoId
+            return Result.success(Unit)
+        }
+    }
 }
+
+private fun assignedTodo(
+    id: String = "assigned-1",
+    title: String = "Shared todo",
+    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
+    dueDate: LocalDate? = null,
+    dueTimeMinutes: Int? = null,
+    reminder: AssignedTodoReminder? = null
+) = AssignedTodo(
+    id = id,
+    bundleId = "bundle-1",
+    title = title,
+    description = null,
+    dueDate = dueDate,
+    dueTimeMinutes = dueTimeMinutes,
+    priority = TodoPriority.MEDIUM,
+    category = null,
+    status = status,
+    terminalReason = null,
+    progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
+    sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
+    receiver = AssignedTodoUser(id = "me", nickname = "tester"),
+    reminder = reminder,
+    checklist = emptyList()
+)

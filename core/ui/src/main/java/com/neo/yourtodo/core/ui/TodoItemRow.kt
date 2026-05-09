@@ -44,6 +44,7 @@ fun TodoItemRow(
     priorityLabel: String,
     priorityColor: Color,
     toggleTestTag: String? = null,
+    sourceText: String? = null,
     content: @Composable (() -> Unit)? = null
 ) {
     val containerColor = when {
@@ -98,12 +99,19 @@ fun TodoItemRow(
                 overflow = TextOverflow.Ellipsis
             )
 
-            if (dueDateText != null || (isReminderEnabled && !reminderText.isNullOrBlank())) {
+            if (sourceText != null || dueDateText != null || (isReminderEnabled && !reminderText.isNullOrBlank())) {
                 Row(
                     modifier = Modifier.padding(top = 5.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (sourceText != null) {
+                        TodoMetaChip(
+                            text = sourceText,
+                            contentColor = if (isDone) Color(0xFF3C7766).copy(alpha = 0.5f) else Color(0xFF3C7766),
+                            containerColor = if (isDone) Color(0xFFE4ECE8) else Color(0xFFEAF4F0)
+                        )
+                    }
                     if (dueDateText != null) {
                         TodoMetaChip(
                             text = dueDateText,

@@ -1,8 +1,18 @@
 package com.neo.yourtodo.feature.calendar.widget
 
+import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
+import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.google.common.truth.Truth.assertThat
 import java.time.Clock
 import java.time.Instant
@@ -18,7 +28,7 @@ class CalendarMonthWidgetPresenterTest {
     @Test
     fun present_mapsMonthlySummariesToWidgetDays() = runTest {
         val targetDate = LocalDate.of(2026, 5, 7)
-        val presenter = CalendarMonthWidgetPresenter(
+        val presenter = presenter(
             summarySource = FakeCalendarMonthSummarySource(
                 summaries = mapOf(
                     targetDate to DateTodoSummary(
@@ -44,7 +54,7 @@ class CalendarMonthWidgetPresenterTest {
     @Test
     fun present_capsLargeTaskCounts() = runTest {
         val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = CalendarMonthWidgetPresenter(
+        val presenter = presenter(
             summarySource = FakeCalendarMonthSummarySource(
                 summaries = mapOf(
                     targetDate to DateTodoSummary(
@@ -67,7 +77,7 @@ class CalendarMonthWidgetPresenterTest {
     @Test
     fun present_mapsUpToFourTodosToExpandedPreviewChips() = runTest {
         val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = CalendarMonthWidgetPresenter(
+        val presenter = presenter(
             summarySource = FakeCalendarMonthSummarySource(
                 summaries = mapOf(
                     targetDate to DateTodoSummary(
@@ -99,7 +109,7 @@ class CalendarMonthWidgetPresenterTest {
     @Test
     fun present_mapsFiveOrMoreTodosToThreePreviewChipsAndOverflow() = runTest {
         val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = CalendarMonthWidgetPresenter(
+        val presenter = presenter(
             summarySource = FakeCalendarMonthSummarySource(
                 summaries = mapOf(
                     targetDate to DateTodoSummary(
@@ -131,7 +141,7 @@ class CalendarMonthWidgetPresenterTest {
     @Test
     fun present_ordersPreviewChipsByDoneTimePriorityAndCreatedAt() = runTest {
         val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = CalendarMonthWidgetPresenter(
+        val presenter = presenter(
             summarySource = FakeCalendarMonthSummarySource(
                 summaries = mapOf(
                     targetDate to DateTodoSummary(
@@ -173,7 +183,7 @@ class CalendarMonthWidgetPresenterTest {
                 )
             )
         )
-        val presenter = CalendarMonthWidgetPresenter(
+        val presenter = presenter(
             summarySource = summarySource,
             clock = fixedClock("2026-05-07T00:00:00Z")
         )
@@ -190,7 +200,7 @@ class CalendarMonthWidgetPresenterTest {
 
     @Test
     fun present_returnsErrorStateWhenSourceFails() = runTest {
-        val presenter = CalendarMonthWidgetPresenter(
+        val presenter = presenter(
             summarySource = FakeCalendarMonthSummarySource(error = IllegalStateException("boom")),
             clock = fixedClock("2026-05-07T00:00:00Z")
         )
@@ -200,6 +210,40 @@ class CalendarMonthWidgetPresenterTest {
         assertThat(state.isError).isTrue()
         assertThat(state.weeks).isEmpty()
     }
+
+    @Test
+    fun present_includesVisibleReceivedAssignedTodos() = runTest {
+        val targetDate = LocalDate.of(2026, 5, 8)
+        val presenter = presenter(
+            summarySource = FakeCalendarMonthSummarySource(),
+            assignedTodos = listOf(
+                assignedTodo(
+                    id = "assigned-1",
+                    title = "From friend",
+                    dueDate = targetDate
+                )
+            ),
+            clock = fixedClock("2026-05-07T00:00:00Z")
+        )
+
+        val state = presenter.present(Locale.US)
+        val day = state.weeks.flatten().single { it.date == targetDate }
+
+        assertThat(day.taskCountLabel).isEqualTo("1")
+        assertThat(day.todoChips.map { it.label }).containsExactly("From friend")
+    }
+
+    private fun presenter(
+        summarySource: CalendarMonthSummarySource,
+        assignedTodos: List<AssignedTodo> = emptyList(),
+        clock: Clock
+    ) = CalendarMonthWidgetPresenter(
+        summarySource = summarySource,
+        getAssignedTodosUseCase = GetAssignedTodosUseCase(
+            FakeAssignmentRepository(assignedTodos)
+        ),
+        clock = clock
+    )
 
     private class FakeCalendarMonthSummarySource(
         private val summaries: Map<LocalDate, DateTodoSummary> = emptyMap(),
@@ -232,4 +276,85 @@ class CalendarMonthWidgetPresenterTest {
             priority = priority,
             createdAt = createdAt
         )
+
+    private fun assignedTodo(
+        id: String,
+        title: String,
+        dueDate: LocalDate,
+        status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+    ): AssignedTodo =
+        AssignedTodo(
+            id = id,
+            bundleId = "bundle-$id",
+            title = title,
+            description = null,
+            dueDate = dueDate,
+            dueTimeMinutes = null,
+            priority = TodoPriority.MEDIUM,
+            category = null,
+            status = status,
+            terminalReason = null,
+            progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
+            sender = null,
+            receiver = null,
+            reminder = null,
+            createdAt = Instant.parse("2026-05-07T00:00:00Z"),
+            completedAt = null
+        )
+
+    private class FakeAssignmentRepository(
+        private val assignedTodos: List<AssignedTodo>
+    ) : AssignmentRepository {
+        override suspend fun createBundle(
+            receiverUserId: String,
+            items: List<AssignmentDraftItem>
+        ): Result<AssignmentBundle> = error("unused")
+
+        override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
+            error("unused")
+
+        override suspend fun getFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Result<List<AssignedTodo>> = error("unused")
+
+        override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(
+                when (status) {
+                    AssignmentFeedStatus.ACTIVE -> assignedTodos.filter { it.status != AssignedTodoStatus.DONE }
+                    AssignmentFeedStatus.HISTORY -> assignedTodos.filter { it.status == AssignedTodoStatus.DONE }
+                    AssignmentFeedStatus.PENDING -> emptyList()
+                }
+            )
+
+        override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            error("unused")
+
+        override suspend fun decideBundleItems(
+            bundleId: String,
+            decisions: Map<String, AssignmentDecision>
+        ): Result<AssignmentBundle> = error("unused")
+
+        override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            error("unused")
+
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            error("unused")
+
+        override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            error("unused")
+
+        override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            error("unused")
+
+        override suspend fun upsertAssignedTodoReminder(
+            assignedTodoId: String,
+            reminderAt: String,
+            enabled: Boolean
+        ): Result<Unit> = error("unused")
+
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
+            error("unused")
+    }
 }

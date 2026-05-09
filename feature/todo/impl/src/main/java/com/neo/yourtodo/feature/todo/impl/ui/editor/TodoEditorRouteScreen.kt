@@ -10,14 +10,19 @@ import com.neo.yourtodo.feature.todo.impl.ui.EditTodoBottomSheet
 @Composable
 fun TodoEditorRouteScreen(
     initialTodoId: Long?,
+    initialAssignedTodoId: String?,
     initialDueDate: String?,
     onExit: () -> Unit,
     viewModel: TodoEditorViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(initialTodoId, initialDueDate) {
-        viewModel.initialize(todoId = initialTodoId, dueDate = initialDueDate)
+    LaunchedEffect(initialTodoId, initialAssignedTodoId, initialDueDate) {
+        viewModel.initialize(
+            todoId = initialTodoId,
+            assignedTodoId = initialAssignedTodoId,
+            dueDate = initialDueDate
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -46,6 +51,7 @@ fun TodoEditorRouteScreen(
         onDismiss = onExit,
         onSave = viewModel::onSave,
         onDelete = viewModel::onDelete,
-        showDelete = uiState.showDelete
+        showDelete = uiState.showDelete,
+        contentEditable = !uiState.isAssignedEdit
     )
 }

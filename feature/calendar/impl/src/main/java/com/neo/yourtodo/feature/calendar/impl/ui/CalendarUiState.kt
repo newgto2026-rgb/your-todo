@@ -14,7 +14,8 @@ data class CalendarUiState(
     val days: List<CalendarDayUiModel>,
     val summariesByDate: Map<LocalDate, DateTodoSummary>,
     val todayTaskCount: Int,
-    val selectedDateTodos: List<CalendarSelectedTodoUiModel>
+    val selectedDateTodos: List<CalendarSelectedTodoUiModel>,
+    val isSyncing: Boolean = false
 )
 
 @Immutable
@@ -35,5 +36,7 @@ data class CalendarSelectedTodoUiModel(
     val priority: TodoPriority,
     val isReminderEnabled: Boolean,
     val dueTimeLabel: String?,
-    val reminderLeadMinutes: Int?
+    val reminderLeadMinutes: Int?,
+    val sourceLabel: String? = null,
+    val assignedTodoId: String? = null
 )

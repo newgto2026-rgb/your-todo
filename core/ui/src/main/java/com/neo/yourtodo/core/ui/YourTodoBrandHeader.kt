@@ -3,6 +3,7 @@ package com.neo.yourtodo.core.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,7 +30,8 @@ fun YourTodoBrandHeader(
     wordmarkContentDescription: String,
     profileContentDescription: String,
     modifier: Modifier = Modifier,
-    profileInitial: String? = null
+    profileInitial: String? = null,
+    content: @Composable RowScope.() -> Unit = {}
 ) {
     val displayInitial = profileInitial.toProfileInitial()
     Row(
@@ -45,6 +47,7 @@ fun YourTodoBrandHeader(
                 .width(162.dp)
         )
         Spacer(modifier = Modifier.weight(1f))
+        content()
         Box(
             modifier = Modifier
                 .size(32.dp)

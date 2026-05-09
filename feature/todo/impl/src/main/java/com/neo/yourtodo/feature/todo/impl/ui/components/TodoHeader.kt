@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -24,15 +25,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.neo.yourtodo.core.model.TodoFilter
-import com.neo.yourtodo.core.ui.YourTodoBrandHeader
+import com.neo.yourtodo.core.ui.YourTodoAppHeader
 import com.neo.yourtodo.feature.todo.impl.R
 
 @Composable
-internal fun AppHeader(profileInitial: String?) {
-    YourTodoBrandHeader(
+internal fun AppHeader(
+    profileInitial: String?,
+    isSyncing: Boolean,
+    onSyncClick: () -> Unit
+) {
+    YourTodoAppHeader(
         wordmarkContentDescription = stringResource(R.string.todo_app_header_title),
         profileContentDescription = stringResource(R.string.todo_header_profile_icon),
-        profileInitial = profileInitial
+        syncContentDescription = stringResource(R.string.todo_sync_action),
+        profileInitial = profileInitial,
+        isSyncing = isSyncing,
+        onSyncClick = onSyncClick,
+        syncTestTag = "todo_sync_button"
     )
 }
 

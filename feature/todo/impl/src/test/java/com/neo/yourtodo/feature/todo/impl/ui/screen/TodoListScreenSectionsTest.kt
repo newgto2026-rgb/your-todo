@@ -24,11 +24,11 @@ class TodoListScreenSectionsTest {
         val sections = todayPlannerSections(items)
 
         assertThat(sections.map { it.titleRes }).containsExactly(
-            R.string.todo_today_section_overdue,
             R.string.todo_today_section_timed,
-            R.string.todo_today_section_today
+            R.string.todo_today_section_today,
+            R.string.todo_today_section_overdue
         ).inOrder()
-        assertThat(sections.flatMap { it.items }.map { it.id }).containsExactly(1L, 2L, 3L)
+        assertThat(sections.flatMap { it.items }.map { it.id }).containsExactly(2L, 3L, 1L)
     }
 
     @Test

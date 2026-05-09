@@ -2,13 +2,30 @@ package com.neo.yourtodo.feature.todo.impl.ui.editor
 
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
+import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
+import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoReminder
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.todo.impl.R
@@ -31,6 +48,7 @@ class TodoEditorViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var repository: FakeTodoRepository
+    private lateinit var assignmentRepository: FakeAssignmentRepository
     private lateinit var reminderScheduler: RecordingReminderScheduler
     private lateinit var calendarWidgetUpdater: RecordingCalendarWidgetUpdater
     private lateinit var viewModel: TodoEditorViewModel
@@ -38,6 +56,7 @@ class TodoEditorViewModelTest {
     @Before
     fun setUp() {
         repository = FakeTodoRepository()
+        assignmentRepository = FakeAssignmentRepository()
         reminderScheduler = RecordingReminderScheduler()
         calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
         viewModel = TodoEditorViewModel(
@@ -45,6 +64,16 @@ class TodoEditorViewModelTest {
             updateTodoUseCase = UpdateTodoUseCase(repository),
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
+            getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
+                assignmentRepository,
+                RefreshWorkspaceUseCase(
+                    todoRepository = repository,
+                    friendRepository = FakeFriendRepository(),
+                    assignmentRepository = assignmentRepository,
+                    calendarWidgetUpdater = calendarWidgetUpdater
+                )
+            ),
             todoReminderScheduler = reminderScheduler,
             calendarWidgetUpdater = calendarWidgetUpdater
         )
@@ -52,7 +81,7 @@ class TodoEditorViewModelTest {
 
     @Test
     fun initializeForCreateSetsInitialDate() {
-        viewModel.initialize(todoId = null, dueDate = "2026-05-05")
+        viewModel.initialize(todoId = null, assignedTodoId = null, dueDate = "2026-05-05")
 
         val state = viewModel.uiState.value
         assertThat(state.isInitialized).isTrue()
@@ -74,7 +103,7 @@ class TodoEditorViewModelTest {
             priority = TodoPriority.HIGH
         ).getOrThrow()
 
-        viewModel.initialize(todoId = id, dueDate = null)
+        viewModel.initialize(todoId = id, assignedTodoId = null, dueDate = null)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -93,7 +122,7 @@ class TodoEditorViewModelTest {
             exitDeferred.complete(viewModel.sideEffect.first())
         }
 
-        viewModel.initialize(todoId = 999L, dueDate = null)
+        viewModel.initialize(todoId = 999L, assignedTodoId = null, dueDate = null)
         advanceUntilIdle()
 
         assertThat(exitDeferred.await()).isEqualTo(TodoEditorSideEffect.Exit)
@@ -101,7 +130,7 @@ class TodoEditorViewModelTest {
 
     @Test
     fun saveWithBlankTitleSetsValidationError() = runTest {
-        viewModel.initialize(todoId = null, dueDate = null)
+        viewModel.initialize(todoId = null, assignedTodoId = null, dueDate = null)
         viewModel.onTitleChange("   ")
 
         viewModel.onSave()
@@ -112,7 +141,7 @@ class TodoEditorViewModelTest {
 
     @Test
     fun saveWithInvalidDateSetsValidationError() = runTest {
-        viewModel.initialize(todoId = null, dueDate = null)
+        viewModel.initialize(todoId = null, assignedTodoId = null, dueDate = null)
         viewModel.onTitleChange("Task")
         viewModel.onDateInputChange("2026-99-99")
 
@@ -124,7 +153,7 @@ class TodoEditorViewModelTest {
 
     @Test
     fun saveWithReminderWithoutTimeSetsValidationError() = runTest {
-        viewModel.initialize(todoId = null, dueDate = null)
+        viewModel.initialize(todoId = null, assignedTodoId = null, dueDate = null)
         viewModel.onTitleChange("Task")
         viewModel.onDateInputChange("2026-05-07")
         viewModel.onReminderEnabledChange(true)
@@ -142,7 +171,7 @@ class TodoEditorViewModelTest {
             exitDeferred.complete(viewModel.sideEffect.first())
         }
 
-        viewModel.initialize(todoId = null, dueDate = "2026-05-09")
+        viewModel.initialize(todoId = null, assignedTodoId = null, dueDate = "2026-05-09")
         viewModel.onTitleChange("Write tests")
         viewModel.onDueTimeInputChange("10:30")
         viewModel.onPrioritySelected(TodoPriority.HIGH)
@@ -162,7 +191,7 @@ class TodoEditorViewModelTest {
     fun saveEditUpdatesTodoAndSchedulesReminder() = runTest {
         val id = repository.addTodo(
             title = "Old",
-            dueDate = LocalDate.of(2026, 5, 9),
+            dueDate = LocalDate.of(2026, 5, 10),
             categoryId = null,
             dueTimeMinutes = 8 * 60,
             reminderAtEpochMillis = null,
@@ -173,7 +202,7 @@ class TodoEditorViewModelTest {
             priority = TodoPriority.LOW
         ).getOrThrow()
 
-        viewModel.initialize(todoId = id, dueDate = null)
+        viewModel.initialize(todoId = id, assignedTodoId = null, dueDate = null)
         advanceUntilIdle()
         viewModel.onTitleChange("Updated")
         viewModel.onDueTimeInputChange("09:30")
@@ -209,7 +238,7 @@ class TodoEditorViewModelTest {
             exitDeferred.complete(viewModel.sideEffect.first())
         }
 
-        viewModel.initialize(todoId = id, dueDate = null)
+        viewModel.initialize(todoId = id, assignedTodoId = null, dueDate = null)
         advanceUntilIdle()
         viewModel.onDelete()
         advanceUntilIdle()
@@ -219,6 +248,149 @@ class TodoEditorViewModelTest {
         assertThat(exitDeferred.await()).isEqualTo(TodoEditorSideEffect.Exit)
         assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
     }
+
+    @Test
+    fun initializeForAssignedEditLoadsReadOnlyTodoState() = runTest {
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "assigned-edit",
+                title = "Shared plan",
+                dueDate = LocalDate.of(2026, 5, 11),
+                dueTimeMinutes = 10 * 60,
+                priority = TodoPriority.HIGH
+            )
+        )
+
+        viewModel.initialize(todoId = null, assignedTodoId = "assigned-edit", dueDate = null)
+        advanceUntilIdle()
+        viewModel.onTitleChange("Should be ignored")
+        viewModel.onDateInputChange("2026-05-12")
+        viewModel.onDueTimeInputChange("12:00")
+        viewModel.onPrioritySelected(TodoPriority.LOW)
+
+        val state = viewModel.uiState.value
+        assertThat(state.isAssignedEdit).isTrue()
+        assertThat(state.showDelete).isFalse()
+        assertThat(state.sheetTitleRes).isEqualTo(R.string.todo_editor_title_received_task)
+        assertThat(state.title).isEqualTo("Shared plan")
+        assertThat(state.dueDateInput).isEqualTo("2026-05-11")
+        assertThat(state.dueTimeInput).isEqualTo("10:00")
+        assertThat(state.priority).isEqualTo(TodoPriority.HIGH)
+    }
+
+    @Test
+    fun saveAssignedEditUpsertsReminderAndExits() = runTest {
+        val dueDate = LocalDate.now().plusDays(1)
+        val exitDeferred = CompletableDeferred<TodoEditorSideEffect>()
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "assigned-reminder",
+                dueDate = dueDate,
+                dueTimeMinutes = 18 * 60
+            )
+        )
+        backgroundScope.launch {
+            exitDeferred.complete(viewModel.sideEffect.first())
+        }
+
+        viewModel.initialize(todoId = null, assignedTodoId = "assigned-reminder", dueDate = null)
+        advanceUntilIdle()
+        viewModel.onReminderEnabledChange(true)
+        viewModel.onReminderLeadMinutesChange(30)
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.upsertedReminder?.assignedTodoId).isEqualTo("assigned-reminder")
+        assertThat(assignmentRepository.upsertedReminder?.enabled).isTrue()
+        assertThat(exitDeferred.await()).isEqualTo(TodoEditorSideEffect.Exit)
+        assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
+    }
+
+    private class FakeAssignmentRepository : AssignmentRepository {
+        var receivedItems: List<AssignedTodo> = emptyList()
+        var upsertedReminder: UpsertedReminder? = null
+
+        override suspend fun createBundle(
+            receiverUserId: String,
+            items: List<AssignmentDraftItem>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun getFriendAssignedTodos(
+            friendUserId: String,
+            direction: AssignmentDirection,
+            status: AssignmentFeedStatus
+        ): Result<List<AssignedTodo>> = Result.success(emptyList())
+
+        override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(receivedItems)
+
+        override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
+            Result.success(emptyList())
+
+        override suspend fun decideBundleItems(
+            bundleId: String,
+            decisions: Map<String, AssignmentDecision>
+        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun upsertAssignedTodoReminder(
+            assignedTodoId: String,
+            reminderAt: String,
+            enabled: Boolean
+        ): Result<Unit> {
+            upsertedReminder = UpsertedReminder(
+                assignedTodoId = assignedTodoId,
+                reminderAt = reminderAt,
+                enabled = enabled
+            )
+            return Result.success(Unit)
+        }
+
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
+            Result.success(Unit)
+    }
+
+    private class FakeFriendRepository : FriendRepository {
+        override suspend fun getFriends(): Result<List<Friend>> = Result.success(emptyList())
+
+        override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun sendRequest(nickname: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun acceptRequest(requestId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun declineRequest(requestId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun removeFriend(friendshipId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+    }
+
+    private data class UpsertedReminder(
+        val assignedTodoId: String,
+        val reminderAt: String,
+        val enabled: Boolean
+    )
 
     private class RecordingReminderScheduler : TodoReminderScheduler {
         val scheduledTodos = mutableListOf<TodoItem>()
@@ -245,3 +417,28 @@ class TodoEditorViewModelTest {
         }
     }
 }
+
+private fun assignedTodo(
+    id: String = "assigned-1",
+    title: String = "Shared todo",
+    dueDate: LocalDate? = null,
+    dueTimeMinutes: Int? = null,
+    priority: TodoPriority = TodoPriority.MEDIUM,
+    reminder: AssignedTodoReminder? = null
+) = AssignedTodo(
+    id = id,
+    bundleId = "bundle-1",
+    title = title,
+    description = null,
+    dueDate = dueDate,
+    dueTimeMinutes = dueTimeMinutes,
+    priority = priority,
+    category = null,
+    status = AssignedTodoStatus.ACCEPTED,
+    terminalReason = null,
+    progressPercent = 0,
+    sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
+    receiver = AssignedTodoUser(id = "me", nickname = "tester"),
+    reminder = reminder,
+    checklist = emptyList()
+)

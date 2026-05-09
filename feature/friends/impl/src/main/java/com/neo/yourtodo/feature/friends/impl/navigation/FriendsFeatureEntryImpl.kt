@@ -16,7 +16,10 @@ class FriendsFeatureEntryImpl @Inject constructor() : FriendsFeatureEntry {
         routeActions: AppRouteActions
     ) {
         entryProviderScope.entry<FriendsRoute> {
-            FriendsRouteScreen()
+            FriendsRouteScreen(
+                workspaceSyncState = routeActions.workspaceSyncState,
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
+            )
         }
     }
 }

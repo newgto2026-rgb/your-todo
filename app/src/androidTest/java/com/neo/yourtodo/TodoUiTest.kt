@@ -132,6 +132,7 @@ class TodoUiTest {
         tabNode("today").assertIsNotSelected()
         tabNode("completed").assertIsNotSelected()
         tabNode("calendar").assertIsNotSelected()
+        composeTestRule.onNodeWithTag("todo_sync_button").assertIsDisplayed()
     }
 
     @Test
@@ -1156,9 +1157,8 @@ class TodoUiTest {
         composeTestRule.onNodeWithTag("task_title_input").performTextInput(title)
         composeTestRule.onNodeWithTag("save_button").performScrollTo().performClick()
 
-        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
-            composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
-        }
+        composeTestRule.waitUntilNodeDoesNotExist("task_title_input")
+        composeTestRule.waitUntilAgendaTodoDisplayed(title)
         composeTestRule.onNodeWithText(agendaDateLabel(targetDate)).assertIsDisplayed()
         composeTestRule.onNode(
             hasText(title) and hasAnyAncestor(hasTestTag("calendar_day_todo_sheet"))
@@ -1559,6 +1559,25 @@ class TodoUiTest {
         }
     }
 
+    private fun ComposeTestRule.waitUntilNodeDoesNotExist(
+        tag: String,
+        timeoutMillis: Long = UiTimeoutMillis
+    ) {
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    private fun ComposeTestRule.waitUntilAgendaTodoDisplayed(
+        title: String,
+        timeoutMillis: Long = UiTimeoutMillis
+    ) {
+        val agendaTodo = hasText(title) and hasAnyAncestor(hasTestTag("calendar_day_todo_sheet"))
+        waitUntil(timeoutMillis = timeoutMillis) {
+            onAllNodes(agendaTodo, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     private fun ComposeTestRule.waitUntilTodoScreenText(
         filterName: String,
         text: String,
@@ -1680,12 +1699,4 @@ class TodoUiTest {
         ).assertCountEquals(expectedCount)
     }
 
-    private fun ComposeTestRule.waitUntilNodeDoesNotExist(
-        tag: String,
-        timeoutMillis: Long = UiTimeoutMillis
-    ) {
-        waitUntil(timeoutMillis = timeoutMillis) {
-            onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
-        }
-    }
 }

@@ -18,5 +18,10 @@ data class TodoItemUiModel(
     val isReminderEnabled: Boolean,
     val reminderLeadMinutes: Int?,
     val reminderRepeatType: ReminderRepeatType,
-    val priority: TodoPriority
-)
+    val priority: TodoPriority,
+    val assignedTodoId: String? = null,
+    val senderNickname: String? = null
+) {
+    val isAssigned: Boolean
+        get() = assignedTodoId != null
+}

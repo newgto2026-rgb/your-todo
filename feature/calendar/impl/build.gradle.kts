@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":feature:calendar:api"))
     implementation(project(":core:model"))
     implementation(project(":core:domain"))
+    implementation(project(":core:ui"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)

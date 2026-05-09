@@ -492,6 +492,7 @@ class TodoRepositoryImplTest {
         assertThat(todoDao.getTodoById(id)?.syncStatus).isEqualTo("PENDING_CREATE")
         assertThat(outboxDao.items).hasSize(1)
         assertThat(prefs.todoSyncHaltReason.first()).isEqualTo("AUTH_REQUIRED")
+        assertThat(prefs.authSession.first()).isNull()
     }
 
     @Test
