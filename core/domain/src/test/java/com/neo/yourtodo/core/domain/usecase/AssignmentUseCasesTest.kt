@@ -117,6 +117,107 @@ class AssignmentUseCasesTest {
     }
 
     @Test
+    fun manageAssignedTodoDelegatesReminderMutations() = runTest {
+        val repository = FakeAssignmentRepository(
+            upsertReminderResult = Result.success(Unit),
+            deleteReminderResult = Result.success(Unit)
+        )
+        val useCase = ManageAssignedTodoUseCase(repository)
+
+        val upsert = useCase.upsertReminder(
+            assignedTodoId = "assigned-reminder",
+            reminderAt = "2026-05-10T09:00:00Z",
+            enabled = true
+        )
+        val delete = useCase.deleteReminder("assigned-reminder")
+
+        assertThat(upsert.isSuccess).isTrue()
+        assertThat(delete.isSuccess).isTrue()
+        assertThat(repository.upsertedReminders)
+            .containsExactly(Triple("assigned-reminder", "2026-05-10T09:00:00Z", true))
+        assertThat(repository.deletedReminderTodoIds).containsExactly("assigned-reminder")
+    }
+
+    @Test
+    fun visibleReceivedFetchesActiveAndHistoryFeeds() = runTest {
+        val accepted = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "accepted")
+        val done = testTodo(status = AssignedTodoStatus.DONE).copy(id = "done")
+        val rejected = testTodo(status = AssignedTodoStatus.REJECTED).copy(id = "rejected")
+        val repository = FakeAssignmentRepository(
+            receivedResults = mapOf(
+                AssignmentFeedStatus.ACTIVE to Result.success(listOf(accepted)),
+                AssignmentFeedStatus.HISTORY to Result.success(listOf(done, rejected))
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.visibleReceived()
+
+        assertThat(result.getOrThrow()).containsExactly(accepted, done).inOrder()
+        assertThat(repository.receivedStatuses)
+            .containsExactly(AssignmentFeedStatus.ACTIVE, AssignmentFeedStatus.HISTORY)
+            .inOrder()
+    }
+
+    @Test
+    fun visibleReceivedReturnsFirstFeedFailure() = runTest {
+        val failure = IllegalStateException("active failed")
+        val repository = FakeAssignmentRepository(
+            receivedResults = mapOf(
+                AssignmentFeedStatus.ACTIVE to Result.failure(failure),
+                AssignmentFeedStatus.HISTORY to Result.success(emptyList())
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.visibleReceived()
+
+        assertThat(result.exceptionOrNull()).isSameInstanceAs(failure)
+    }
+
+    @Test
+    fun visibleByFriendFetchesPendingActiveAndHistoryFeeds() = runTest {
+        val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
+        val active = testTodo(status = AssignedTodoStatus.IN_PROGRESS).copy(id = "active")
+        val done = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.now()
+        ).copy(id = "done")
+        val repository = FakeAssignmentRepository(
+            friendTodosResults = mapOf(
+                AssignmentFeedStatus.PENDING to Result.success(listOf(pending)),
+                AssignmentFeedStatus.ACTIVE to Result.success(listOf(active)),
+                AssignmentFeedStatus.HISTORY to Result.success(listOf(done))
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.visibleByFriend("friend-1", AssignmentDirection.RECEIVED)
+
+        assertThat(result.getOrThrow()).containsExactly(pending, active, done).inOrder()
+        assertThat(repository.friendFeedRequests).containsExactly(
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.PENDING),
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.ACTIVE),
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.HISTORY)
+        ).inOrder()
+    }
+
+    @Test
+    fun completedHistoryByFriendReturnsHistoryFailure() = runTest {
+        val failure = IllegalStateException("history failed")
+        val repository = FakeAssignmentRepository(
+            friendTodosResults = mapOf(
+                AssignmentFeedStatus.HISTORY to Result.failure(failure)
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.completedHistoryByFriend("friend-1", AssignmentDirection.SENT)
+
+        assertThat(result.exceptionOrNull()).isSameInstanceAs(failure)
+    }
+
+    @Test
     fun taskSurfaceVisibilityHidesPendingUntilAccepted() {
         val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
         val accepted = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "accepted")
@@ -236,8 +337,10 @@ class AssignmentUseCasesTest {
             Result.failure(UnsupportedOperationException()),
         private val friendTodosResult: Result<List<AssignedTodo>> =
             Result.failure(UnsupportedOperationException()),
+        private val friendTodosResults: Map<AssignmentFeedStatus, Result<List<AssignedTodo>>> = emptyMap(),
         private val receivedResult: Result<List<AssignedTodo>> =
             Result.failure(UnsupportedOperationException()),
+        private val receivedResults: Map<AssignmentFeedStatus, Result<List<AssignedTodo>>> = emptyMap(),
         private val sentResult: Result<List<AssignedTodo>> =
             Result.failure(UnsupportedOperationException()),
         private val decideResult: Result<AssignmentBundle> =
@@ -247,6 +350,10 @@ class AssignmentUseCasesTest {
         private val deleteResult: Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException()),
         private val cancelResult: Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException()),
+        private val upsertReminderResult: Result<Unit> =
+            Result.failure(UnsupportedOperationException()),
+        private val deleteReminderResult: Result<Unit> =
             Result.failure(UnsupportedOperationException())
     ) : AssignmentRepository {
         val createdReceiverUserIds = mutableListOf<String>()
@@ -260,6 +367,8 @@ class AssignmentUseCasesTest {
         val completedTodoIds = mutableListOf<String>()
         val deletedTodoIds = mutableListOf<String>()
         val canceledTodoIds = mutableListOf<String>()
+        val upsertedReminders = mutableListOf<Triple<String, String, Boolean>>()
+        val deletedReminderTodoIds = mutableListOf<String>()
 
         override suspend fun createBundle(
             receiverUserId: String,
@@ -281,14 +390,14 @@ class AssignmentUseCasesTest {
             status: AssignmentFeedStatus
         ): Result<List<AssignedTodo>> {
             friendFeedRequests += FriendFeedRequest(friendUserId, direction, status)
-            return friendTodosResult
+            return friendTodosResults[status] ?: friendTodosResult
         }
 
         override suspend fun getReceivedAssignedTodos(
             status: AssignmentFeedStatus
         ): Result<List<AssignedTodo>> {
             receivedStatuses += status
-            return receivedResult
+            return receivedResults[status] ?: receivedResult
         }
 
         override suspend fun getSentAssignedTodos(
@@ -326,10 +435,15 @@ class AssignmentUseCasesTest {
             assignedTodoId: String,
             reminderAt: String,
             enabled: Boolean
-        ): Result<Unit> = Result.failure(UnsupportedOperationException())
+        ): Result<Unit> {
+            upsertedReminders += Triple(assignedTodoId, reminderAt, enabled)
+            return upsertReminderResult
+        }
 
-        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
-            Result.failure(UnsupportedOperationException())
+        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> {
+            deletedReminderTodoIds += assignedTodoId
+            return deleteReminderResult
+        }
     }
 
     private fun testDraft() = AssignmentDraftItem(
