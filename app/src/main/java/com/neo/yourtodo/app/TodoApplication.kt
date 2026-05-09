@@ -1,6 +1,7 @@
 package com.neo.yourtodo.app
 
 import android.app.Application
+import com.neo.yourtodo.app.push.PushNotificationHelper
 import com.neo.yourtodo.app.todo.reminder.TodoReminderNotificationHelper
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import dagger.hilt.android.HiltAndroidApp
@@ -21,6 +22,7 @@ class TodoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         TodoReminderNotificationHelper.ensureChannel(this)
+        PushNotificationHelper.ensureChannel(this)
         appScope.launch {
             todoReminderScheduler.rescheduleAll()
         }

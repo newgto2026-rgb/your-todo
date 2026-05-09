@@ -9,6 +9,8 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TO
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_EMAIL
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_ID
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_NICKNAME
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.PUSH_CURRENT_TOKEN
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.PUSH_REGISTERED_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_CATEGORY_FILTER
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_FILTER
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_PRIORITY_FILTER
@@ -70,6 +72,12 @@ class UserPreferencesDataSourceImpl @Inject constructor(
 
     override val todoSyncHaltReason: Flow<String?> =
         dataStore.data.map { prefs -> prefs[TODO_SYNC_HALT_REASON] }
+
+    override val pushCurrentToken: Flow<String?> =
+        dataStore.data.map { prefs -> prefs[PUSH_CURRENT_TOKEN] }
+
+    override val pushRegisteredToken: Flow<String?> =
+        dataStore.data.map { prefs -> prefs[PUSH_REGISTERED_TOKEN] }
 
     override suspend fun saveAuthSession(session: AuthSessionData) {
         dataStore.edit { prefs ->
@@ -143,6 +151,26 @@ class UserPreferencesDataSourceImpl @Inject constructor(
         dataStore.edit { prefs ->
             prefs.remove(TODO_SYNC_CURSOR)
             prefs.remove(TODO_SYNC_HALT_REASON)
+        }
+    }
+
+    override suspend fun setPushCurrentToken(token: String?) {
+        dataStore.edit { prefs ->
+            if (token.isNullOrBlank()) {
+                prefs.remove(PUSH_CURRENT_TOKEN)
+            } else {
+                prefs[PUSH_CURRENT_TOKEN] = token
+            }
+        }
+    }
+
+    override suspend fun setPushRegisteredToken(token: String?) {
+        dataStore.edit { prefs ->
+            if (token.isNullOrBlank()) {
+                prefs.remove(PUSH_REGISTERED_TOKEN)
+            } else {
+                prefs[PUSH_REGISTERED_TOKEN] = token
+            }
         }
     }
 

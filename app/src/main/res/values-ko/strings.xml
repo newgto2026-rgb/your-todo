@@ -8,4 +8,18 @@
     <string name="tab_friends">친구</string>
     <string name="app_sync_success">동기화가 완료되었습니다.</string>
     <string name="app_sync_failed">일부 동기화가 완료되지 않았습니다.</string>
+    <string name="push_notification_channel_name">친구 업데이트</string>
+    <string name="push_notification_channel_description">친구 요청과 공유 할 일 업데이트</string>
+    <string name="push_default_title">YourTodo 업데이트</string>
+    <string name="push_default_body">최신 내용을 확인해 보세요.</string>
+    <string name="push_friend_request_title">친구 요청이 도착했어요</string>
+    <string name="push_friend_request_body">친구 탭에서 요청을 확인해 보세요.</string>
+    <string name="push_assignment_received_title">공유 할 일이 도착했어요</string>
+    <string name="push_assignment_received_body">친구 탭에서 요청받은 일을 확인해 보세요.</string>
+    <string name="push_assignment_decided_title">공유 할 일 응답이 업데이트됐어요</string>
+    <string name="push_assignment_decided_body">친구 탭에서 응답 내용을 확인해 보세요.</string>
+    <string name="push_assigned_todo_completed_title">공유한 할 일이 완료됐어요</string>
+    <string name="push_assigned_todo_completed_body">친구 탭에서 완료된 일을 확인해 보세요.</string>
+    <string name="push_assigned_todo_canceled_title">공유한 할 일이 취소됐어요</string>
+    <string name="push_assigned_todo_canceled_body">친구 탭에서 취소된 일을 확인해 보세요.</string>
 </resources>
