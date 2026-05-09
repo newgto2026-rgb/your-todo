@@ -7,4 +7,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object FriendsRoute : NavKey
 
+@Serializable
+data class FriendsIncomingAssignmentRoute(
+    val friendUserId: String? = null,
+    val bundleId: String? = null
+) : NavKey
+
 interface FriendsFeatureEntry : AppFeatureEntry

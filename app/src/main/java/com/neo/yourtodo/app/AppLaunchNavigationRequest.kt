@@ -6,7 +6,9 @@ import com.neo.yourtodo.app.push.PushNotificationContract
 import com.neo.yourtodo.feature.calendar.api.CalendarDateRoute
 import com.neo.yourtodo.feature.calendar.api.CalendarRoute
 import com.neo.yourtodo.feature.calendar.api.CalendarWidgetIntentContract
+import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.friends.api.FriendsRoute
+import java.net.URI
 import java.time.LocalDate
 
 data class AppLaunchNavigationRequest(
@@ -24,7 +26,10 @@ fun parseAppLaunchNavigationRequest(
         action = intent?.action,
         pushType = intent?.getStringExtra(PushNotificationContract.EXTRA_TYPE),
         deepLink = intent?.getStringExtra(PushNotificationContract.EXTRA_DEEP_LINK),
+        bundleId = intent?.getStringExtra(PushNotificationContract.EXTRA_BUNDLE_ID),
+        actorUserId = intent?.getStringExtra(PushNotificationContract.EXTRA_ACTOR_USER_ID),
         dataScheme = intent?.data?.scheme,
+        dataString = intent?.dataString,
         requestId = requestId
     )
     if (pushRequest != null) return pushRequest
@@ -57,14 +62,20 @@ fun parseAppLaunchNavigationRequest(
     selectedDate: String?,
     pushType: String?,
     deepLink: String?,
+    bundleId: String? = null,
+    actorUserId: String? = null,
     dataScheme: String?,
+    dataString: String? = null,
     requestId: Long
 ): AppLaunchNavigationRequest? =
     parsePushNavigationRequest(
         action = action,
         pushType = pushType,
         deepLink = deepLink,
+        bundleId = bundleId,
+        actorUserId = actorUserId,
         dataScheme = dataScheme,
+        dataString = dataString,
         requestId = requestId
     ) ?: parseAppLaunchNavigationRequest(
         action = action,
@@ -76,7 +87,10 @@ private fun parsePushNavigationRequest(
     action: String?,
     pushType: String?,
     deepLink: String?,
+    bundleId: String?,
+    actorUserId: String?,
     dataScheme: String?,
+    dataString: String?,
     requestId: Long
 ): AppLaunchNavigationRequest? {
     if (
@@ -88,9 +102,49 @@ private fun parsePushNavigationRequest(
         return null
     }
 
+    val parsedDeepLink = deepLink?.takeIf { it.isNotBlank() } ?: dataString
+    val incomingAssignmentRoute = incomingAssignmentRoute(
+        deepLink = parsedDeepLink,
+        bundleId = bundleId,
+        actorUserId = actorUserId
+    )
+
     return AppLaunchNavigationRequest(
         id = requestId,
         topLevelRoute = FriendsRoute,
+        contentRoute = incomingAssignmentRoute,
         syncOnOpen = true
     )
+}
+
+private fun incomingAssignmentRoute(
+    deepLink: String?,
+    bundleId: String?,
+    actorUserId: String?
+): FriendsIncomingAssignmentRoute? {
+    val parsedBundleId = bundleId?.takeIf { it.isNotBlank() }
+        ?: deepLink.assignmentBundleIdOrNull()
+    val parsedActorUserId = actorUserId?.takeIf { it.isNotBlank() }
+    if (parsedBundleId == null && parsedActorUserId == null) return null
+    return FriendsIncomingAssignmentRoute(
+        friendUserId = parsedActorUserId,
+        bundleId = parsedBundleId
+    )
+}
+
+private fun String?.assignmentBundleIdOrNull(): String? {
+    val uri = this?.let { runCatching { URI(it) }.getOrNull() } ?: return null
+    val segments = uri.path
+        ?.trim('/')
+        ?.split('/')
+        ?.filter { it.isNotBlank() }
+        .orEmpty()
+    return when {
+        uri.scheme == "yourtodo" &&
+            uri.host == "assignment-bundles" &&
+            segments.size >= 2 &&
+            segments[0] == "received" -> segments[1]
+
+        else -> null
+    }
 }

@@ -24,6 +24,9 @@ class RefreshWorkspaceUseCase @Inject constructor(
         val friends = async { friendRepository.getFriends() }
         val incomingRequests = async { friendRepository.getIncomingRequests() }
         val outgoingRequests = async { friendRepository.getOutgoingRequests() }
+        val pendingReceivedAssignedTodos = async {
+            assignmentRepository.getReceivedAssignedTodos(AssignmentFeedStatus.PENDING)
+        }
         val activeReceivedAssignedTodos = async {
             assignmentRepository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE)
         }
@@ -34,6 +37,7 @@ class RefreshWorkspaceUseCase @Inject constructor(
         val friendsResult = friends.await()
         val incomingRequestsResult = incomingRequests.await()
         val outgoingRequestsResult = outgoingRequests.await()
+        val pendingReceivedResult = pendingReceivedAssignedTodos.await()
         val activeReceivedResult = activeReceivedAssignedTodos.await()
         val historyReceivedResult = historyReceivedAssignedTodos.await()
         val requiredFailure = listOf(
@@ -49,6 +53,7 @@ class RefreshWorkspaceUseCase @Inject constructor(
             friendsResult,
             incomingRequestsResult,
             outgoingRequestsResult,
+            pendingReceivedResult,
             activeReceivedResult,
             historyReceivedResult
         ).all { it.isSuccess }

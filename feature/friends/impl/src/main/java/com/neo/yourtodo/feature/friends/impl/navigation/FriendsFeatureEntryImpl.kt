@@ -4,6 +4,7 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.neo.yourtodo.core.ui.navigation.AppRouteActions
 import com.neo.yourtodo.feature.friends.api.FriendsFeatureEntry
+import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.friends.api.FriendsRoute
 import com.neo.yourtodo.feature.friends.impl.ui.FriendsRouteScreen
 import javax.inject.Inject
@@ -19,6 +20,14 @@ class FriendsFeatureEntryImpl @Inject constructor() : FriendsFeatureEntry {
             FriendsRouteScreen(
                 workspaceSyncState = routeActions.workspaceSyncState,
                 onWorkspaceSyncClick = routeActions::requestWorkspaceSync
+            )
+        }
+        entryProviderScope.entry<FriendsIncomingAssignmentRoute> { route ->
+            FriendsRouteScreen(
+                workspaceSyncState = routeActions.workspaceSyncState,
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync,
+                initialIncomingAssignmentFriendUserId = route.friendUserId,
+                initialIncomingAssignmentBundleId = route.bundleId
             )
         }
     }

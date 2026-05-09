@@ -158,6 +158,10 @@ sealed interface FriendsAction {
     data class OnDeclineRequest(val requestId: String) : FriendsAction
     data class OnRemoveFriend(val friendshipId: String) : FriendsAction
     data class OnFriendClick(val friend: Friend) : FriendsAction
+    data class OnOpenIncomingAssignment(
+        val friendUserId: String?,
+        val bundleId: String?
+    ) : FriendsAction
     data object OnCloseFriendDetail : FriendsAction
     data object OnToggleAssignmentHistory : FriendsAction
     data class OnToggleAssignmentSection(val section: FriendAssignmentSection) : FriendsAction
