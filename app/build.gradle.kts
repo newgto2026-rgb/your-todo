@@ -58,6 +58,8 @@ dependencies {
     implementation(project(":feature:calendar:api"))
     implementation(project(":feature:calendar:entry"))
     implementation(project(":feature:calendar:widget"))
+    implementation(project(":feature:friends:api"))
+    implementation(project(":feature:friends:entry"))
     implementation(project(":feature:todo:api"))
     implementation(project(":feature:todo:entry"))
 
