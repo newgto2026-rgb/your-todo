@@ -16,6 +16,7 @@ import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.feature.friends.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -91,9 +92,10 @@ class FriendsViewModel @Inject constructor(
                     assignmentTargetFriend = action.friend,
                     assignmentDraftItems = emptyList(),
                     assignmentTitleInput = "",
-                    assignmentDescriptionInput = "",
                     assignmentDueDateInput = "",
+                    assignmentDueTimeInput = "",
                     assignmentPriority = TodoPriority.MEDIUM,
+                    assignmentInputErrorMessageRes = null,
                     error = null
                 )
             }
@@ -102,18 +104,33 @@ class FriendsViewModel @Inject constructor(
                     assignmentTargetFriend = null,
                     assignmentDraftItems = emptyList(),
                     assignmentTitleInput = "",
-                    assignmentDescriptionInput = "",
-                    assignmentDueDateInput = ""
+                    assignmentDueDateInput = "",
+                    assignmentDueTimeInput = "",
+                    assignmentInputErrorMessageRes = null
                 )
             }
             is FriendsAction.OnAssignmentTitleChanged -> mutableUiState.update {
-                it.copy(assignmentTitleInput = action.value.take(MaxAssignmentTitleLength), error = null)
-            }
-            is FriendsAction.OnAssignmentDescriptionChanged -> mutableUiState.update {
-                it.copy(assignmentDescriptionInput = action.value.take(MaxAssignmentDescriptionLength), error = null)
+                it.copy(
+                    assignmentTitleInput = action.value.take(MaxAssignmentTitleLength),
+                    assignmentInputErrorMessageRes = null,
+                    error = null
+                )
             }
             is FriendsAction.OnAssignmentDueDateChanged -> mutableUiState.update {
-                it.copy(assignmentDueDateInput = action.value.take(MaxDueDateLength), error = null)
+                val dueDate = action.value.take(MaxDueDateLength)
+                it.copy(
+                    assignmentDueDateInput = dueDate,
+                    assignmentDueTimeInput = if (dueDate.isBlank()) "" else it.assignmentDueTimeInput,
+                    assignmentInputErrorMessageRes = null,
+                    error = null
+                )
+            }
+            is FriendsAction.OnAssignmentDueTimeChanged -> mutableUiState.update {
+                it.copy(
+                    assignmentDueTimeInput = action.value.take(MaxDueTimeLength),
+                    assignmentInputErrorMessageRes = null,
+                    error = null
+                )
             }
             is FriendsAction.OnAssignmentPriorityChanged -> mutableUiState.update {
                 it.copy(assignmentPriority = action.value)
@@ -243,8 +260,9 @@ class FriendsViewModel @Inject constructor(
             it.copy(
                 assignmentDraftItems = it.assignmentDraftItems + item,
                 assignmentTitleInput = "",
-                assignmentDescriptionInput = "",
                 assignmentDueDateInput = "",
+                assignmentDueTimeInput = "",
+                assignmentInputErrorMessageRes = null,
                 error = null
             )
         }
@@ -270,8 +288,9 @@ class FriendsViewModel @Inject constructor(
                         assignmentTargetFriend = null,
                         assignmentDraftItems = emptyList(),
                         assignmentTitleInput = "",
-                        assignmentDescriptionInput = "",
-                        assignmentDueDateInput = ""
+                        assignmentDueDateInput = "",
+                        assignmentDueTimeInput = "",
+                        assignmentInputErrorMessageRes = null
                     )
                 }
             }
@@ -288,10 +307,18 @@ class FriendsViewModel @Inject constructor(
         val state = uiState.value
         val title = state.assignmentTitleInput.trim()
         if (title.isBlank()) return null
+        val dueTimeMinutes = dueTimeTextToMinutes(state.assignmentDueTimeInput)
+        if (state.assignmentDueTimeInput.isNotBlank() && state.assignmentDueDateInput.isBlank()) {
+            mutableUiState.update {
+                it.copy(assignmentInputErrorMessageRes = R.string.friends_assignment_error_due_time_requires_due_date)
+            }
+            return null
+        }
         return AssignmentDraftItem(
             title = title,
-            description = state.assignmentDescriptionInput.trim().takeIf { it.isNotBlank() },
+            description = null,
             dueDate = state.assignmentDueDateInput.trim().takeIf { it.isNotBlank() },
+            dueTimeMinutes = dueTimeMinutes,
             priority = state.assignmentPriority,
             category = null
         )
@@ -353,7 +380,17 @@ class FriendsViewModel @Inject constructor(
     private companion object {
         const val MaxNicknameLength = 12
         const val MaxAssignmentTitleLength = 80
-        const val MaxAssignmentDescriptionLength = 240
         const val MaxDueDateLength = 10
+        const val MaxDueTimeLength = 5
     }
+}
+
+internal fun dueTimeTextToMinutes(value: String): Int? {
+    if (value.isBlank()) return null
+    val parts = value.split(":")
+    if (parts.size != 2) return null
+    val hour = parts[0].toIntOrNull() ?: return null
+    val minute = parts[1].toIntOrNull() ?: return null
+    if (hour !in 0..23 || minute !in 0..59) return null
+    return hour * 60 + minute
 }

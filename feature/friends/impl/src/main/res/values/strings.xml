@@ -26,11 +26,10 @@
     <string name="friends_request_accepted">You are friends now.</string>
     <string name="friends_request_declined">Friend request declined.</string>
     <string name="friends_removed">Friend removed.</string>
-    <string name="friends_assignment_open_editor">Todo</string>
+    <string name="friends_assignment_open_editor">Send todo</string>
     <string name="friends_assignment_dialog_title">Shared todos with %1$s</string>
     <string name="friends_assignment_monitor_subtitle">Check the shared todo flow and progress.</string>
     <string name="friends_assignment_editor_title">Send todo to %1$s</string>
-    <string name="friends_assignment_editor_subtitle">Use the same details as a regular todo, without reminders.</string>
     <string name="friends_assignment_sent_title">I gave</string>
     <string name="friends_assignment_received_title">I received</string>
     <string name="friends_assignment_sent_metric">Given</string>
@@ -38,10 +37,13 @@
     <string name="friends_assignment_metric_value">%1$d · %2$d%%</string>
     <string name="friends_assignment_empty">No active shared todos.</string>
     <string name="friends_assignment_item_summary">%1$s · %2$d%%</string>
-    <string name="friends_assignment_title_placeholder">Todo title</string>
-    <string name="friends_assignment_description_placeholder">Details</string>
+    <string name="friends_assignment_task_label">TASK</string>
+    <string name="friends_assignment_title_placeholder">What needs to be done?</string>
     <string name="friends_assignment_due_date_placeholder">Select due date</string>
+    <string name="friends_assignment_due_time_placeholder">Select due time</string>
+    <string name="friends_assignment_due_time_disabled">Select due date first</string>
     <string name="friends_assignment_due_date_clear">Clear</string>
+    <string name="friends_assignment_priority_label">PRIORITY</string>
     <string name="friends_assignment_add_draft">Add to bundle</string>
     <string name="friends_assignment_send_now">Send now</string>
     <string name="friends_assignment_send_batch">Send bundle</string>
@@ -50,6 +52,7 @@
     <string name="friends_assignment_priority_medium">Medium</string>
     <string name="friends_assignment_priority_high">High</string>
     <string name="friends_assignment_sent">Shared todo sent.</string>
+    <string name="friends_assignment_error_due_time_requires_due_date">Set a due date before choosing a due time.</string>
     <string name="friends_error_auth_required">Please sign in again.</string>
     <string name="friends_error_network">Could not update friends. Please try again.</string>
 </resources>

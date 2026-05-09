@@ -35,6 +35,7 @@ import com.neo.yourtodo.core.model.friends.FriendRequestStatus
 import com.neo.yourtodo.core.model.friends.FriendUser
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
+import com.neo.yourtodo.feature.friends.impl.R
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -331,6 +332,10 @@ class FriendsViewModelTest {
 
             viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Buy milk"))
             assertThat(awaitItem().assignmentTitleInput).isEqualTo("Buy milk")
+            viewModel.onAction(FriendsAction.OnAssignmentDueDateChanged("2026-05-10"))
+            assertThat(awaitItem().assignmentDueDateInput).isEqualTo("2026-05-10")
+            viewModel.onAction(FriendsAction.OnAssignmentDueTimeChanged("14:30"))
+            assertThat(awaitItem().assignmentDueTimeInput).isEqualTo("14:30")
 
             viewModel.onAction(FriendsAction.OnSendAssignmentNow)
             assertThat(awaitItem().runningActionKey).isEqualTo("assignment:friend-1")
@@ -338,7 +343,106 @@ class FriendsViewModelTest {
             val sent = awaitItem()
             assertThat(assignmentRepository.lastReceiverUserId).isEqualTo("friend-1")
             assertThat(assignmentRepository.lastItems).hasSize(1)
+            assertThat(assignmentRepository.lastItems.single().dueDate).isEqualTo("2026-05-10")
+            assertThat(assignmentRepository.lastItems.single().dueTimeMinutes).isEqualTo(14 * 60 + 30)
             assertThat(sent.assignmentTitleInput).isEmpty()
+            assertThat(sent.assignmentDueTimeInput).isEmpty()
+            assertThat(sent.assignmentTargetFriend).isNull()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun sendAssignmentWithDueTimeRequiresDueDate() = runTest {
+        val assignmentRepository = FakeAssignmentRepository()
+        val viewModel = FakeFriendRepository().createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnOpenAssignmentEditor(friend()))
+            assertThat(awaitItem().assignmentTargetFriend?.userId).isEqualTo("friend-1")
+            viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Buy milk"))
+            assertThat(awaitItem().assignmentTitleInput).isEqualTo("Buy milk")
+            viewModel.onAction(FriendsAction.OnAssignmentDueTimeChanged("14:30"))
+            assertThat(awaitItem().assignmentDueTimeInput).isEqualTo("14:30")
+
+            viewModel.onAction(FriendsAction.OnSendAssignmentNow)
+            val error = awaitItem()
+            assertThat(error.assignmentInputErrorMessageRes)
+                .isEqualTo(R.string.friends_assignment_error_due_time_requires_due_date)
+            assertThat(assignmentRepository.lastItems).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun clearAssignmentDueDateAlsoClearsDueTime() = runTest {
+        val viewModel = FakeFriendRepository().createViewModel()
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnOpenAssignmentEditor(friend()))
+            assertThat(awaitItem().assignmentTargetFriend?.userId).isEqualTo("friend-1")
+            viewModel.onAction(FriendsAction.OnAssignmentDueDateChanged("2026-05-10"))
+            assertThat(awaitItem().assignmentDueDateInput).isEqualTo("2026-05-10")
+            viewModel.onAction(FriendsAction.OnAssignmentDueTimeChanged("14:30"))
+            assertThat(awaitItem().assignmentDueTimeInput).isEqualTo("14:30")
+
+            viewModel.onAction(FriendsAction.OnAssignmentDueDateChanged(""))
+            val cleared = awaitItem()
+            assertThat(cleared.assignmentDueDateInput).isEmpty()
+            assertThat(cleared.assignmentDueTimeInput).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun sendAssignmentDraftsIncludesSavedDraftAndCurrentInput() = runTest {
+        val assignmentRepository = FakeAssignmentRepository()
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnOpenAssignmentEditor(friend()))
+            assertThat(awaitItem().assignmentTargetFriend?.userId).isEqualTo("friend-1")
+
+            viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Buy milk"))
+            assertThat(awaitItem().assignmentTitleInput).isEqualTo("Buy milk")
+            viewModel.onAction(FriendsAction.OnAssignmentDueDateChanged("2026-05-10"))
+            assertThat(awaitItem().assignmentDueDateInput).isEqualTo("2026-05-10")
+            viewModel.onAction(FriendsAction.OnAssignmentDueTimeChanged("09:00"))
+            assertThat(awaitItem().assignmentDueTimeInput).isEqualTo("09:00")
+            viewModel.onAction(FriendsAction.OnAddAssignmentDraft)
+            val draftAdded = awaitItem()
+            assertThat(draftAdded.assignmentDraftItems).hasSize(1)
+            assertThat(draftAdded.assignmentDraftItems.single().dueTimeMinutes).isEqualTo(9 * 60)
+            assertThat(draftAdded.assignmentTitleInput).isEmpty()
+
+            viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Submit report"))
+            assertThat(awaitItem().assignmentTitleInput).isEqualTo("Submit report")
+            viewModel.onAction(FriendsAction.OnAssignmentDueDateChanged("2026-05-11"))
+            assertThat(awaitItem().assignmentDueDateInput).isEqualTo("2026-05-11")
+            viewModel.onAction(FriendsAction.OnAssignmentDueTimeChanged("18:15"))
+            assertThat(awaitItem().assignmentDueTimeInput).isEqualTo("18:15")
+
+            viewModel.onAction(FriendsAction.OnSendAssignmentDrafts)
+            assertThat(awaitItem().runningActionKey).isEqualTo("assignment:friend-1")
+
+            val sent = awaitItem()
+            assertThat(assignmentRepository.lastReceiverUserId).isEqualTo("friend-1")
+            assertThat(assignmentRepository.lastItems.map { it.title })
+                .containsExactly("Buy milk", "Submit report")
+                .inOrder()
+            assertThat(assignmentRepository.lastItems.map { it.dueTimeMinutes })
+                .containsExactly(9 * 60, 18 * 60 + 15)
+                .inOrder()
+            assertThat(sent.assignmentDraftItems).isEmpty()
             assertThat(sent.assignmentTargetFriend).isNull()
             cancelAndIgnoreRemainingEvents()
         }

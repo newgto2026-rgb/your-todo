@@ -9,6 +9,7 @@ data class AssignedTodo(
     val title: String,
     val description: String?,
     val dueDate: LocalDate?,
+    val dueTimeMinutes: Int? = null,
     val priority: TodoPriority,
     val category: String?,
     val status: AssignedTodoStatus,

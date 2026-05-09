@@ -39,6 +39,7 @@ data class AssignmentDraftItem(
     val title: String,
     val description: String?,
     val dueDate: String?,
+    val dueTimeMinutes: Int? = null,
     val priority: com.neo.yourtodo.core.model.TodoPriority,
     val category: String?
 )

@@ -60,6 +60,7 @@ class AssignmentRepositoryImpl @Inject constructor(
                             title = item.title,
                             description = item.description,
                             dueDate = item.dueDate,
+                            dueTimeMinutes = item.dueTimeMinutes,
                             priority = item.priority.name,
                             category = item.category
                         )
@@ -203,6 +204,7 @@ class AssignmentRepositoryImpl @Inject constructor(
             title = title,
             description = description,
             dueDate = dueDate.toLocalDateOrNull(),
+            dueTimeMinutes = dueTimeMinutes,
             priority = enumValueOrDefault(priority, TodoPriority.MEDIUM),
             category = category,
             status = enumValueOf(status),

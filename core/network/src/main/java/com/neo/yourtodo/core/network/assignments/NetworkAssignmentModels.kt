@@ -14,6 +14,7 @@ data class NetworkCreateAssignmentItem(
     val title: String,
     val description: String? = null,
     val dueDate: String? = null,
+    val dueTimeMinutes: Int? = null,
     val priority: String,
     val category: String? = null
 )
@@ -72,6 +73,7 @@ data class NetworkAssignedTodo(
     val title: String,
     val description: String? = null,
     val dueDate: String? = null,
+    val dueTimeMinutes: Int? = null,
     val priority: String,
     val category: String? = null,
     val status: String,

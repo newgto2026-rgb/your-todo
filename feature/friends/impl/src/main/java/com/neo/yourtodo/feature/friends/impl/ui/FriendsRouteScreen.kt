@@ -1,5 +1,6 @@
 package com.neo.yourtodo.feature.friends.impl.ui
 
+import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
@@ -72,7 +74,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -87,7 +88,9 @@ import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun FriendsRouteScreen(
@@ -649,14 +652,8 @@ private fun FriendAssignmentEditorSheet(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.friends_assignment_editor_title, friend.nickname),
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         color = Color(0xFF323640)
-                    )
-                    Text(
-                        text = stringResource(R.string.friends_assignment_editor_subtitle),
-                        modifier = Modifier.padding(top = 4.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF647286)
                     )
                 }
                 Surface(
@@ -736,8 +733,15 @@ private fun AssignmentEditorForm(
     onAction: (FriendsAction) -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val dueTimeEnabled = uiState.assignmentDueDateInput.isNotBlank()
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = stringResource(R.string.friends_assignment_task_label),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF7A7F8C)
+        )
         TextField(
             value = uiState.assignmentTitleInput,
             onValueChange = { onAction(FriendsAction.OnAssignmentTitleChanged(it)) },
@@ -749,18 +753,6 @@ private fun AssignmentEditorForm(
             singleLine = false,
             shape = RoundedCornerShape(14.dp),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            colors = editorTextFieldColors()
-        )
-        TextField(
-            value = uiState.assignmentDescriptionInput,
-            onValueChange = { onAction(FriendsAction.OnAssignmentDescriptionChanged(it)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp)
-                .testTag("friends_assignment_description"),
-            placeholder = { Text(stringResource(R.string.friends_assignment_description_placeholder)) },
-            singleLine = false,
-            shape = RoundedCornerShape(14.dp),
             colors = editorTextFieldColors()
         )
         Surface(
@@ -805,43 +797,88 @@ private fun AssignmentEditorForm(
                 }
             }
         }
+        Surface(
+            onClick = {
+                val minutes = editorDueTimeTextToMinutes(uiState.assignmentDueTimeInput)
+                val initialHour = minutes?.div(60) ?: 9
+                val initialMinute = minutes?.rem(60) ?: 0
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        onAction(FriendsAction.OnAssignmentDueTimeChanged(editorMinutesToDueTimeText(hour * 60 + minute)))
+                    },
+                    initialHour,
+                    initialMinute,
+                    true
+                ).show()
+            },
+            enabled = dueTimeEnabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("friends_assignment_due_time"),
+            shape = RoundedCornerShape(14.dp),
+            color = if (dueTimeEnabled) Color(0xFFEBEDF4) else Color(0xFFF2F3F6)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccessTime,
+                    contentDescription = null,
+                    tint = if (dueTimeEnabled) Color(0xFF5C6170) else Color(0xFFA7ACB8)
+                )
+                Spacer(Modifier.size(10.dp))
+                Text(
+                    text = when {
+                        uiState.assignmentDueTimeInput.isNotBlank() -> uiState.assignmentDueTimeInput
+                        dueTimeEnabled -> stringResource(R.string.friends_assignment_due_time_placeholder)
+                        else -> stringResource(R.string.friends_assignment_due_time_disabled)
+                    },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (uiState.assignmentDueTimeInput.isBlank()) {
+                        Color(0xFF8E94A3)
+                    } else {
+                        Color(0xFF2F3441)
+                    }
+                )
+                if (uiState.assignmentDueTimeInput.isNotBlank()) {
+                    TextButton(
+                        onClick = { onAction(FriendsAction.OnAssignmentDueTimeChanged("")) },
+                        modifier = Modifier.testTag("friends_assignment_due_time_clear")
+                    ) {
+                        Text(stringResource(R.string.friends_assignment_due_date_clear))
+                    }
+                }
+            }
+        }
+        Text(
+            text = stringResource(R.string.friends_assignment_priority_label),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF7A7F8C),
+            modifier = Modifier.padding(top = 4.dp)
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             TodoPriority.entries.forEach { priority ->
-                Surface(
-                    onClick = { onAction(FriendsAction.OnAssignmentPriorityChanged(priority)) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("friends_assignment_priority_${priority.name.lowercase()}"),
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (uiState.assignmentPriority == priority) {
-                        Color(0xFFE7E9FF)
-                    } else {
-                        Color(0xFFEBEDF4)
-                    },
-                    border = if (uiState.assignmentPriority == priority) {
-                        BorderStroke(1.dp, Color(0xFF676CB4))
-                    } else {
-                        null
-                    }
-                ) {
-                    Text(
-                        text = stringResource(priority.shortLabelRes()),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        textAlign = TextAlign.Center,
-                        color = if (uiState.assignmentPriority == priority) {
-                            Color(0xFF676CB4)
-                        } else {
-                            Color(0xFF647286)
-                        }
-                    )
-                }
+                AssignmentPriorityChip(
+                    priority = priority,
+                    selected = uiState.assignmentPriority == priority,
+                    onClick = { onAction(FriendsAction.OnAssignmentPriorityChanged(priority)) }
+                )
             }
+        }
+        uiState.assignmentInputErrorMessageRes?.let { messageRes ->
+            Text(
+                text = stringResource(messageRes),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 
@@ -873,6 +910,32 @@ private fun AssignmentEditorForm(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+}
+
+@Composable
+private fun AssignmentPriorityChip(
+    priority: TodoPriority,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val color = when (priority) {
+        TodoPriority.LOW -> Color(0xFF6FA58C)
+        TodoPriority.MEDIUM -> Color(0xFF6F86C9)
+        TodoPriority.HIGH -> Color(0xFFC76B7D)
+    }
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) color.copy(alpha = 0.2f) else Color(0xFFE8EBF3),
+        onClick = onClick,
+        modifier = Modifier.testTag("friends_assignment_priority_${priority.name.lowercase()}")
+    ) {
+        Text(
+            text = stringResource(priority.shortLabelRes()),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            color = if (selected) color else Color(0xFF6C7382),
+            style = MaterialTheme.typography.labelLarge
+        )
     }
 }
 
@@ -936,6 +999,21 @@ private fun utcMillisToIsoDate(value: Long?): String =
             .toLocalDate()
             .toString()
     }.orEmpty()
+
+private val DueTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+private fun editorDueTimeTextToMinutes(value: String): Int? {
+    if (value.isBlank()) return null
+    return runCatching {
+        val time = LocalTime.parse(value, DueTimeFormatter)
+        time.hour * 60 + time.minute
+    }.getOrNull()
+}
+
+private fun editorMinutesToDueTimeText(minutes: Int): String {
+    val normalized = ((minutes % (24 * 60)) + (24 * 60)) % (24 * 60)
+    return LocalTime.of(normalized / 60, normalized % 60).format(DueTimeFormatter)
+}
 
 @Composable
 private fun FriendSurface(

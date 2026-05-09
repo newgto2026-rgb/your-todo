@@ -25,10 +25,11 @@ data class FriendsUiState(
     val friendSentAssignedTodos: List<AssignedTodo> = emptyList(),
     val friendReceivedAssignedTodos: List<AssignedTodo> = emptyList(),
     val assignmentTitleInput: String = "",
-    val assignmentDescriptionInput: String = "",
     val assignmentDueDateInput: String = "",
+    val assignmentDueTimeInput: String = "",
     val assignmentPriority: TodoPriority = TodoPriority.MEDIUM,
     val assignmentDraftItems: List<AssignmentDraftItem> = emptyList(),
+    @StringRes val assignmentInputErrorMessageRes: Int? = null,
     val runningActionKey: String? = null,
     val error: FriendsError? = null
 ) {
@@ -50,8 +51,8 @@ sealed interface FriendsAction {
     data class OnOpenAssignmentEditor(val friend: Friend) : FriendsAction
     data object OnCloseAssignmentEditor : FriendsAction
     data class OnAssignmentTitleChanged(val value: String) : FriendsAction
-    data class OnAssignmentDescriptionChanged(val value: String) : FriendsAction
     data class OnAssignmentDueDateChanged(val value: String) : FriendsAction
+    data class OnAssignmentDueTimeChanged(val value: String) : FriendsAction
     data class OnAssignmentPriorityChanged(val value: TodoPriority) : FriendsAction
     data object OnAddAssignmentDraft : FriendsAction
     data class OnRemoveAssignmentDraft(val index: Int) : FriendsAction
