@@ -5,6 +5,7 @@ import com.neo.yourtodo.feature.calendar.api.CalendarRoute
 import com.neo.yourtodo.feature.calendar.api.CalendarWidgetIntentContract
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.app.push.PushNotificationContract
+import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.friends.api.FriendsRoute
 import org.junit.Test
 
@@ -56,12 +57,14 @@ class AppLaunchNavigationRequestTest {
     }
 
     @Test
-    fun parsePushIntent_returnsFriendsRouteAndRequestsSync() {
+    fun parsePushIntent_returnsFriendsIncomingAssignmentRouteAndRequestsSync() {
         val request = parseAppLaunchNavigationRequest(
             action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
             selectedDate = null,
             pushType = "ASSIGNMENT_BUNDLE_RECEIVED",
             deepLink = "yourtodo://assignment-bundles/received/bundle-id",
+            bundleId = null,
+            actorUserId = "friend-user-id",
             dataScheme = null,
             requestId = 10L
         )
@@ -70,7 +73,10 @@ class AppLaunchNavigationRequestTest {
             AppLaunchNavigationRequest(
                 id = 10L,
                 topLevelRoute = FriendsRoute,
-                contentRoute = null,
+                contentRoute = FriendsIncomingAssignmentRoute(
+                    friendUserId = "friend-user-id",
+                    bundleId = "bundle-id"
+                ),
                 syncOnOpen = true
             )
         )

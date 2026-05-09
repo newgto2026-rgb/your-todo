@@ -75,6 +75,7 @@ class RefreshWorkspaceUseCaseTest {
             "friend.getFriends",
             "friend.getIncoming",
             "friend.getOutgoing",
+            "assignment.getReceived.pending",
             "assignment.getReceived.active",
             "assignment.getReceived.history"
         )

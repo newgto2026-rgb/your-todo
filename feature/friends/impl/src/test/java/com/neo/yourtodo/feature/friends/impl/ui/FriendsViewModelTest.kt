@@ -423,6 +423,95 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun incomingAssignmentRouteOpensFriendDetailAndSelectsBundleItems() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            receivedPendingItems = listOf(
+                assignedTodo(
+                    id = "bundle-target-a",
+                    title = "Target A",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-target"
+                ),
+                assignedTodo(
+                    id = "bundle-other",
+                    title = "Other",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-other"
+                ),
+                assignedTodo(
+                    id = "bundle-target-b",
+                    title = "Target B",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-target"
+                )
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(
+                FriendsAction.OnOpenIncomingAssignment(
+                    friendUserId = "friend-1",
+                    bundleId = "bundle-target"
+                )
+            )
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+
+            val loaded = awaitItem()
+            assertThat(loaded.selectedFriend?.userId).isEqualTo("friend-1")
+            assertThat(loaded.assignmentDetail.pendingReceivedItems.map { it.id })
+                .containsExactly("bundle-target-a", "bundle-target-b", "bundle-other")
+            assertThat(loaded.selectedPendingAssignmentIds)
+                .containsExactly("bundle-target-a", "bundle-target-b")
+        }
+    }
+
+    @Test
+    fun incomingAssignmentRouteResolvesFriendFromBundleWhenActorIsMissingOrStale() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            receivedPendingItems = listOf(
+                assignedTodo(
+                    id = "bundle-target-a",
+                    title = "Target A",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-target"
+                ),
+                assignedTodo(
+                    id = "bundle-other",
+                    title = "Other",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-other"
+                )
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(
+                FriendsAction.OnOpenIncomingAssignment(
+                    friendUserId = "stale-user-id",
+                    bundleId = "bundle-target"
+                )
+            )
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+
+            val loaded = awaitItem()
+            assertThat(loaded.selectedFriend?.userId).isEqualTo("friend-1")
+            assertThat(loaded.selectedPendingAssignmentIds).containsExactly("bundle-target-a")
+        }
+    }
+
+    @Test
     fun acceptSelectedPendingAssignmentsGroupsDecisionsByBundle() = runTest {
         val assignmentRepository = FakeAssignmentRepository().apply {
             receivedPendingItems = listOf(
