@@ -24,7 +24,9 @@ android {
             buildConfigField(
                 "String",
                 "YOURTODO_SERVER_BASE_URL",
-                quotedBuildConfigString(serverBaseUrlProperty.orElse("http://10.0.2.2:8080/").get())
+                quotedBuildConfigString(
+                    serverBaseUrlProperty.orElse("https://stainable-sulphate-grading.ngrok-free.dev/").get()
+                )
             )
         }
         release {
