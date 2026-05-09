@@ -18,6 +18,7 @@ import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
@@ -37,6 +38,7 @@ import com.neo.yourtodo.core.model.friends.FriendUser
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.friends.impl.R
+import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -351,6 +353,49 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun friendClickKeepsOldCompletedAssignmentsInHistoryOnly() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            sentItems = listOf(assignedTodo(id = "sent-active", title = "Active sent"))
+            sentHistoryItems = listOf(
+                assignedTodo(
+                    id = "sent-old-done",
+                    title = "Old done",
+                    status = AssignedTodoStatus.DONE,
+                    completedAt = Instant.EPOCH
+                )
+            )
+            receivedHistoryItems = listOf(
+                assignedTodo(
+                    id = "received-old-done",
+                    title = "Old received done",
+                    status = AssignedTodoStatus.DONE,
+                    completedAt = Instant.EPOCH
+                )
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+
+            val loaded = awaitItem()
+            assertThat(loaded.friendSentAssignedTodos.map { it.id }).containsExactly("sent-active")
+            assertThat(loaded.assignmentDetail.sentHistoryItems.map { it.id }).containsExactly("sent-old-done")
+            assertThat(loaded.assignmentDetail.receivedHistoryItems.map { it.id })
+                .containsExactly("received-old-done")
+
+            viewModel.onAction(FriendsAction.OnToggleAssignmentHistory)
+            assertThat(awaitItem().assignmentDetail.showHistory).isTrue()
+        }
+    }
+
+    @Test
     fun acceptSelectedPendingAssignmentsGroupsDecisionsByBundle() = runTest {
         val assignmentRepository = FakeAssignmentRepository().apply {
             receivedPendingItems = listOf(
@@ -611,6 +656,11 @@ class FriendsViewModelTest {
             getFriendAssignmentSummary = GetFriendAssignmentSummaryUseCase(assignmentRepository),
             getAssignedTodos = GetAssignedTodosUseCase(assignmentRepository),
             respondAssignmentBundle = RespondAssignmentBundleUseCase(assignmentRepository),
+            refreshWorkspace = RefreshWorkspaceUseCase(
+                todoRepository = com.neo.yourtodo.core.testing.repository.FakeTodoRepository(),
+                friendRepository = this,
+                assignmentRepository = assignmentRepository
+            ),
             observeAuthSession = ObserveAuthSessionUseCase(authRepository)
         )
 
@@ -665,8 +715,10 @@ class FriendsViewModelTest {
     private class FakeAssignmentRepository : AssignmentRepository {
         var sentItems = emptyList<AssignedTodo>()
         var sentPendingItems = emptyList<AssignedTodo>()
+        var sentHistoryItems = emptyList<AssignedTodo>()
         var receivedItems = emptyList<AssignedTodo>()
         var receivedPendingItems = emptyList<AssignedTodo>()
+        var receivedHistoryItems = emptyList<AssignedTodo>()
         var lastReceiverUserId: String? = null
         var lastItems: List<AssignmentDraftItem> = emptyList()
         var failedBundleIds = emptySet<String>()
@@ -699,12 +751,12 @@ class FriendsViewModelTest {
                 AssignmentDirection.SENT -> when (status) {
                     AssignmentFeedStatus.ACTIVE -> sentItems
                     AssignmentFeedStatus.PENDING -> sentPendingItems
-                    AssignmentFeedStatus.HISTORY -> emptyList()
+                    AssignmentFeedStatus.HISTORY -> sentHistoryItems
                 }
                 AssignmentDirection.RECEIVED -> when (status) {
                     AssignmentFeedStatus.ACTIVE -> receivedItems
                     AssignmentFeedStatus.PENDING -> receivedPendingItems
-                    AssignmentFeedStatus.HISTORY -> emptyList()
+                    AssignmentFeedStatus.HISTORY -> receivedHistoryItems
                 }
             }
             return Result.success(items)
@@ -796,7 +848,8 @@ private fun assignedTodo(
     id: String = "assigned-1",
     title: String = "Shared todo",
     status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
-    bundleId: String? = "bundle-1"
+    bundleId: String? = "bundle-1",
+    completedAt: Instant? = null
 ) = AssignedTodo(
     id = id,
     bundleId = bundleId,
@@ -811,7 +864,8 @@ private fun assignedTodo(
     sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
     receiver = AssignedTodoUser(id = "me", nickname = "tester"),
     reminder = null,
-    checklist = emptyList()
+    checklist = emptyList(),
+    completedAt = completedAt
 )
 
 private fun assignmentSummary(totalCount: Int = 0) = AssignmentSummary(

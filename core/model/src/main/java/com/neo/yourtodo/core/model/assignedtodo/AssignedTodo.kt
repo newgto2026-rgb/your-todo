@@ -1,6 +1,7 @@
 package com.neo.yourtodo.core.model.assignedtodo
 
 import com.neo.yourtodo.core.model.TodoPriority
+import java.time.Instant
 import java.time.LocalDate
 
 data class AssignedTodo(
@@ -18,7 +19,8 @@ data class AssignedTodo(
     val sender: AssignedTodoUser?,
     val receiver: AssignedTodoUser?,
     val reminder: AssignedTodoReminder?,
-    val checklist: List<AssignedTodoChecklistItem> = emptyList()
+    val checklist: List<AssignedTodoChecklistItem> = emptyList(),
+    val completedAt: Instant? = null
 ) {
     val isDone: Boolean
         get() = status == AssignedTodoStatus.DONE

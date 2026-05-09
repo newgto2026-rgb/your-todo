@@ -12,10 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,12 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.neo.yourtodo.core.model.TodoFilter
-import com.neo.yourtodo.core.ui.YourTodoBrandHeader
+import com.neo.yourtodo.core.ui.YourTodoAppHeader
 import com.neo.yourtodo.feature.todo.impl.R
 
 @Composable
@@ -39,40 +34,14 @@ internal fun AppHeader(
     isSyncing: Boolean,
     onSyncClick: () -> Unit
 ) {
-    YourTodoBrandHeader(
+    YourTodoAppHeader(
         wordmarkContentDescription = stringResource(R.string.todo_app_header_title),
         profileContentDescription = stringResource(R.string.todo_header_profile_icon),
+        syncContentDescription = stringResource(R.string.todo_sync_action),
         profileInitial = profileInitial,
-        content = {
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = Color.White
-            ) {
-                IconButton(
-                    onClick = onSyncClick,
-                    enabled = !isSyncing,
-                    modifier = Modifier
-                        .padding(4.dp)
-                        .size(38.dp)
-                        .testTag("todo_sync_button")
-                ) {
-                    if (isSyncing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            color = Color(0xFF74659E),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.todo_sync_action),
-                            tint = Color(0xFF5F78A6)
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.size(8.dp))
-        }
+        isSyncing = isSyncing,
+        onSyncClick = onSyncClick,
+        syncTestTag = "todo_sync_button"
     )
 }
 

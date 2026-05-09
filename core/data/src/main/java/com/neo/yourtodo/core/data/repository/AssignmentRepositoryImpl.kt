@@ -34,6 +34,7 @@ import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsReq
 import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession as AuthNetworkSession
+import java.time.Instant
 import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
@@ -247,7 +248,8 @@ class AssignmentRepositoryImpl @Inject constructor(
             sender = sender?.toDomain(),
             receiver = receiver?.toDomain(),
             reminder = reminder?.toDomain(),
-            checklist = checklist.map { it.toDomain() }
+            checklist = checklist.map { it.toDomain() },
+            completedAt = completedAt.toInstantOrNull()
         )
 
     private fun NetworkAssignedTodoChecklistItem.toDomain() =
@@ -273,6 +275,9 @@ class AssignmentRepositoryImpl @Inject constructor(
 
     private fun String?.toLocalDateOrNull(): LocalDate? =
         this?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+
+    private fun String?.toInstantOrNull(): Instant? =
+        this?.let { runCatching { Instant.parse(it) }.getOrNull() }
 
     private inline fun <reified T : Enum<T>> enumValueOf(value: String): T =
         enumValues<T>().firstOrNull { it.name == value } ?: error("Unknown enum value: $value")

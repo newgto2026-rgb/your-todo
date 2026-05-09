@@ -1,9 +1,9 @@
 <resources>
     <string name="calendar_app_header_title">Your Todo</string>
     <string name="calendar_header_profile_icon">Profile</string>
-    <string name="calendar_sync_action">Sync calendar todos</string>
-    <string name="calendar_sync_success">Calendar synced.</string>
-    <string name="calendar_sync_failed">Could not sync calendar.</string>
+    <string name="calendar_sync_action">Sync all</string>
+    <string name="calendar_sync_success">Sync completed.</string>
+    <string name="calendar_sync_failed">Could not sync everything.</string>
     <string name="calendar_month_navigation_previous">Previous month</string>
     <string name="calendar_month_navigation_next">Next month</string>
     <string name="calendar_a11y_selected">Selected date</string>

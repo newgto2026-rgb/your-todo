@@ -13,9 +13,9 @@
     <string name="todo_header_completed_subtitle">완료한 할 일</string>
     <string name="todo_header_profile_icon">프로필</string>
     <string name="todo_header_completed_symbol">✓</string>
-    <string name="todo_sync_action">할 일 동기화</string>
-    <string name="todo_sync_success">할 일을 동기화했어요.</string>
-    <string name="todo_sync_failed">할 일을 동기화하지 못했어요.</string>
+    <string name="todo_sync_action">전체 동기화</string>
+    <string name="todo_sync_success">동기화가 완료되었습니다.</string>
+    <string name="todo_sync_failed">동기화하지 못했습니다.</string>
     <string name="todo_today_header_date_format">M월 d일</string>
     <string name="todo_due_date_format">@string/todo_today_header_date_format</string>
 

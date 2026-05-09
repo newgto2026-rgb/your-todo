@@ -32,6 +32,7 @@ import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import com.neo.yourtodo.core.network.auth.NetworkAuthUser
 import com.neo.yourtodo.core.network.auth.NetworkAuthUserResponse
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,6 +108,7 @@ class AssignmentRepositoryImplTest {
         assertThat(network.lastReceivedStatus).isEqualTo("pending")
         assertThat(network.lastSentStatus).isEqualTo("history")
         assertThat(friendItems.single().dueTimeMinutes).isEqualTo(14 * 60 + 30)
+        assertThat(friendItems.single().completedAt).isEqualTo(Instant.parse("2026-05-09T00:00:00Z"))
         assertThat(received.single().sender?.nickname).isEqualTo("monday")
         assertThat(sent.single().receiver?.nickname).isEqualTo("neo")
         assertThat(network.lastDecisionRequest!!.decisions.single())
@@ -452,7 +454,8 @@ private fun networkTodo(
     reminder = NetworkAssignedTodoReminder(
         reminderAt = "2026-05-10T14:00:00Z",
         enabled = true
-    )
+    ),
+    completedAt = "2026-05-09T00:00:00Z"
 )
 
 private fun summary(totalCount: Int) = NetworkAssignmentSummary(

@@ -1,9 +1,9 @@
 <resources>
     <string name="calendar_app_header_title">Your Todo</string>
     <string name="calendar_header_profile_icon">프로필</string>
-    <string name="calendar_sync_action">캘린더 할 일 동기화</string>
-    <string name="calendar_sync_success">캘린더를 동기화했어요.</string>
-    <string name="calendar_sync_failed">캘린더를 동기화하지 못했어요.</string>
+    <string name="calendar_sync_action">전체 동기화</string>
+    <string name="calendar_sync_success">동기화가 완료되었습니다.</string>
+    <string name="calendar_sync_failed">동기화하지 못했습니다.</string>
     <string name="calendar_month_navigation_previous">이전 달</string>
     <string name="calendar_month_navigation_next">다음 달</string>
     <string name="calendar_a11y_selected">선택된 날짜</string>

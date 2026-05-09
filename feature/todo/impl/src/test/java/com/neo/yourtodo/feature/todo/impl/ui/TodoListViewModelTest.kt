@@ -6,6 +6,7 @@ import com.neo.yourtodo.core.domain.repository.AssignmentDirection
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
+import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
@@ -13,6 +14,7 @@ import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
@@ -32,6 +34,8 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
+import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.todo.impl.R
@@ -81,6 +85,11 @@ class TodoListViewModelTest {
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             syncTodosUseCase = SyncTodosUseCase(repository),
+            refreshWorkspaceUseCase = RefreshWorkspaceUseCase(
+                todoRepository = repository,
+                friendRepository = FakeFriendRepository(),
+                assignmentRepository = assignmentRepository
+            ),
             getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
             manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
@@ -916,6 +925,24 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun completedReceivedAssignedTodoStaysVisibleInCompletedFilter() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-done"))
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-done"))
+        advanceUntilIdle()
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.COMPLETED))
+        advanceUntilIdle()
+
+        val completedAssigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-done" }
+        assertThat(completedAssigned.isDone).isTrue()
+    }
+
+    @Test
     fun syncClickSyncsLocalTodosAndRefreshesReceivedAssignments() = runTest {
         advanceUntilIdle()
         val initialSyncCount = repository.syncCount
@@ -1028,6 +1055,24 @@ class TodoListViewModelTest {
             Result.failure(UnsupportedOperationException())
 
         override suspend fun signOut() = Unit
+    }
+
+    private class FakeFriendRepository : FriendRepository {
+        override suspend fun getFriends(): Result<List<Friend>> = Result.success(emptyList())
+
+        override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun sendRequest(nickname: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun acceptRequest(requestId: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun declineRequest(requestId: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun removeFriend(friendshipId: String): Result<Unit> = Result.success(Unit)
     }
 
     private class FakeAssignmentRepository : AssignmentRepository {

@@ -25,6 +25,9 @@ data class FriendsUiState(
     val friendAssignmentSummary: FriendAssignmentSummary? = null,
     val friendSentAssignedTodos: List<AssignedTodo> = emptyList(),
     val friendReceivedAssignedTodos: List<AssignedTodo> = emptyList(),
+    val friendSentCompletedHistoryTodos: List<AssignedTodo> = emptyList(),
+    val friendReceivedCompletedHistoryTodos: List<AssignedTodo> = emptyList(),
+    val showFriendAssignmentHistory: Boolean = false,
     val selectedPendingAssignmentIds: Set<String> = emptySet(),
     val assignmentTitleInput: String = "",
     val assignmentDueDateInput: String = "",
@@ -40,32 +43,30 @@ data class FriendsUiState(
 
     val assignmentDetail: FriendAssignmentDetailUiModel
         get() {
-            val friendNickname = selectedFriend?.nickname
             val pending = friendReceivedAssignedTodos
                 .pendingDecisionItems()
                 .map {
                     it.toAssignmentTodoUiModel(
-                        direction = AssignmentTodoDirection.RECEIVED,
-                        selected = it.id in selectedPendingAssignmentIds,
-                        fallbackPersonName = friendNickname
+                        selected = it.id in selectedPendingAssignmentIds
                     )
                 }
             return FriendAssignmentDetailUiModel(
                 sentItems = friendSentAssignedTodos.map {
-                    it.toAssignmentTodoUiModel(
-                        direction = AssignmentTodoDirection.SENT,
-                        fallbackPersonName = friendNickname
-                    )
+                    it.toAssignmentTodoUiModel()
                 },
                 pendingReceivedItems = pending,
                 activeReceivedItems = friendReceivedAssignedTodos
                     .filterNot { it.status == AssignedTodoStatus.PENDING_ACCEPTANCE }
                     .map {
-                        it.toAssignmentTodoUiModel(
-                            direction = AssignmentTodoDirection.RECEIVED,
-                            fallbackPersonName = friendNickname
-                        )
+                        it.toAssignmentTodoUiModel()
                     },
+                sentHistoryItems = friendSentCompletedHistoryTodos.map {
+                    it.toAssignmentTodoUiModel()
+                },
+                receivedHistoryItems = friendReceivedCompletedHistoryTodos.map {
+                    it.toAssignmentTodoUiModel()
+                },
+                showHistory = showFriendAssignmentHistory,
                 pendingSelectedCount = pending.count { it.selected },
                 pendingTotalCount = pending.size,
                 isAllPendingSelected = pending.isNotEmpty() && pending.all { it.selected },
@@ -79,6 +80,9 @@ data class FriendAssignmentDetailUiModel(
     val sentItems: List<AssignmentTodoUiModel> = emptyList(),
     val pendingReceivedItems: List<AssignmentTodoUiModel> = emptyList(),
     val activeReceivedItems: List<AssignmentTodoUiModel> = emptyList(),
+    val sentHistoryItems: List<AssignmentTodoUiModel> = emptyList(),
+    val receivedHistoryItems: List<AssignmentTodoUiModel> = emptyList(),
+    val showHistory: Boolean = false,
     val pendingSelectedCount: Int = 0,
     val pendingTotalCount: Int = 0,
     val isAllPendingSelected: Boolean = false,
@@ -90,10 +94,9 @@ data class AssignmentTodoUiModel(
     val id: String,
     val title: String,
     val progressPercent: Int,
+    val showProgress: Boolean,
     @StringRes val statusLabelRes: Int,
     val statusStyle: AssignmentTodoStatusStyle,
-    @StringRes val personLabelRes: Int,
-    val personName: String?,
     val selected: Boolean = false
 )
 
@@ -106,32 +109,17 @@ enum class AssignmentTodoStatusStyle {
     CANCELED
 }
 
-internal enum class AssignmentTodoDirection {
-    SENT,
-    RECEIVED
-}
-
 internal fun AssignedTodo.toAssignmentTodoUiModel(
-    direction: AssignmentTodoDirection,
-    selected: Boolean = false,
-    fallbackPersonName: String? = null
+    selected: Boolean = false
 ): AssignmentTodoUiModel = AssignmentTodoUiModel(
     id = id,
     title = title,
     progressPercent = progressPercent.coerceIn(0, 100),
+    showProgress = checklist.isNotEmpty(),
     statusLabelRes = status.statusLabelRes(),
     statusStyle = status.statusStyle(),
-    personLabelRes = R.string.friends_assignment_user_mention,
-    personName = when (direction) {
-        AssignmentTodoDirection.SENT -> receiver?.nickname
-        AssignmentTodoDirection.RECEIVED -> sender?.nickname
-    }.validMentionName(fallbackPersonName),
     selected = selected
 )
-
-private fun String?.validMentionName(fallback: String?): String? =
-    this?.takeIf { it.isNotBlank() }
-        ?: fallback?.takeIf { it.isNotBlank() }
 
 @StringRes
 internal fun AssignedTodoStatus.statusLabelRes(): Int = when (this) {
@@ -163,6 +151,7 @@ sealed interface FriendsAction {
     data class OnRemoveFriend(val friendshipId: String) : FriendsAction
     data class OnFriendClick(val friend: Friend) : FriendsAction
     data object OnCloseFriendDetail : FriendsAction
+    data object OnToggleAssignmentHistory : FriendsAction
     data class OnTogglePendingAssignment(val assignedTodoId: String) : FriendsAction
     data object OnToggleAllPendingAssignments : FriendsAction
     data object OnAcceptSelectedAssignments : FriendsAction

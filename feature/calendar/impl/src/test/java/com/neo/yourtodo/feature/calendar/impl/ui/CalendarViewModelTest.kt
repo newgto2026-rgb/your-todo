@@ -9,7 +9,8 @@ import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
-import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
+import com.neo.yourtodo.core.domain.repository.FriendRepository
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import androidx.lifecycle.SavedStateHandle
 import com.neo.yourtodo.core.model.DateTodoSummary
@@ -24,6 +25,8 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.calendar.impl.R
@@ -360,6 +363,38 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun completedReceivedAssignedTodoStaysOnSelectedDate() = runTest {
+        val selectedDate = YearMonth.now().atDay(9)
+        val assignmentRepository = FakeAssignmentRepository(
+            receivedItems = listOf(
+                assignedTodo(
+                    id = "assigned-calendar-done",
+                    title = "Finish review",
+                    dueDate = selectedDate
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            assignmentRepository = assignmentRepository
+        )
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+        viewModel.onAction(
+            CalendarAction.OnToggleTodoDone(
+                todoId = viewModel.uiState.value.selectedDateTodos.single().id,
+                assignedTodoId = "assigned-calendar-done"
+            )
+        )
+        advanceUntilIdle()
+
+        val todo = viewModel.uiState.value.selectedDateTodos.single()
+        assertThat(todo.title).isEqualTo("Finish review")
+        assertThat(todo.isDone).isTrue()
+    }
+
+    @Test
     fun buildMonthCells_includesAdjacentMonthDatesWithoutNullCells() {
         val yearMonth = YearMonth.of(2026, 4)
         val selectedDate = yearMonth.atDay(9)
@@ -417,7 +452,11 @@ class CalendarViewModelTest {
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
-            syncTodosUseCase = SyncTodosUseCase(repository),
+            refreshWorkspaceUseCase = RefreshWorkspaceUseCase(
+                todoRepository = repository,
+                friendRepository = FakeFriendRepository(),
+                assignmentRepository = assignmentRepository
+            ),
             getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
             manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository)
         )
@@ -449,6 +488,24 @@ class CalendarViewModelTest {
             Result.failure(UnsupportedOperationException())
 
         override suspend fun signOut() = Unit
+    }
+
+    private class FakeFriendRepository : FriendRepository {
+        override suspend fun getFriends(): Result<List<Friend>> = Result.success(emptyList())
+
+        override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun sendRequest(nickname: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun acceptRequest(requestId: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun declineRequest(requestId: String): Result<Unit> = Result.success(Unit)
+
+        override suspend fun removeFriend(friendshipId: String): Result<Unit> = Result.success(Unit)
     }
 
     private class FakeAssignmentRepository(
@@ -483,7 +540,14 @@ class CalendarViewModelTest {
 
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
             completedAssignedTodoId = assignedTodoId
-            return Result.success(assignedTodo(id = assignedTodoId, status = AssignedTodoStatus.DONE))
+            receivedItems = receivedItems.map { item ->
+                if (item.id == assignedTodoId) {
+                    item.copy(status = AssignedTodoStatus.DONE, progressPercent = 100)
+                } else {
+                    item
+                }
+            }
+            return Result.success(receivedItems.firstOrNull { it.id == assignedTodoId } ?: assignedTodo())
         }
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =

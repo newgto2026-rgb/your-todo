@@ -93,7 +93,8 @@ data class NetworkAssignedTodo(
     val checklist: List<NetworkAssignedTodoChecklistItem> = emptyList(),
     val reminder: NetworkAssignedTodoReminder? = null,
     val createdAt: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    val completedAt: String? = null
 )
 
 @Serializable

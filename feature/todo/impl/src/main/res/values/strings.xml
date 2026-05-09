@@ -13,9 +13,9 @@
     <string name="todo_header_completed_subtitle">Finished tasks</string>
     <string name="todo_header_profile_icon">Profile</string>
     <string name="todo_header_completed_symbol">✓</string>
-    <string name="todo_sync_action">Sync todos</string>
-    <string name="todo_sync_success">Todos synced.</string>
-    <string name="todo_sync_failed">Could not sync todos.</string>
+    <string name="todo_sync_action">Sync all</string>
+    <string name="todo_sync_success">Sync completed.</string>
+    <string name="todo_sync_failed">Could not sync everything.</string>
     <string name="todo_today_header_date_format">MMMM d</string>
     <string name="todo_due_date_format">MMM d</string>
 

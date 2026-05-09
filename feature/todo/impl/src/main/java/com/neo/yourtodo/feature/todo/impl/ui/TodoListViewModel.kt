@@ -2,7 +2,6 @@ package com.neo.yourtodo.feature.todo.impl.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
@@ -12,6 +11,7 @@ import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
@@ -46,6 +46,7 @@ class TodoListViewModel @Inject constructor(
     private val deleteTodoUseCase: DeleteTodoUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val syncTodosUseCase: SyncTodosUseCase,
+    private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
@@ -405,7 +406,6 @@ class TodoListViewModel @Inject constructor(
                         hasFailure = true
                     }
             }
-
             updateLocalState {
                 val shouldDismissEditor = editingItem?.id?.let { it in deletedIds } == true
                 val clearedState = if (shouldDismissEditor) dismissTodoEditor() else this
@@ -628,13 +628,13 @@ class TodoListViewModel @Inject constructor(
         if (uiLocalState.value.isSyncing) return
         viewModelScope.launch {
             updateLocalState { copy(isSyncing = true) }
-            val syncResult = syncTodosUseCase()
-            val assignedResult = getAssignedTodosUseCase.received(AssignmentFeedStatus.ACTIVE)
-                .onSuccess { receivedAssignedTodos.value = it }
+            val syncResult = refreshWorkspaceUseCase()
+                .onSuccess { receivedAssignedTodos.value = it.visibleReceivedAssignedTodos }
             updateLocalState { copy(isSyncing = false) }
+            val isFullySynced = syncResult.getOrNull()?.isFullySynced == true
             sideEffectMutable.emit(
                 TodoListSideEffect.ShowSnackbar(
-                    if (syncResult.isSuccess && assignedResult.isSuccess) {
+                    if (isFullySynced) {
                         R.string.todo_sync_success
                     } else {
                         R.string.todo_sync_failed
@@ -646,7 +646,7 @@ class TodoListViewModel @Inject constructor(
 
     private fun refreshAssignedTodosQuietly() {
         viewModelScope.launch {
-            getAssignedTodosUseCase.received(AssignmentFeedStatus.ACTIVE)
+            getAssignedTodosUseCase.visibleReceived()
                 .onSuccess { receivedAssignedTodos.value = it }
         }
     }

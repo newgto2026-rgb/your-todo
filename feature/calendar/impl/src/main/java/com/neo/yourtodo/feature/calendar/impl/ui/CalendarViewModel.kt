@@ -4,12 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
-import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
-import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoItem
@@ -51,7 +50,7 @@ class CalendarViewModel @Inject constructor(
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
-    private val syncTodosUseCase: SyncTodosUseCase,
+    private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase
 ) : ViewModel() {
@@ -252,12 +251,13 @@ class CalendarViewModel @Inject constructor(
         if (syncState.value) return
         viewModelScope.launch {
             syncState.value = true
-            val result = syncTodosUseCase()
-            val assignedResult = refreshAssignedTodos()
+            val result = refreshWorkspaceUseCase()
+                .onSuccess { receivedAssignedTodos.value = it.visibleReceivedAssignedTodos }
             syncState.value = false
+            val isFullySynced = result.getOrNull()?.isFullySynced == true
             sideEffectMutable.emit(
                 CalendarSideEffect.ShowSnackbar(
-                    if (result.isSuccess && assignedResult.isSuccess) {
+                    if (isFullySynced) {
                         R.string.calendar_sync_success
                     } else {
                         R.string.calendar_sync_failed
@@ -274,7 +274,7 @@ class CalendarViewModel @Inject constructor(
     }
 
     private suspend fun refreshAssignedTodos(): Result<Unit> =
-        getAssignedTodosUseCase.received(AssignmentFeedStatus.ACTIVE)
+        getAssignedTodosUseCase.visibleReceived()
             .onSuccess { receivedAssignedTodos.value = it }
             .map { Unit }
 }

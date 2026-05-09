@@ -44,7 +44,8 @@ class NetworkAssignmentModelsTest {
                   "dueTimeMinutes": 870,
                   "priority": "MEDIUM",
                   "status": "ACCEPTED",
-                  "progressPercent": 0
+                  "progressPercent": 0,
+                  "completedAt": "2026-05-09T00:00:00Z"
                 }
               ]
             }
@@ -52,5 +53,6 @@ class NetworkAssignmentModelsTest {
         )
 
         assertThat(response.items.single().dueTimeMinutes).isEqualTo(14 * 60 + 30)
+        assertThat(response.items.single().completedAt).isEqualTo("2026-05-09T00:00:00Z")
     }
 }

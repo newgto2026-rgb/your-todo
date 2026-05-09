@@ -14,6 +14,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -113,6 +114,82 @@ class AssignmentUseCasesTest {
         assertThat(repository.completedTodoIds).containsExactly("assigned-complete")
         assertThat(repository.deletedTodoIds).containsExactly("assigned-delete")
         assertThat(repository.canceledTodoIds).containsExactly("assigned-cancel")
+    }
+
+    @Test
+    fun taskSurfaceVisibilityHidesPendingUntilAccepted() {
+        val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
+        val accepted = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "accepted")
+        val done = testTodo(status = AssignedTodoStatus.DONE).copy(id = "done")
+
+        val result = visibleTaskSurfaceAssignedTodos(listOf(pending, accepted, done))
+
+        assertThat(result).containsExactly(accepted, done).inOrder()
+    }
+
+    @Test
+    fun friendDetailVisibilityIncludesPendingDecisionItems() {
+        val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
+        val accepted = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "accepted")
+        val done = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.now()
+        ).copy(id = "done")
+
+        val result = visibleFriendDetailAssignedTodos(listOf(accepted, pending, done))
+
+        assertThat(result).containsExactly(pending, accepted, done).inOrder()
+    }
+
+    @Test
+    fun friendDetailVisibilityKeepsOnlyRecentCompletedItemsInDefaultMonitoring() {
+        val now = Instant.parse("2026-05-09T00:00:00Z")
+        val active = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "active")
+        val recentDone = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.parse("2026-05-03T00:00:00Z")
+        ).copy(id = "recent-done")
+        val oldDone = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.parse("2026-04-30T00:00:00Z")
+        ).copy(id = "old-done")
+
+        val result = visibleFriendDetailAssignedTodos(
+            listOf(active, recentDone, oldDone),
+            now = now
+        )
+
+        assertThat(result.map { it.id }).containsExactly("active", "recent-done").inOrder()
+    }
+
+    @Test
+    fun friendDetailVisibilityIncludesCompletedItemsAtSevenDayBoundary() {
+        val now = Instant.parse("2026-05-09T00:00:00Z")
+        val boundaryDone = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.parse("2026-05-02T00:00:00Z")
+        ).copy(id = "boundary-done")
+
+        val result = visibleFriendDetailAssignedTodos(listOf(boundaryDone), now = now)
+
+        assertThat(result.map { it.id }).containsExactly("boundary-done")
+    }
+
+    @Test
+    fun completedFriendDetailHistoryContainsAllDoneItemsNewestFirst() {
+        val recentDone = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.parse("2026-05-03T00:00:00Z")
+        ).copy(id = "recent-done")
+        val oldDone = testTodo(
+            status = AssignedTodoStatus.DONE,
+            completedAt = Instant.parse("2026-04-30T00:00:00Z")
+        ).copy(id = "old-done")
+        val rejected = testTodo(status = AssignedTodoStatus.REJECTED).copy(id = "rejected")
+
+        val result = completedFriendDetailHistoryAssignedTodos(listOf(oldDone, rejected, recentDone))
+
+        assertThat(result.map { it.id }).containsExactly("recent-done", "old-done").inOrder()
     }
 
     private data class FriendFeedRequest(
@@ -242,7 +319,10 @@ class AssignmentUseCasesTest {
         items = listOf(testTodo())
     )
 
-    private fun testTodo() = AssignedTodo(
+    private fun testTodo(
+        status: AssignedTodoStatus = AssignedTodoStatus.PENDING_ACCEPTANCE,
+        completedAt: Instant? = null
+    ) = AssignedTodo(
         id = "assigned-1",
         bundleId = "bundle-1",
         title = "Shared todo",
@@ -251,12 +331,13 @@ class AssignmentUseCasesTest {
         dueTimeMinutes = 9 * 60,
         priority = TodoPriority.MEDIUM,
         category = null,
-        status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+        status = status,
         terminalReason = null,
-        progressPercent = 0,
+        progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
         sender = AssignedTodoUser(id = "user-1", nickname = "neo"),
         receiver = AssignedTodoUser(id = "friend-1", nickname = "monday"),
-        reminder = null
+        reminder = null,
+        completedAt = completedAt
     )
 
     private fun testSummary(totalCount: Int) = AssignmentSummary(
