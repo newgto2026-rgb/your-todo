@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
@@ -24,15 +23,7 @@ class GoogleIdTokenReader(
         runCatching {
             requestIdToken(
                 context = context,
-                serverClientId = serverClientId,
-                filterByAuthorizedAccounts = true
-            )
-        }.recoverCatching { firstError ->
-            if (firstError !is NoCredentialException) throw firstError
-            requestIdToken(
-                context = context,
-                serverClientId = serverClientId,
-                filterByAuthorizedAccounts = false
+                serverClientId = serverClientId
             )
         }
     }
@@ -40,13 +31,12 @@ class GoogleIdTokenReader(
     @SuppressLint("CredentialManagerSignInWithGoogle")
     private suspend fun requestIdToken(
         context: Context,
-        serverClientId: String,
-        filterByAuthorizedAccounts: Boolean
+        serverClientId: String
     ): String {
         val googleIdOption = GetGoogleIdOption.Builder()
             .setServerClientId(serverClientId)
-            .setFilterByAuthorizedAccounts(filterByAuthorizedAccounts)
-            .setAutoSelectEnabled(filterByAuthorizedAccounts)
+            .setFilterByAuthorizedAccounts(false)
+            .setAutoSelectEnabled(false)
             .build()
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(googleIdOption)
