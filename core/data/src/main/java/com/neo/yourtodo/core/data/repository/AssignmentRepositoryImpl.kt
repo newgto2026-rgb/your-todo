@@ -134,6 +134,12 @@ class AssignmentRepositoryImpl @Inject constructor(
                 .item.toDomain()
         }
 
+    override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+        authenticatedRequest { accessToken ->
+            assignmentNetworkDataSource.reopenAssignedTodo(accessToken, assignedTodoId)
+                .item.toDomain()
+        }
+
     override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
         authenticatedRequest { accessToken ->
             assignmentNetworkDataSource.deleteReceivedAssignedTodo(

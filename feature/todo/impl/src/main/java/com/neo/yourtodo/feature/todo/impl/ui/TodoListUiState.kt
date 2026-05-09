@@ -38,6 +38,8 @@ data class TodoListUiState(
     val pendingUndoTodo: TodoItem? = null,
     val pendingAssignedDeleteId: String? = null,
     val optimisticCompletedAssignedTodoIds: Set<String> = emptySet(),
+    val optimisticActiveAssignedTodoIds: Set<String> = emptySet(),
+    val optimisticDeletedAssignedTodoIds: Set<String> = emptySet(),
     @StringRes val errorMessageRes: Int? = null
 ) {
     val hasClearableCompletedItems: Boolean

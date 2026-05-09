@@ -58,6 +58,12 @@ interface AssignmentApi {
         @Path("assignedTodoId") assignedTodoId: String
     ): NetworkAssignedTodoMutationResponse
 
+    @POST("api/assigned-todos/{assignedTodoId}/reopen")
+    suspend fun reopenAssignedTodo(
+        @Header("Authorization") authorization: String,
+        @Path("assignedTodoId") assignedTodoId: String
+    ): NetworkAssignedTodoMutationResponse
+
     @POST("api/assigned-todos/{assignedTodoId}/delete-received")
     suspend fun deleteReceivedAssignedTodo(
         @Header("Authorization") authorization: String,

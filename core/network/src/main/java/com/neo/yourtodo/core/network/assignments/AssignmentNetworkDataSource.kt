@@ -38,6 +38,8 @@ interface AssignmentNetworkDataSource {
 
     suspend fun completeAssignedTodo(accessToken: String, assignedTodoId: String): NetworkAssignedTodoMutationResponse
 
+    suspend fun reopenAssignedTodo(accessToken: String, assignedTodoId: String): NetworkAssignedTodoMutationResponse
+
     suspend fun deleteReceivedAssignedTodo(
         accessToken: String,
         idempotencyKey: String,

@@ -5,11 +5,13 @@ import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
@@ -22,6 +24,8 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.todo.impl.R
@@ -61,7 +65,15 @@ class TodoEditorViewModelTest {
             deleteTodoUseCase = DeleteTodoUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
-            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository),
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
+                assignmentRepository,
+                RefreshWorkspaceUseCase(
+                    todoRepository = repository,
+                    friendRepository = FakeFriendRepository(),
+                    assignmentRepository = assignmentRepository,
+                    calendarWidgetUpdater = calendarWidgetUpdater
+                )
+            ),
             todoReminderScheduler = reminderScheduler,
             calendarWidgetUpdater = calendarWidgetUpdater
         )
@@ -326,6 +338,9 @@ class TodoEditorViewModelTest {
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 
@@ -347,6 +362,28 @@ class TodoEditorViewModelTest {
 
         override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
             Result.success(Unit)
+    }
+
+    private class FakeFriendRepository : FriendRepository {
+        override suspend fun getFriends(): Result<List<Friend>> = Result.success(emptyList())
+
+        override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> =
+            Result.success(emptyList())
+
+        override suspend fun sendRequest(nickname: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun acceptRequest(requestId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun declineRequest(requestId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun removeFriend(friendshipId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
     }
 
     private data class UpsertedReminder(

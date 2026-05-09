@@ -1,9 +1,14 @@
 package com.neo.yourtodo.core.domain.usecase
 
 import com.google.common.truth.Truth.assertThat
+import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.repository.TodoItemRepository
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
+import com.neo.yourtodo.core.model.ReminderRepeatType
+import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
@@ -14,7 +19,12 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.friends.FriendRequest
 import java.time.Instant
+import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -99,19 +109,26 @@ class AssignmentUseCasesTest {
         val todo = testTodo()
         val repository = FakeAssignmentRepository(
             completeResult = Result.success(todo),
+            reopenResult = Result.success(todo),
             deleteResult = Result.success(todo),
             cancelResult = Result.success(todo)
         )
-        val useCase = ManageAssignedTodoUseCase(repository)
+        val useCase = ManageAssignedTodoUseCase(
+            repository,
+            successfulRefreshWorkspaceUseCase(repository)
+        )
 
         val complete = useCase.complete("assigned-complete")
+        val reopen = useCase.reopen("assigned-reopen")
         val delete = useCase.deleteReceived("assigned-delete")
         val cancel = useCase.cancel("assigned-cancel")
 
         assertThat(complete.getOrNull()).isEqualTo(todo)
+        assertThat(reopen.getOrNull()).isEqualTo(todo)
         assertThat(delete.getOrNull()).isEqualTo(todo)
         assertThat(cancel.getOrNull()).isEqualTo(todo)
         assertThat(repository.completedTodoIds).containsExactly("assigned-complete")
+        assertThat(repository.reopenedTodoIds).containsExactly("assigned-reopen")
         assertThat(repository.deletedTodoIds).containsExactly("assigned-delete")
         assertThat(repository.canceledTodoIds).containsExactly("assigned-cancel")
     }
@@ -122,7 +139,10 @@ class AssignmentUseCasesTest {
             upsertReminderResult = Result.success(Unit),
             deleteReminderResult = Result.success(Unit)
         )
-        val useCase = ManageAssignedTodoUseCase(repository)
+        val useCase = ManageAssignedTodoUseCase(
+            repository,
+            successfulRefreshWorkspaceUseCase(repository)
+        )
 
         val upsert = useCase.upsertReminder(
             assignedTodoId = "assigned-reminder",
@@ -330,6 +350,89 @@ class AssignmentUseCasesTest {
         val status: AssignmentFeedStatus
     )
 
+    private fun successfulRefreshWorkspaceUseCase(
+        assignmentRepository: AssignmentRepository
+    ): RefreshWorkspaceUseCase =
+        RefreshWorkspaceUseCase(
+            todoRepository = SuccessfulTodoRepository(),
+            friendRepository = SuccessfulFriendRepository(),
+            assignmentRepository = assignmentRepository,
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
+        )
+
+    private class SuccessfulTodoRepository : TodoItemRepository {
+        override fun observeTodos(): Flow<List<TodoItem>> = flowOf(emptyList())
+
+        override fun observeTodosByDueDateRange(startDate: LocalDate, endDate: LocalDate): Flow<List<TodoItem>> =
+            flowOf(emptyList())
+
+        override suspend fun getTodo(id: Long): TodoItem? = null
+
+        override suspend fun addTodo(
+            title: String,
+            dueDate: LocalDate?,
+            categoryId: Long?,
+            dueTimeMinutes: Int?,
+            reminderAtEpochMillis: Long?,
+            isReminderEnabled: Boolean,
+            reminderRepeatType: ReminderRepeatType,
+            reminderRepeatDaysMask: Int,
+            reminderLeadMinutes: Int?,
+            priority: TodoPriority
+        ): Result<Long> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun updateTodo(
+            id: Long,
+            title: String,
+            dueDate: LocalDate?,
+            categoryId: Long?,
+            dueTimeMinutes: Int?,
+            reminderAtEpochMillis: Long?,
+            isReminderEnabled: Boolean,
+            reminderRepeatType: ReminderRepeatType,
+            reminderRepeatDaysMask: Int,
+            reminderLeadMinutes: Int?,
+            priority: TodoPriority
+        ): Result<Unit> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun deleteTodo(id: Long): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun toggleTodoDone(id: Long): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun syncTodos(): Result<Unit> = Result.success(Unit)
+    }
+
+    private class SuccessfulFriendRepository : FriendRepository {
+        override suspend fun getFriends(): Result<List<Friend>> = Result.success(emptyList())
+
+        override suspend fun getIncomingRequests(): Result<List<FriendRequest>> = Result.success(emptyList())
+
+        override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> = Result.success(emptyList())
+
+        override suspend fun sendRequest(nickname: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun acceptRequest(requestId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun declineRequest(requestId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun removeFriend(friendshipId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+    }
+
+    private class RecordingCalendarWidgetUpdater : CalendarWidgetUpdater {
+        var updateCount = 0
+
+        override suspend fun updateCalendarWidgets(): Result<Unit> {
+            updateCount += 1
+            return Result.success(Unit)
+        }
+    }
+
     private class FakeAssignmentRepository(
         private val createResult: Result<AssignmentBundle> =
             Result.failure(UnsupportedOperationException()),
@@ -346,6 +449,8 @@ class AssignmentUseCasesTest {
         private val decideResult: Result<AssignmentBundle> =
             Result.failure(UnsupportedOperationException()),
         private val completeResult: Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException()),
+        private val reopenResult: Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException()),
         private val deleteResult: Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException()),
@@ -365,6 +470,7 @@ class AssignmentUseCasesTest {
         val decidedBundleIds = mutableListOf<String>()
         val decidedItems = mutableListOf<Map<String, AssignmentDecision>>()
         val completedTodoIds = mutableListOf<String>()
+        val reopenedTodoIds = mutableListOf<String>()
         val deletedTodoIds = mutableListOf<String>()
         val canceledTodoIds = mutableListOf<String>()
         val upsertedReminders = mutableListOf<Triple<String, String, Boolean>>()
@@ -419,6 +525,11 @@ class AssignmentUseCasesTest {
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
             completedTodoIds += assignedTodoId
             return completeResult
+        }
+
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            reopenedTodoIds += assignedTodoId
+            return reopenResult
         }
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {

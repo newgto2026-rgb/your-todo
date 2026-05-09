@@ -7,6 +7,7 @@ import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.repository.TodoItemRepository
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
@@ -38,6 +39,7 @@ class RefreshWorkspaceUseCaseTest {
             todoRepository = FakeTodoRepository(events = mutableListOf()),
             friendRepository = FakeFriendRepository(friends = listOf(friend)),
             assignmentRepository = FakeAssignmentRepository(activeReceived = listOf(assignedTodo)),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
             syncNotifier = notifier
         )
 
@@ -57,10 +59,12 @@ class RefreshWorkspaceUseCaseTest {
     @Test
     fun invokeRunsTodoSyncBeforeOtherWorkspaceRequests() = runTest {
         val events = mutableListOf<String>()
+        val calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events)
         val useCase = RefreshWorkspaceUseCase(
             todoRepository = FakeTodoRepository(events = events),
             friendRepository = FakeFriendRepository(events = events),
-            assignmentRepository = FakeAssignmentRepository(events = events)
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = calendarWidgetUpdater
         )
 
         val result = useCase()
@@ -74,6 +78,16 @@ class RefreshWorkspaceUseCaseTest {
             "assignment.getReceived.active",
             "assignment.getReceived.history"
         )
+        assertThat(events.last()).isEqualTo("calendar.updateWidgets")
+    }
+
+    private class RecordingCalendarWidgetUpdater(
+        private val events: MutableList<String> = mutableListOf()
+    ) : CalendarWidgetUpdater {
+        override suspend fun updateCalendarWidgets(): Result<Unit> {
+            events += "calendar.updateWidgets"
+            return Result.success(Unit)
+        }
     }
 
     private class FakeTodoRepository(
@@ -196,6 +210,9 @@ class RefreshWorkspaceUseCaseTest {
         ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
 
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =

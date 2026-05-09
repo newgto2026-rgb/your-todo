@@ -15,6 +15,7 @@ import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.feature.calendar.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -237,8 +238,36 @@ class CalendarViewModel @Inject constructor(
     private fun toggleTodoDone(todoId: Long, assignedTodoId: String?) {
         viewModelScope.launch {
             if (assignedTodoId != null) {
-                manageAssignedTodoUseCase.complete(assignedTodoId)
-                    .onSuccess { refreshAssignedTodosQuietly() }
+                val target = receivedAssignedTodos.value.firstOrNull { it.id == assignedTodoId }
+                if (target?.isDone == true) {
+                    receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(
+                        target.copy(
+                            status = AssignedTodoStatus.ACCEPTED,
+                            progressPercent = 0,
+                            completedAt = null
+                        )
+                    )
+                    manageAssignedTodoUseCase.reopen(assignedTodoId)
+                        .onSuccess { updated ->
+                            receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
+                        }
+                        .onFailure { refreshAssignedTodosQuietly() }
+                } else {
+                    if (target != null) {
+                        receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(
+                            target.copy(
+                                status = AssignedTodoStatus.DONE,
+                                progressPercent = 100,
+                                completedAt = Instant.now()
+                            )
+                        )
+                    }
+                    manageAssignedTodoUseCase.complete(assignedTodoId)
+                        .onSuccess { updated ->
+                            receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
+                        }
+                        .onFailure { refreshAssignedTodosQuietly() }
+                }
             } else {
                 toggleTodoDoneUseCase(todoId)
             }
@@ -402,6 +431,13 @@ internal fun Map<LocalDate, DateTodoSummary>.withAssignedTodos(
         }
     return mutable
 }
+
+internal fun List<AssignedTodo>.replaceAssignedTodo(updated: AssignedTodo): List<AssignedTodo> =
+    if (any { it.id == updated.id }) {
+        map { if (it.id == updated.id) updated else it }
+    } else {
+        this + updated
+    }
 
 private fun AssignedTodo.reminderLeadMinutes(reminderEpochMillis: Long?): Int? {
     val dueDate = dueDate ?: return null

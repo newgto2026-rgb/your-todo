@@ -61,6 +61,14 @@ internal class RetrofitAssignmentNetworkDataSource @Inject constructor(
             api.completeAssignedTodo(accessToken.authorizationHeader(), assignedTodoId)
         }
 
+    override suspend fun reopenAssignedTodo(
+        accessToken: String,
+        assignedTodoId: String
+    ): NetworkAssignedTodoMutationResponse =
+        runAssignmentRequest {
+            api.reopenAssignedTodo(accessToken.authorizationHeader(), assignedTodoId)
+        }
+
     override suspend fun deleteReceivedAssignedTodo(
         accessToken: String,
         idempotencyKey: String,

@@ -98,6 +98,7 @@ class AssignmentRepositoryImplTest {
             decisions = mapOf("assigned-1" to AssignmentDecision.ACCEPT)
         ).getOrThrow()
         val completed = repository.completeAssignedTodo("assigned-1").getOrThrow()
+        val reopened = repository.reopenAssignedTodo("assigned-1").getOrThrow()
         val deleted = repository.deleteReceivedAssignedTodo("assigned-1").getOrThrow()
         val canceled = repository.cancelAssignedTodo("assigned-1").getOrThrow()
 
@@ -115,6 +116,7 @@ class AssignmentRepositoryImplTest {
             .isEqualTo(NetworkAssignmentDecision("assigned-1", "ACCEPT"))
         assertThat(decided.items.single().title).isEqualTo("Shared todo")
         assertThat(completed.id).isEqualTo("assigned-1")
+        assertThat(reopened.id).isEqualTo("assigned-1")
         assertThat(deleted.id).isEqualTo("assigned-1")
         assertThat(canceled.id).isEqualTo("assigned-1")
     }
@@ -352,6 +354,14 @@ class AssignmentRepositoryImplTest {
         }
 
         override suspend fun completeAssignedTodo(
+            accessToken: String,
+            assignedTodoId: String
+        ): NetworkAssignedTodoMutationResponse {
+            failAuthIfNeeded()
+            return mutationResponse(assignedTodoId)
+        }
+
+        override suspend fun reopenAssignedTodo(
             accessToken: String,
             assignedTodoId: String
         ): NetworkAssignedTodoMutationResponse {

@@ -21,9 +21,14 @@ internal fun buildTodoListUiState(
     profileInitial: String?
 ): TodoListUiState {
     val optimisticCompletedAssignedTodoIds = localState.optimisticCompletedAssignedTodoIds
+    val optimisticActiveAssignedTodoIds = localState.optimisticActiveAssignedTodoIds
+    val optimisticDeletedAssignedTodoIds = localState.optimisticDeletedAssignedTodoIds
     val uiItems = items.map { it.toUiModel() } + assignedItems.map {
-        it.toUiModel(isOptimisticallyDone = it.id in optimisticCompletedAssignedTodoIds)
-    }
+        it.toUiModel(
+            isOptimisticallyDone = it.id in optimisticCompletedAssignedTodoIds,
+            isOptimisticallyActive = it.id in optimisticActiveAssignedTodoIds
+        )
+    }.filterNot { it.assignedTodoId in optimisticDeletedAssignedTodoIds }
     val filteredItems = uiItems
         .filterBy(selectedFilter)
         .filterByPriority(selectedPriorityFilter)
@@ -34,7 +39,11 @@ internal fun buildTodoListUiState(
         items = filteredItems,
         completedTodoIds = items.filter { it.isDone }.map { it.id },
         completedAssignedTodoIds = assignedItems
-            .filter { it.isDone || it.id in optimisticCompletedAssignedTodoIds }
+            .filter {
+                it.id !in optimisticDeletedAssignedTodoIds &&
+                    it.id !in optimisticActiveAssignedTodoIds &&
+                    (it.isDone || it.id in optimisticCompletedAssignedTodoIds)
+            }
             .map { it.id },
         selectedFilter = selectedFilter,
         selectedPriorityFilter = selectedPriorityFilter,
@@ -121,13 +130,16 @@ private fun TodoItem.toUiModel(): TodoItemUiModel =
         priority = priority
     )
 
-private fun AssignedTodo.toUiModel(isOptimisticallyDone: Boolean): TodoItemUiModel =
+private fun AssignedTodo.toUiModel(
+    isOptimisticallyDone: Boolean,
+    isOptimisticallyActive: Boolean
+): TodoItemUiModel =
     reminderAtEpochMillis().let { reminderEpochMillis ->
         val reminderLeadMinutes = reminderLeadMinutes(reminderEpochMillis)
         TodoItemUiModel(
             id = stableAssignedRowId(id),
             title = title,
-            isDone = isDone || isOptimisticallyDone,
+            isDone = !isOptimisticallyActive && (isDone || isOptimisticallyDone),
             dueDate = dueDate,
             dueDateText = dueDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
             dueTimeText = dueTimeMinutes?.let(::minutesToDueTimeText),

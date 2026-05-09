@@ -1,5 +1,6 @@
 package com.neo.yourtodo.core.domain.usecase
 
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
@@ -15,6 +16,7 @@ class RefreshWorkspaceUseCase @Inject constructor(
     private val todoRepository: TodoItemRepository,
     private val friendRepository: FriendRepository,
     private val assignmentRepository: AssignmentRepository,
+    private val calendarWidgetUpdater: CalendarWidgetUpdater,
     private val syncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
 ) {
     suspend operator fun invoke(): Result<WorkspaceRefreshSnapshot> = coroutineScope {
@@ -62,6 +64,7 @@ class RefreshWorkspaceUseCase @Inject constructor(
             )
         )
         syncNotifier.publish(snapshot)
+        calendarWidgetUpdater.updateCalendarWidgets()
         Result.success(snapshot)
     }
 }

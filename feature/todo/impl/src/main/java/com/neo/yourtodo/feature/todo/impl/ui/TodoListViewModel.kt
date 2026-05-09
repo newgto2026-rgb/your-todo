@@ -148,7 +148,7 @@ class TodoListViewModel @Inject constructor(
 
             TodoListAction.OnSaveClick -> saveTodo()
             is TodoListAction.OnToggleDone -> toggleDone(action.id)
-            is TodoListAction.OnToggleAssignedDone -> completeAssignedTodo(action.assignedTodoId)
+            is TodoListAction.OnToggleAssignedDone -> toggleAssignedTodoDone(action.assignedTodoId)
             is TodoListAction.OnMoveToTomorrow -> moveToTomorrow(action.id)
             is TodoListAction.OnClearSchedule -> clearSchedule(action.id)
             TodoListAction.OnUndoLastQuickAction -> undoLastQuickAction()
@@ -315,16 +315,63 @@ class TodoListViewModel @Inject constructor(
         }
     }
 
+    private fun toggleAssignedTodoDone(assignedTodoId: String) {
+        val isCurrentlyDone = uiState.value.completedAssignedTodoIds.contains(assignedTodoId)
+        if (isCurrentlyDone) {
+            reopenAssignedTodo(assignedTodoId)
+        } else {
+            completeAssignedTodo(assignedTodoId)
+        }
+    }
+
     private fun completeAssignedTodo(assignedTodoId: String) {
         updateLocalState {
-            copy(optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds + assignedTodoId)
+            copy(
+                optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds + assignedTodoId,
+                optimisticActiveAssignedTodoIds = optimisticActiveAssignedTodoIds - assignedTodoId
+            )
         }
         viewModelScope.launch {
             manageAssignedTodoUseCase.complete(assignedTodoId)
-                .onSuccess { refreshAssignedTodosQuietly() }
+                .onSuccess { updated ->
+                    receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
+                    updateLocalState {
+                        copy(optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId)
+                    }
+                    notifyCalendarWidgetChanged()
+                    refreshAssignedTodosQuietly()
+                }
                 .onFailure {
                     updateLocalState {
                         copy(optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId)
+                    }
+                    sideEffectMutable.emit(
+                        TodoListSideEffect.ShowSnackbar(R.string.todo_error_toggle_done_failed)
+                    )
+                }
+        }
+    }
+
+    private fun reopenAssignedTodo(assignedTodoId: String) {
+        updateLocalState {
+            copy(
+                optimisticActiveAssignedTodoIds = optimisticActiveAssignedTodoIds + assignedTodoId,
+                optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId
+            )
+        }
+        viewModelScope.launch {
+            manageAssignedTodoUseCase.reopen(assignedTodoId)
+                .onSuccess { updated ->
+                    receivedAssignedTodos.value = receivedAssignedTodos.value.replaceAssignedTodo(updated)
+                    updateLocalState {
+                        copy(optimisticActiveAssignedTodoIds = optimisticActiveAssignedTodoIds - assignedTodoId)
+                    }
+                    notifyCalendarWidgetChanged()
+                    refreshAssignedTodosQuietly()
+                }
+                .onFailure {
+                    updateLocalState {
+                        copy(optimisticActiveAssignedTodoIds = optimisticActiveAssignedTodoIds - assignedTodoId)
                     }
                     sideEffectMutable.emit(
                         TodoListSideEffect.ShowSnackbar(R.string.todo_error_toggle_done_failed)
@@ -414,6 +461,16 @@ class TodoListViewModel @Inject constructor(
                 is TodoDeleteConfirmation.Single -> emptyList()
                 is TodoDeleteConfirmation.Completed -> confirmation.assignedTodoIds
             }
+            if (assignedTodoIds.isNotEmpty()) {
+                updateLocalState {
+                    copy(
+                        deleteConfirmation = null,
+                        optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds + assignedTodoIds,
+                        optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoIds.toSet(),
+                        optimisticActiveAssignedTodoIds = optimisticActiveAssignedTodoIds - assignedTodoIds.toSet()
+                    )
+                }
+            }
             val deletedIds = mutableSetOf<Long>()
             val deletedAssignedIds = mutableSetOf<String>()
             var hasFailure = false
@@ -439,9 +496,11 @@ class TodoListViewModel @Inject constructor(
             updateLocalState {
                 val shouldDismissEditor = editingItem?.id?.let { it in deletedIds } == true
                 val clearedState = if (shouldDismissEditor) dismissTodoEditor() else this
+                val failedAssignedIds = assignedTodoIds.toSet() - deletedAssignedIds
                 clearedState.copy(
                     deleteConfirmation = null,
-                    optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - deletedAssignedIds
+                    optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - deletedAssignedIds,
+                    optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - deletedAssignedIds - failedAssignedIds
                 )
             }
 
@@ -473,19 +532,30 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun confirmAssignedDelete(assignedTodoId: String) {
+        updateLocalState {
+            copy(
+                pendingAssignedDeleteId = null,
+                optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds + assignedTodoId,
+                optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId,
+                optimisticActiveAssignedTodoIds = optimisticActiveAssignedTodoIds - assignedTodoId
+            )
+        }
         viewModelScope.launch {
             manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
                 .onSuccess {
+                    receivedAssignedTodos.value = receivedAssignedTodos.value.filterNot { it.id == assignedTodoId }
                     updateLocalState {
                         copy(
-                            pendingAssignedDeleteId = null,
-                            optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - assignedTodoId
+                            optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - assignedTodoId
                         )
                     }
+                    notifyCalendarWidgetChanged()
                     refreshAssignedTodosQuietly()
                 }
                 .onFailure {
-                    updateLocalState { copy(pendingAssignedDeleteId = null) }
+                    updateLocalState {
+                        copy(optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - assignedTodoId)
+                    }
                     sideEffectMutable.emit(
                         TodoListSideEffect.ShowSnackbar(R.string.todo_error_delete_failed)
                     )
@@ -729,5 +799,12 @@ class TodoListViewModel @Inject constructor(
         return reminderAt.takeIf { it > System.currentTimeMillis() }
     }
 }
+
+internal fun List<AssignedTodo>.replaceAssignedTodo(updated: AssignedTodo): List<AssignedTodo> =
+    if (any { it.id == updated.id }) {
+        map { if (it.id == updated.id) updated else it }
+    } else {
+        this + updated
+    }
 
 private const val ForegroundSyncIntervalMillis = 15_000L

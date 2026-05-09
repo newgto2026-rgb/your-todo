@@ -89,7 +89,16 @@ class TodoListViewModelTest {
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             syncTodosUseCase = SyncTodosUseCase(repository),
             getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
-            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository),
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
+                assignmentRepository,
+                RefreshWorkspaceUseCase(
+                    todoRepository = repository,
+                    friendRepository = FakeFriendRepository(),
+                    assignmentRepository = assignmentRepository,
+                    calendarWidgetUpdater = calendarWidgetUpdater,
+                    syncNotifier = workspaceSyncNotifier
+                )
+            ),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,
@@ -989,6 +998,32 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun completedReceivedAssignedTodoReopensOnToggle() = runTest {
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(id = "assigned-reopen", status = AssignedTodoStatus.DONE)
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.COMPLETED))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.items.single().isDone).isTrue()
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-reopen"))
+        advanceUntilIdle()
+        viewModel.onAction(TodoListAction.OnFilterChange(TodoFilter.ALL))
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.reopenedAssignedTodoId).isEqualTo("assigned-reopen")
+        val reopenedAssigned = viewModel.uiState.value.items.single { it.assignedTodoId == "assigned-reopen" }
+        assertThat(reopenedAssigned.isDone).isFalse()
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).isEmpty()
+    }
+
+    @Test
     fun workspaceSyncSnapshotRefreshesReceivedAssignments() = runTest {
         advanceUntilIdle()
         val initialSyncCount = repository.syncCount
@@ -998,6 +1033,7 @@ class TodoListViewModelTest {
             todoRepository = repository,
             friendRepository = FakeFriendRepository(),
             assignmentRepository = assignmentRepository,
+            calendarWidgetUpdater = calendarWidgetUpdater,
             syncNotifier = workspaceSyncNotifier
         )()
         advanceUntilIdle()
@@ -1126,6 +1162,7 @@ class TodoListViewModelTest {
     private class FakeAssignmentRepository : AssignmentRepository {
         var receivedItems = emptyList<AssignedTodo>()
         var completedAssignedTodoId: String? = null
+        var reopenedAssignedTodoId: String? = null
         var deletedAssignedTodoId: String? = null
         val deletedAssignedTodoIds = mutableListOf<String>()
         var completeFailure: Throwable? = null
@@ -1163,6 +1200,18 @@ class TodoListViewModelTest {
             receivedItems = receivedItems.map {
                 if (it.id == assignedTodoId) {
                     it.copy(status = AssignedTodoStatus.DONE, progressPercent = 100)
+                } else {
+                    it
+                }
+            }
+            return Result.success(receivedItems.firstOrNull { it.id == assignedTodoId } ?: assignedTodo())
+        }
+
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            reopenedAssignedTodoId = assignedTodoId
+            receivedItems = receivedItems.map {
+                if (it.id == assignedTodoId) {
+                    it.copy(status = AssignedTodoStatus.ACCEPTED, progressPercent = 0, completedAt = null)
                 } else {
                     it
                 }

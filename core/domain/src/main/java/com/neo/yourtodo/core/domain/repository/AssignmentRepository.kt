@@ -31,6 +31,8 @@ interface AssignmentRepository {
 
     suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo>
 
+    suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo>
+
     suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo>
 
     suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo>

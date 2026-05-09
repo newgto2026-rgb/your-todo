@@ -8,6 +8,8 @@ import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
+import com.neo.yourtodo.core.domain.repository.TodoItemRepository
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.CreateAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendAssignmentSummaryUseCase
@@ -15,9 +17,13 @@ import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
+import com.neo.yourtodo.core.model.ReminderRepeatType
+import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
@@ -38,9 +44,12 @@ import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -679,8 +688,9 @@ class FriendsViewModelTest {
     private fun FakeFriendRepository.createViewModel(
         authRepository: FakeAuthRepository = FakeAuthRepository(),
         assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
-    ) =
-        FriendsViewModel(
+    ): FriendsViewModel {
+        val workspaceSyncNotifier = WorkspaceSyncNotifier()
+        return FriendsViewModel(
             getFriends = GetFriendsUseCase(this),
             getFriendRequests = GetFriendRequestsUseCase(this),
             sendFriendRequest = SendFriendRequestUseCase(this),
@@ -690,8 +700,65 @@ class FriendsViewModelTest {
             getFriendAssignmentSummary = GetFriendAssignmentSummaryUseCase(assignmentRepository),
             getAssignedTodos = GetAssignedTodosUseCase(assignmentRepository),
             respondAssignmentBundle = RespondAssignmentBundleUseCase(assignmentRepository),
+            refreshWorkspaceUseCase = RefreshWorkspaceUseCase(
+                todoRepository = SuccessfulTodoRepository(),
+                friendRepository = this,
+                assignmentRepository = assignmentRepository,
+                calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
+                syncNotifier = workspaceSyncNotifier
+            ),
+            workspaceSyncNotifier = workspaceSyncNotifier,
             observeAuthSession = ObserveAuthSessionUseCase(authRepository)
         )
+    }
+
+    private class SuccessfulTodoRepository : TodoItemRepository {
+        override fun observeTodos(): Flow<List<TodoItem>> = flowOf(emptyList())
+
+        override fun observeTodosByDueDateRange(startDate: LocalDate, endDate: LocalDate): Flow<List<TodoItem>> =
+            flowOf(emptyList())
+
+        override suspend fun getTodo(id: Long): TodoItem? = null
+
+        override suspend fun addTodo(
+            title: String,
+            dueDate: LocalDate?,
+            categoryId: Long?,
+            dueTimeMinutes: Int?,
+            reminderAtEpochMillis: Long?,
+            isReminderEnabled: Boolean,
+            reminderRepeatType: ReminderRepeatType,
+            reminderRepeatDaysMask: Int,
+            reminderLeadMinutes: Int?,
+            priority: TodoPriority
+        ): Result<Long> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun updateTodo(
+            id: Long,
+            title: String,
+            dueDate: LocalDate?,
+            categoryId: Long?,
+            dueTimeMinutes: Int?,
+            reminderAtEpochMillis: Long?,
+            isReminderEnabled: Boolean,
+            reminderRepeatType: ReminderRepeatType,
+            reminderRepeatDaysMask: Int,
+            reminderLeadMinutes: Int?,
+            priority: TodoPriority
+        ): Result<Unit> = Result.failure(UnsupportedOperationException())
+
+        override suspend fun deleteTodo(id: Long): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun toggleTodoDone(id: Long): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun syncTodos(): Result<Unit> = Result.success(Unit)
+    }
+
+    private class RecordingCalendarWidgetUpdater : CalendarWidgetUpdater {
+        override suspend fun updateCalendarWidgets(): Result<Unit> = Result.success(Unit)
+    }
 
     private class FakeAuthRepository : AuthRepository {
         override val authSession = MutableStateFlow<AuthSession?>(null)
@@ -815,6 +882,9 @@ class FriendsViewModelTest {
         }
 
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.success(assignedTodo(assignedTodoId))
+
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.success(assignedTodo(assignedTodoId))
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =

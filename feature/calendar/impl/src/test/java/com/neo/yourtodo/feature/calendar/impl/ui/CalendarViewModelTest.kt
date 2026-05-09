@@ -4,6 +4,7 @@ import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
@@ -257,6 +258,7 @@ class CalendarViewModelTest {
             todoRepository = repository,
             friendRepository = FakeFriendRepository(),
             assignmentRepository = assignmentRepository,
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
             syncNotifier = workspaceSyncNotifier
         )()
         advanceUntilIdle()
@@ -484,7 +486,16 @@ class CalendarViewModelTest {
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
-            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(assignmentRepository),
+            manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
+                assignmentRepository,
+                RefreshWorkspaceUseCase(
+                    todoRepository = repository,
+                    friendRepository = FakeFriendRepository(),
+                    assignmentRepository = assignmentRepository,
+                    calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
+                    syncNotifier = workspaceSyncNotifier
+                )
+            ),
             workspaceSyncNotifier = workspaceSyncNotifier
         )
         uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
@@ -577,6 +588,17 @@ class CalendarViewModelTest {
             return Result.success(receivedItems.firstOrNull { it.id == assignedTodoId } ?: assignedTodo())
         }
 
+        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
+            receivedItems = receivedItems.map { item ->
+                if (item.id == assignedTodoId) {
+                    item.copy(status = AssignedTodoStatus.ACCEPTED, progressPercent = 0, completedAt = null)
+                } else {
+                    item
+                }
+            }
+            return Result.success(receivedItems.firstOrNull { it.id == assignedTodoId } ?: assignedTodo())
+        }
+
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 
@@ -591,6 +613,10 @@ class CalendarViewModelTest {
 
         override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
             Result.failure(UnsupportedOperationException())
+    }
+
+    private class RecordingCalendarWidgetUpdater : CalendarWidgetUpdater {
+        override suspend fun updateCalendarWidgets(): Result<Unit> = Result.success(Unit)
     }
 }
 

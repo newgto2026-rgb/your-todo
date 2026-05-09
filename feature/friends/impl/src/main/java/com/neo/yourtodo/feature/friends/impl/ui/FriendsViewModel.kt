@@ -11,6 +11,7 @@ import com.neo.yourtodo.core.domain.usecase.GetFriendAssignmentSummaryUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
+import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
@@ -41,6 +42,7 @@ class FriendsViewModel @Inject constructor(
     private val getFriendAssignmentSummary: GetFriendAssignmentSummaryUseCase,
     private val getAssignedTodos: GetAssignedTodosUseCase,
     private val respondAssignmentBundle: RespondAssignmentBundleUseCase,
+    private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
     private val workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier(),
     observeAuthSession: ObserveAuthSessionUseCase
 ) : ViewModel() {
@@ -247,8 +249,7 @@ class FriendsViewModel @Inject constructor(
                             friends = snapshot.friends,
                             incomingRequests = snapshot.incomingRequests,
                             outgoingRequests = snapshot.outgoingRequests,
-                            isRefreshing = false,
-                            error = null
+                            isRefreshing = false
                         )
                     }
                 }
@@ -414,7 +415,7 @@ class FriendsViewModel @Inject constructor(
             if (result.isSuccess) {
                 mutableUiState.update { it.copy(selectedPendingAssignmentIds = emptySet()) }
                 refreshFriendDetail(friend)
-                refreshAfterMutation()
+                refreshWorkspaceAfterAssignmentDecision()
                 mutableSideEffect.emit(FriendsSideEffect.ShowSnackbar(successMessage.messageRes))
             } else {
                 if (succeededItemIds.isNotEmpty()) {
@@ -422,6 +423,7 @@ class FriendsViewModel @Inject constructor(
                         it.copy(selectedPendingAssignmentIds = it.selectedPendingAssignmentIds - succeededItemIds)
                     }
                     refreshFriendDetail(friend)
+                    refreshWorkspaceUseCase()
                 }
                 mutableUiState.update {
                     it.copy(
@@ -552,6 +554,11 @@ class FriendsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun refreshWorkspaceAfterAssignmentDecision() {
+        refreshWorkspaceUseCase()
+        refreshAfterMutation()
     }
 
     private fun Throwable?.toUiError(): FriendsError =
