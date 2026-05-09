@@ -45,7 +45,8 @@ private class InMemoryUserPreferencesDataSource : UserPreferencesDataSource {
     }
 
     override suspend fun clearAuthSession() {
-        authSessionFlow.value = null
+        // Keep UI tests past AuthGate even when background sync uses placeholder test tokens.
+        authSessionFlow.value = testAuthSession()
     }
 
     override suspend fun setSelectedTodoFilter(filter: TodoFilter) {

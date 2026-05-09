@@ -13,6 +13,9 @@
     <string name="todo_header_completed_subtitle">Finished tasks</string>
     <string name="todo_header_profile_icon">Profile</string>
     <string name="todo_header_completed_symbol">✓</string>
+    <string name="todo_sync_action">Sync todos</string>
+    <string name="todo_sync_success">Todos synced.</string>
+    <string name="todo_sync_failed">Could not sync todos.</string>
     <string name="todo_today_header_date_format">MMMM d</string>
     <string name="todo_due_date_format">MMM d</string>
 
@@ -22,6 +25,9 @@
     <string name="todo_sort_default">Default</string>
     <string name="todo_sort_due_date">Due date</string>
     <string name="todo_sort_priority">By priority</string>
+    <string name="todo_sort_default_description">Keep unfinished tasks first</string>
+    <string name="todo_sort_due_date_description">Earliest scheduled work first</string>
+    <string name="todo_sort_priority_description">High priority work first</string>
 
     <string name="todo_editor_title_new_task">New Task</string>
     <string name="todo_editor_title_edit_task">Edit Task</string>
@@ -72,7 +78,7 @@
 
     <string name="todo_row_subtitle_completed">@string/todo_filter_completed</string>
     <string name="todo_row_subtitle_today">@string/todo_filter_today</string>
-    <string name="todo_row_assigned_from">From</string>
+    <string name="todo_row_assigned_from">From %1$s</string>
 
     <string name="todo_error_title_required">Please enter a title.</string>
     <string name="todo_error_due_date_format">Date format must be yyyy-MM-dd.</string>

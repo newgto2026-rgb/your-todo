@@ -4,6 +4,7 @@ import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import androidx.lifecycle.SavedStateHandle
 import com.neo.yourtodo.core.model.DateTodoSummary
@@ -12,6 +13,7 @@ import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
+import com.neo.yourtodo.feature.calendar.impl.R
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -204,6 +206,20 @@ class CalendarViewModelTest {
         assertThat(viewModel.uiState.value.selectedDateTodos.single().isDone).isTrue()
     }
 
+    @Test
+    fun syncClickRunsRepositorySyncAndEmitsSnackbar() = runTest {
+        val repository = FakeTodoRepository()
+        val viewModel = createViewModel(repository)
+        val emitted = async { viewModel.sideEffect.first { it is CalendarSideEffect.ShowSnackbar } }
+
+        viewModel.onAction(CalendarAction.OnSyncClick)
+        advanceUntilIdle()
+
+        assertThat(repository.syncCount).isEqualTo(1)
+        assertThat(viewModel.uiState.value.isSyncing).isFalse()
+        assertThat(emitted.await()).isEqualTo(CalendarSideEffect.ShowSnackbar(R.string.calendar_sync_success))
+    }
+
 
     @Test
     fun selectedDateTodos_includeOnlySelectedDateTodos() = runTest {
@@ -359,7 +375,8 @@ class CalendarViewModelTest {
                 observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
-            toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository)
+            toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
+            syncTodosUseCase = SyncTodosUseCase(repository)
         )
         uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()

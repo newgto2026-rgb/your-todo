@@ -9,4 +9,5 @@ sealed interface CalendarAction {
     data class OnTodoClick(val todoId: Long) : CalendarAction
     data class OnToggleTodoDone(val todoId: Long) : CalendarAction
     data object OnAddTodoClick : CalendarAction
+    data object OnSyncClick : CalendarAction
 }

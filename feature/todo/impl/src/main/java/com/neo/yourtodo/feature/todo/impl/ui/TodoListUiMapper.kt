@@ -119,7 +119,7 @@ private fun AssignedTodo.toUiModel(): TodoItemUiModel =
         isDone = isDone,
         dueDate = dueDate,
         dueDateText = dueDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
-        dueTimeText = null,
+        dueTimeText = dueTimeMinutes?.let(::minutesToDueTimeText),
         reminderAtEpochMillis = null,
         reminderDateTimeText = null,
         isReminderEnabled = reminder?.enabled == true,

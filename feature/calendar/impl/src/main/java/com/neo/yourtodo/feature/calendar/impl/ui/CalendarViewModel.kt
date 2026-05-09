@@ -6,10 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.feature.calendar.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -42,10 +44,12 @@ class CalendarViewModel @Inject constructor(
     observeAuthSessionUseCase: ObserveAuthSessionUseCase,
     observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
-    private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase
+    private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
+    private val syncTodosUseCase: SyncTodosUseCase
 ) : ViewModel() {
     private val monthState = MutableStateFlow(savedStateHandle.initialMonth())
     private val selectedDateState = MutableStateFlow(savedStateHandle.initialSelectedDate())
+    private val syncState = MutableStateFlow(false)
     private val sideEffectMutable = MutableSharedFlow<CalendarSideEffect>()
 
     val sideEffect = sideEffectMutable.asSharedFlow()
@@ -92,7 +96,7 @@ class CalendarViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    val uiState: StateFlow<CalendarUiState> = combine(
+    private val calendarContentState = combine(
         monthState,
         selectedDateState,
         summariesByDate,
@@ -114,6 +118,13 @@ class CalendarViewModel @Inject constructor(
             todayTaskCount = summaries.todayTaskCount(today = LocalDate.now()),
             selectedDateTodos = dateTodos
         )
+    }
+
+    val uiState: StateFlow<CalendarUiState> = combine(
+        calendarContentState,
+        syncState
+    ) { contentState, isSyncing ->
+        contentState.copy(isSyncing = isSyncing)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
@@ -144,6 +155,8 @@ class CalendarViewModel @Inject constructor(
                     sideEffectMutable.emit(CalendarSideEffect.NavigateToTodoAdd(selectedDateState.value))
                 }
             }
+
+            CalendarAction.OnSyncClick -> syncTodosManually()
         }
     }
 
@@ -182,6 +195,20 @@ class CalendarViewModel @Inject constructor(
     private fun toggleTodoDone(todoId: Long) {
         viewModelScope.launch {
             toggleTodoDoneUseCase(todoId)
+        }
+    }
+
+    private fun syncTodosManually() {
+        if (syncState.value) return
+        viewModelScope.launch {
+            syncState.value = true
+            val result = syncTodosUseCase()
+            syncState.value = false
+            sideEffectMutable.emit(
+                CalendarSideEffect.ShowSnackbar(
+                    if (result.isSuccess) R.string.calendar_sync_success else R.string.calendar_sync_failed
+                )
+            )
         }
     }
 }

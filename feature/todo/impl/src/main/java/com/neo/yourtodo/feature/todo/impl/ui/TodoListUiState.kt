@@ -19,6 +19,7 @@ data class TodoListUiState(
     val selectedPriorityFilter: TodoPriorityFilter = TodoPriorityFilter.ALL,
     val selectedSortOption: TodoSortOption = TodoSortOption.DEFAULT,
     val isLoading: Boolean = false,
+    val isSyncing: Boolean = false,
     val isEditDialogVisible: Boolean = false,
     val deleteConfirmation: TodoDeleteConfirmation? = null,
     val editingItem: TodoEditModel? = null,

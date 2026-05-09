@@ -15,6 +15,7 @@ import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
+import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
 import com.neo.yourtodo.core.model.TodoPriority
@@ -317,6 +318,154 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun friendClickLoadsPendingAndActiveAssignments() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            sentItems = listOf(assignedTodo(id = "sent-active", title = "Active sent"))
+            sentPendingItems = listOf(
+                assignedTodo(id = "sent-pending", title = "Pending sent", status = AssignedTodoStatus.PENDING_ACCEPTANCE)
+            )
+            receivedItems = listOf(assignedTodo(id = "received-active", title = "Active received"))
+            receivedPendingItems = listOf(
+                assignedTodo(id = "received-pending", title = "Pending received", status = AssignedTodoStatus.PENDING_ACCEPTANCE)
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+
+            val loaded = awaitItem()
+            assertThat(loaded.friendSentAssignedTodos.map { it.id })
+                .containsExactly("sent-pending", "sent-active")
+                .inOrder()
+            assertThat(loaded.friendReceivedAssignedTodos.map { it.id })
+                .containsExactly("received-pending", "received-active")
+                .inOrder()
+        }
+    }
+
+    @Test
+    fun acceptSelectedPendingAssignmentsGroupsDecisionsByBundle() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            receivedPendingItems = listOf(
+                assignedTodo(id = "pending-1", title = "One", status = AssignedTodoStatus.PENDING_ACCEPTANCE),
+                assignedTodo(id = "pending-2", title = "Two", status = AssignedTodoStatus.PENDING_ACCEPTANCE)
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+            awaitItem()
+
+            viewModel.onAction(FriendsAction.OnTogglePendingAssignment("pending-1"))
+            assertThat(awaitItem().selectedPendingAssignmentIds).containsExactly("pending-1")
+
+            viewModel.onAction(FriendsAction.OnAcceptSelectedAssignments)
+            assertThat(awaitItem().runningActionKey).isEqualTo("assignment_decision")
+
+            var refreshed = awaitItem()
+            while (refreshed.runningActionKey != null) {
+                refreshed = awaitItem()
+            }
+            assertThat(assignmentRepository.decisionsByBundle).containsEntry(
+                "bundle-1",
+                mapOf("pending-1" to AssignmentDecision.ACCEPT)
+            )
+            assertThat(refreshed.selectedPendingAssignmentIds).isEmpty()
+        }
+    }
+
+    @Test
+    fun assignmentDetailOnlyShowsActionablePendingItems() {
+        val state = FriendsUiState(
+            friendReceivedAssignedTodos = listOf(
+                assignedTodo(
+                    id = "actionable",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-1"
+                ),
+                assignedTodo(
+                    id = "not-actionable",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = null
+                ),
+                assignedTodo(id = "active", status = AssignedTodoStatus.ACCEPTED)
+            ),
+            selectedPendingAssignmentIds = setOf("actionable", "not-actionable")
+        )
+
+        assertThat(state.assignmentDetail.pendingReceivedItems.map { it.id })
+            .containsExactly("actionable")
+        assertThat(state.assignmentDetail.activeReceivedItems.map { it.id })
+            .containsExactly("active")
+        assertThat(state.assignmentDetail.pendingSelectedCount).isEqualTo(1)
+    }
+
+    @Test
+    fun acceptSelectedPendingAssignmentsRefreshesPartialSuccessWhenLaterBundleFails() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            receivedPendingItems = listOf(
+                assignedTodo(
+                    id = "pending-1",
+                    title = "One",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-1"
+                ),
+                assignedTodo(
+                    id = "pending-2",
+                    title = "Two",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-2"
+                )
+            )
+            failedBundleIds = setOf("bundle-2")
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+            awaitItem()
+
+            viewModel.onAction(FriendsAction.OnToggleAllPendingAssignments)
+            assertThat(awaitItem().selectedPendingAssignmentIds)
+                .containsExactly("pending-1", "pending-2")
+
+            viewModel.onAction(FriendsAction.OnAcceptSelectedAssignments)
+            assertThat(awaitItem().runningActionKey).isEqualTo("assignment_decision")
+
+            var failed = awaitItem()
+            while (failed.runningActionKey != null) {
+                failed = awaitItem()
+            }
+            assertThat(assignmentRepository.decisionsByBundle).containsEntry(
+                "bundle-1",
+                mapOf("pending-1" to AssignmentDecision.ACCEPT)
+            )
+            assertThat(assignmentRepository.decisionsByBundle).doesNotContainKey("bundle-2")
+            assertThat(failed.selectedPendingAssignmentIds).containsExactly("pending-2")
+            assertThat(failed.friendReceivedAssignedTodos.map { it.id }).containsExactly("pending-2", "pending-1")
+            assertThat(failed.error).isEqualTo(FriendsError.NETWORK)
+        }
+    }
+
+    @Test
     fun sendAssignmentNowCallsRepositoryAndClearsDraft() = runTest {
         val assignmentRepository = FakeAssignmentRepository()
         val repository = FakeFriendRepository().apply {
@@ -461,6 +610,7 @@ class FriendsViewModelTest {
             createAssignmentBundle = CreateAssignmentBundleUseCase(assignmentRepository),
             getFriendAssignmentSummary = GetFriendAssignmentSummaryUseCase(assignmentRepository),
             getAssignedTodos = GetAssignedTodosUseCase(assignmentRepository),
+            respondAssignmentBundle = RespondAssignmentBundleUseCase(assignmentRepository),
             observeAuthSession = ObserveAuthSessionUseCase(authRepository)
         )
 
@@ -514,9 +664,13 @@ class FriendsViewModelTest {
 
     private class FakeAssignmentRepository : AssignmentRepository {
         var sentItems = emptyList<AssignedTodo>()
+        var sentPendingItems = emptyList<AssignedTodo>()
         var receivedItems = emptyList<AssignedTodo>()
+        var receivedPendingItems = emptyList<AssignedTodo>()
         var lastReceiverUserId: String? = null
         var lastItems: List<AssignmentDraftItem> = emptyList()
+        var failedBundleIds = emptySet<String>()
+        val decisionsByBundle = mutableMapOf<String, Map<String, AssignmentDecision>>()
 
         override suspend fun createBundle(
             receiverUserId: String,
@@ -531,8 +685,8 @@ class FriendsViewModelTest {
             Result.success(
                 FriendAssignmentSummary(
                     friendUserId = friendUserId,
-                    sent = assignmentSummary(totalCount = sentItems.size),
-                    received = assignmentSummary(totalCount = receivedItems.size)
+                    sent = assignmentSummary(totalCount = sentItems.size + sentPendingItems.size),
+                    received = assignmentSummary(totalCount = receivedItems.size + receivedPendingItems.size)
                 )
             )
 
@@ -540,19 +694,44 @@ class FriendsViewModelTest {
             friendUserId: String,
             direction: AssignmentDirection,
             status: AssignmentFeedStatus
-        ): Result<List<AssignedTodo>> =
-            Result.success(if (direction == AssignmentDirection.SENT) sentItems else receivedItems)
+        ): Result<List<AssignedTodo>> {
+            val items = when (direction) {
+                AssignmentDirection.SENT -> when (status) {
+                    AssignmentFeedStatus.ACTIVE -> sentItems
+                    AssignmentFeedStatus.PENDING -> sentPendingItems
+                    AssignmentFeedStatus.HISTORY -> emptyList()
+                }
+                AssignmentDirection.RECEIVED -> when (status) {
+                    AssignmentFeedStatus.ACTIVE -> receivedItems
+                    AssignmentFeedStatus.PENDING -> receivedPendingItems
+                    AssignmentFeedStatus.HISTORY -> emptyList()
+                }
+            }
+            return Result.success(items)
+        }
 
         override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
-            Result.success(receivedItems)
+            Result.success(if (status == AssignmentFeedStatus.PENDING) receivedPendingItems else receivedItems)
 
         override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
-            Result.success(sentItems)
+            Result.success(if (status == AssignmentFeedStatus.PENDING) sentPendingItems else sentItems)
 
         override suspend fun decideBundleItems(
             bundleId: String,
             decisions: Map<String, AssignmentDecision>
-        ): Result<AssignmentBundle> = Result.success(assignmentBundle(emptyList()))
+        ): Result<AssignmentBundle> {
+            if (bundleId in failedBundleIds) {
+                return Result.failure(IllegalStateException("Bundle decision failed"))
+            }
+            decisionsByBundle[bundleId] = decisions
+            val acceptedIds = decisions.filterValues { it == AssignmentDecision.ACCEPT }.keys
+            val rejectedIds = decisions.filterValues { it == AssignmentDecision.REJECT }.keys
+            receivedItems = receivedItems + receivedPendingItems
+                .filter { it.id in acceptedIds }
+                .map { it.copy(status = AssignedTodoStatus.ACCEPTED) }
+            receivedPendingItems = receivedPendingItems.filterNot { it.id in acceptedIds || it.id in rejectedIds }
+            return Result.success(assignmentBundle(emptyList()))
+        }
 
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.success(assignedTodo(assignedTodoId))
@@ -607,10 +786,11 @@ private fun request(
 private fun assignedTodo(
     id: String = "assigned-1",
     title: String = "Shared todo",
-    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
+    bundleId: String? = "bundle-1"
 ) = AssignedTodo(
     id = id,
-    bundleId = "bundle-1",
+    bundleId = bundleId,
     title = title,
     description = null,
     dueDate = null,

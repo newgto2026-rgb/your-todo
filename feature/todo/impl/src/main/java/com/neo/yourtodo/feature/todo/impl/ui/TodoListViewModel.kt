@@ -163,6 +163,7 @@ class TodoListViewModel @Inject constructor(
             is TodoListAction.OnFilterChange -> updateFilter(action.filter)
             is TodoListAction.OnPriorityFilterChange -> updatePriorityFilter(action.filter)
             is TodoListAction.OnSortOptionChange -> updateSortOption(action.option)
+            TodoListAction.OnSyncClick -> syncTodosManually()
             TodoListAction.OnScreenStarted -> startForegroundSync()
             TodoListAction.OnScreenStopped -> stopForegroundSync()
 
@@ -585,6 +586,26 @@ class TodoListViewModel @Inject constructor(
         if (syncJob?.isActive == true) return
         syncJob = viewModelScope.launch {
             syncTodosUseCase()
+        }
+    }
+
+    private fun syncTodosManually() {
+        if (uiLocalState.value.isSyncing) return
+        viewModelScope.launch {
+            updateLocalState { copy(isSyncing = true) }
+            val syncResult = syncTodosUseCase()
+            val assignedResult = getAssignedTodosUseCase.received(AssignmentFeedStatus.ACTIVE)
+                .onSuccess { receivedAssignedTodos.value = it }
+            updateLocalState { copy(isSyncing = false) }
+            sideEffectMutable.emit(
+                TodoListSideEffect.ShowSnackbar(
+                    if (syncResult.isSuccess && assignedResult.isSuccess) {
+                        R.string.todo_sync_success
+                    } else {
+                        R.string.todo_sync_failed
+                    }
+                )
+            )
         }
     }
 

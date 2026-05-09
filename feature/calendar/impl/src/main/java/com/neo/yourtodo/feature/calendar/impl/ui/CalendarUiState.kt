@@ -14,7 +14,8 @@ data class CalendarUiState(
     val days: List<CalendarDayUiModel>,
     val summariesByDate: Map<LocalDate, DateTodoSummary>,
     val todayTaskCount: Int,
-    val selectedDateTodos: List<CalendarSelectedTodoUiModel>
+    val selectedDateTodos: List<CalendarSelectedTodoUiModel>,
+    val isSyncing: Boolean = false
 )
 
 @Immutable

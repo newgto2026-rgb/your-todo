@@ -3,6 +3,7 @@ package com.neo.yourtodo.feature.friends.impl.ui
 import androidx.annotation.StringRes
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.friends.Friend
@@ -24,6 +25,7 @@ data class FriendsUiState(
     val friendAssignmentSummary: FriendAssignmentSummary? = null,
     val friendSentAssignedTodos: List<AssignedTodo> = emptyList(),
     val friendReceivedAssignedTodos: List<AssignedTodo> = emptyList(),
+    val selectedPendingAssignmentIds: Set<String> = emptySet(),
     val assignmentTitleInput: String = "",
     val assignmentDueDateInput: String = "",
     val assignmentDueTimeInput: String = "",
@@ -35,6 +37,102 @@ data class FriendsUiState(
 ) {
     val canSendRequest: Boolean
         get() = nicknameInput.trim().isNotEmpty() && runningActionKey == null
+
+    val assignmentDetail: FriendAssignmentDetailUiModel
+        get() {
+            val pending = friendReceivedAssignedTodos
+                .pendingDecisionItems()
+                .map { it.toAssignmentTodoUiModel(AssignmentTodoDirection.RECEIVED, it.id in selectedPendingAssignmentIds) }
+            return FriendAssignmentDetailUiModel(
+                sentItems = friendSentAssignedTodos.map {
+                    it.toAssignmentTodoUiModel(AssignmentTodoDirection.SENT)
+                },
+                pendingReceivedItems = pending,
+                activeReceivedItems = friendReceivedAssignedTodos
+                    .filterNot { it.status == AssignedTodoStatus.PENDING_ACCEPTANCE }
+                    .map { it.toAssignmentTodoUiModel(AssignmentTodoDirection.RECEIVED) },
+                pendingSelectedCount = pending.count { it.selected },
+                pendingTotalCount = pending.size,
+                isAllPendingSelected = pending.isNotEmpty() && pending.all { it.selected },
+                hasPendingSelection = pending.any { it.selected },
+                isDecisionRunning = runningActionKey == "assignment_decision"
+            )
+        }
+}
+
+data class FriendAssignmentDetailUiModel(
+    val sentItems: List<AssignmentTodoUiModel> = emptyList(),
+    val pendingReceivedItems: List<AssignmentTodoUiModel> = emptyList(),
+    val activeReceivedItems: List<AssignmentTodoUiModel> = emptyList(),
+    val pendingSelectedCount: Int = 0,
+    val pendingTotalCount: Int = 0,
+    val isAllPendingSelected: Boolean = false,
+    val hasPendingSelection: Boolean = false,
+    val isDecisionRunning: Boolean = false
+)
+
+data class AssignmentTodoUiModel(
+    val id: String,
+    val title: String,
+    val progressPercent: Int,
+    @StringRes val statusLabelRes: Int,
+    val statusStyle: AssignmentTodoStatusStyle,
+    @StringRes val personLabelRes: Int,
+    val personName: String,
+    val selected: Boolean = false
+)
+
+enum class AssignmentTodoStatusStyle {
+    PENDING,
+    ACCEPTED,
+    IN_PROGRESS,
+    DONE,
+    REJECTED,
+    CANCELED
+}
+
+internal enum class AssignmentTodoDirection {
+    SENT,
+    RECEIVED
+}
+
+internal fun AssignedTodo.toAssignmentTodoUiModel(
+    direction: AssignmentTodoDirection,
+    selected: Boolean = false
+): AssignmentTodoUiModel = AssignmentTodoUiModel(
+    id = id,
+    title = title,
+    progressPercent = progressPercent.coerceIn(0, 100),
+    statusLabelRes = status.statusLabelRes(),
+    statusStyle = status.statusStyle(),
+    personLabelRes = when (direction) {
+        AssignmentTodoDirection.SENT -> R.string.friends_assignment_to_user
+        AssignmentTodoDirection.RECEIVED -> R.string.friends_assignment_from_user
+    },
+    personName = when (direction) {
+        AssignmentTodoDirection.SENT -> receiver?.nickname.orEmpty().ifBlank { "?" }
+        AssignmentTodoDirection.RECEIVED -> sender?.nickname.orEmpty().ifBlank { "?" }
+    },
+    selected = selected
+)
+
+@StringRes
+internal fun AssignedTodoStatus.statusLabelRes(): Int = when (this) {
+    AssignedTodoStatus.PENDING_ACCEPTANCE -> R.string.friends_assignment_status_pending
+    AssignedTodoStatus.ACCEPTED -> R.string.friends_assignment_status_accepted
+    AssignedTodoStatus.IN_PROGRESS -> R.string.friends_assignment_status_in_progress
+    AssignedTodoStatus.DONE -> R.string.friends_assignment_status_done
+    AssignedTodoStatus.REJECTED -> R.string.friends_assignment_status_rejected
+    AssignedTodoStatus.CANCELED -> R.string.friends_assignment_status_canceled
+}
+
+internal fun AssignedTodoStatus.statusStyle(): AssignmentTodoStatusStyle = when (this) {
+    AssignedTodoStatus.PENDING_ACCEPTANCE -> AssignmentTodoStatusStyle.PENDING
+    AssignedTodoStatus.ACCEPTED -> AssignmentTodoStatusStyle.ACCEPTED
+    AssignedTodoStatus.IN_PROGRESS -> AssignmentTodoStatusStyle.IN_PROGRESS
+    AssignedTodoStatus.DONE -> AssignmentTodoStatusStyle.DONE
+    AssignedTodoStatus.REJECTED -> AssignmentTodoStatusStyle.REJECTED
+    AssignedTodoStatus.CANCELED -> AssignmentTodoStatusStyle.CANCELED
 }
 
 sealed interface FriendsAction {
@@ -48,6 +146,10 @@ sealed interface FriendsAction {
     data class OnRemoveFriend(val friendshipId: String) : FriendsAction
     data class OnFriendClick(val friend: Friend) : FriendsAction
     data object OnCloseFriendDetail : FriendsAction
+    data class OnTogglePendingAssignment(val assignedTodoId: String) : FriendsAction
+    data object OnToggleAllPendingAssignments : FriendsAction
+    data object OnAcceptSelectedAssignments : FriendsAction
+    data object OnRejectSelectedAssignments : FriendsAction
     data class OnOpenAssignmentEditor(val friend: Friend) : FriendsAction
     data object OnCloseAssignmentEditor : FriendsAction
     data class OnAssignmentTitleChanged(val value: String) : FriendsAction
@@ -75,5 +177,7 @@ enum class FriendsMessage(@StringRes val messageRes: Int) {
     REQUEST_ACCEPTED(R.string.friends_request_accepted),
     REQUEST_DECLINED(R.string.friends_request_declined),
     FRIEND_REMOVED(R.string.friends_removed),
-    ASSIGNMENT_SENT(R.string.friends_assignment_sent)
+    ASSIGNMENT_SENT(R.string.friends_assignment_sent),
+    ASSIGNMENT_ACCEPTED(R.string.friends_assignment_accepted),
+    ASSIGNMENT_REJECTED(R.string.friends_assignment_rejected)
 }

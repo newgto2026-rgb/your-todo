@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -67,6 +68,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -203,7 +205,6 @@ private fun TodoListScreen(
     val completionProgress = completionProgress(uiState)
     val rowCompletedText = stringResource(R.string.todo_row_subtitle_completed)
     val rowTodayText = stringResource(R.string.todo_row_subtitle_today)
-    val assignedFromText = stringResource(R.string.todo_row_assigned_from)
     val shouldShowQuickAdd = uiState.selectedFilter != TodoFilter.COMPLETED
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
@@ -247,7 +248,11 @@ private fun TodoListScreen(
                     .padding(horizontal = 20.dp)
             ) {
             Spacer(Modifier.height(10.dp))
-            AppHeader(profileInitial = uiState.profileInitial)
+            AppHeader(
+                profileInitial = uiState.profileInitial,
+                isSyncing = uiState.isSyncing,
+                onSyncClick = { onAction(TodoListAction.OnSyncClick) }
+            )
             Spacer(Modifier.height(12.dp))
 
             HeaderSummary(
@@ -342,7 +347,6 @@ private fun TodoListScreen(
                                         rowCompletedText = rowCompletedText,
                                         rowTodayText = rowTodayText,
                                         dueDateFormat = dueDateFormat,
-                                        assignedFromText = assignedFromText,
                                         onAction = onAction,
                                         onEditRequested = onEditRequested,
                                         onDeleteRequest = {
@@ -362,7 +366,6 @@ private fun TodoListScreen(
                                 rowCompletedText = rowCompletedText,
                                 rowTodayText = rowTodayText,
                                 dueDateFormat = dueDateFormat,
-                                assignedFromText = assignedFromText,
                                 onAction = onAction,
                                 onEditRequested = onEditRequested,
                                 onDeleteRequest = {
@@ -536,7 +539,8 @@ private fun TodoSortMenu(
                 .height(34.dp)
                 .testTag("todo_sort_menu_button"),
             shape = RoundedCornerShape(999.dp),
-            color = Color.White.copy(alpha = 0.82f)
+            color = Color.White.copy(alpha = 0.9f),
+            border = BorderStroke(1.dp, Color(0xFFE0E6F1))
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = if (showLabel) 10.dp else 8.dp),
@@ -560,16 +564,37 @@ private fun TodoSortMenu(
         }
         DropdownMenu(
             expanded = isExpanded,
-            onDismissRequest = { isExpanded = false }
+            onDismissRequest = { isExpanded = false },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = Color(0xFFFAFBFE),
+            shadowElevation = 8.dp
         ) {
             TodoSortOption.entries.forEach { option ->
+                val isSelected = option == selectedSortOption
                 DropdownMenuItem(
-                    text = { Text(stringResource(option.labelRes())) },
+                    text = {
+                        Column {
+                            Text(
+                                text = stringResource(option.labelRes()),
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF303440)
+                            )
+                            Text(
+                                text = stringResource(option.descriptionRes()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF7A8595)
+                            )
+                        }
+                    },
                     leadingIcon = {
-                        if (option == selectedSortOption) {
+                        SortOptionDot(color = option.accentColor())
+                    },
+                    trailingIcon = {
+                        if (isSelected) {
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = null
+                                contentDescription = null,
+                                tint = Color(0xFF5F5391)
                             )
                         }
                     },
@@ -577,7 +602,9 @@ private fun TodoSortMenu(
                         isExpanded = false
                         onSortOptionSelected(option)
                     },
-                    modifier = Modifier.testTag(option.testTag())
+                    modifier = Modifier
+                        .background(if (isSelected) Color(0xFFF0F3FF) else Color.Transparent)
+                        .testTag(option.testTag())
                 )
             }
         }
@@ -590,7 +617,6 @@ private fun TodoPlannerRow(
     rowCompletedText: String,
     rowTodayText: String,
     dueDateFormat: String,
-    assignedFromText: String,
     onAction: (TodoListAction) -> Unit,
     onEditRequested: (Long) -> Unit,
     onDeleteRequest: () -> Unit,
@@ -615,10 +641,12 @@ private fun TodoPlannerRow(
     } else {
         null
     }
+    val assignedFromLabel = item.senderNickname?.let {
+        stringResource(R.string.todo_row_assigned_from, it)
+    }
     val rowDueLabel = when {
         item.isDone -> rowCompletedText
         !dueLabel.isNullOrBlank() -> dueLabel
-        item.senderNickname != null -> "$assignedFromText ${item.senderNickname}"
         else -> null
     }
 
@@ -643,7 +671,8 @@ private fun TodoPlannerRow(
             },
             onDeleteRequest = onDeleteRequest,
             priorityLabel = priorityLabel(item.priority),
-            priorityColor = priorityColor(item.priority)
+            priorityColor = priorityColor(item.priority),
+            assignedFromText = assignedFromLabel
         )
         if (showQuickActions) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -680,7 +709,8 @@ private fun DeletableTodoItemRow(
     onClick: () -> Unit,
     onDeleteRequest: () -> Unit,
     priorityLabel: String,
-    priorityColor: Color
+    priorityColor: Color,
+    assignedFromText: String?
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -724,7 +754,40 @@ private fun DeletableTodoItemRow(
             modifier = Modifier.testTag("todo_row_$itemId"),
             priorityLabel = priorityLabel,
             priorityColor = priorityColor,
-            toggleTestTag = "todo_row_toggle_$itemId"
+            toggleTestTag = "todo_row_toggle_$itemId",
+            content = assignedFromText?.let {
+                {
+                    AssignedTodoSourceBadge(text = it)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SortOptionDot(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .background(color)
+    )
+}
+
+@Composable
+private fun AssignedTodoSourceBadge(text: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Color(0xFFEAF4F0),
+        border = BorderStroke(1.dp, Color(0xFFC8E5DA))
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF3C7766),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -822,6 +885,18 @@ private fun TodoSortOption.labelRes(): Int = when (this) {
     TodoSortOption.DEFAULT -> R.string.todo_sort_default
     TodoSortOption.DUE_DATE -> R.string.todo_sort_due_date
     TodoSortOption.PRIORITY -> R.string.todo_sort_priority
+}
+
+private fun TodoSortOption.descriptionRes(): Int = when (this) {
+    TodoSortOption.DEFAULT -> R.string.todo_sort_default_description
+    TodoSortOption.DUE_DATE -> R.string.todo_sort_due_date_description
+    TodoSortOption.PRIORITY -> R.string.todo_sort_priority_description
+}
+
+private fun TodoSortOption.accentColor(): Color = when (this) {
+    TodoSortOption.DEFAULT -> Color(0xFF8A93A5)
+    TodoSortOption.DUE_DATE -> Color(0xFF4B83C5)
+    TodoSortOption.PRIORITY -> Color(0xFFC76B7D)
 }
 
 @StringRes

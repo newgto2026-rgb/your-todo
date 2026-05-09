@@ -1,6 +1,7 @@
 package com.neo.yourtodo.feature.friends.impl.ui
 
 import android.app.TimePickerDialog
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -74,13 +77,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.TodoPriority
-import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.ui.YourTodoBrandHeader
@@ -224,7 +228,7 @@ private fun FriendsScreen(
     }
 
     uiState.selectedFriend?.let { friend ->
-        FriendAssignmentMonitorSheet(
+        FriendAssignmentMonitorDialog(
             uiState = uiState,
             friend = friend,
             onAction = onAction
@@ -484,57 +488,78 @@ private fun OutgoingRequestRow(request: FriendRequest) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FriendAssignmentMonitorSheet(
+private fun FriendAssignmentMonitorDialog(
     uiState: FriendsUiState,
     friend: Friend,
     onAction: (FriendsAction) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    val detail = uiState.assignmentDetail
+
+    AlertDialog(
         onDismissRequest = { onAction(FriendsAction.OnCloseFriendDetail) },
-        sheetState = sheetState,
-        containerColor = Color.White,
-        modifier = Modifier.testTag("friends_assignment_monitor_sheet"),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        modifier = Modifier
+            .fillMaxWidth(0.92f)
+            .testTag("friends_assignment_monitor_dialog"),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        containerColor = Color(0xFFF7F8FC),
+        shape = RoundedCornerShape(28.dp),
+        title = {
             FriendIdentity(
                 initial = friend.initial,
                 nickname = stringResource(R.string.friends_assignment_dialog_title, friend.nickname),
                 subtitle = stringResource(R.string.friends_assignment_monitor_subtitle)
             )
-            if (uiState.friendDetailLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            AssignmentSummaryBlock(
-                sent = uiState.friendAssignmentSummary?.sent,
-                received = uiState.friendAssignmentSummary?.received
-            )
-            AssignmentPreviewList(
-                title = stringResource(R.string.friends_assignment_sent_title),
-                items = uiState.friendSentAssignedTodos
-            )
-            AssignmentPreviewList(
-                title = stringResource(R.string.friends_assignment_received_title),
-                items = uiState.friendReceivedAssignedTodos
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                TextButton(onClick = { onAction(FriendsAction.OnCloseFriendDetail) }) {
-                    Text(stringResource(R.string.friends_remove_cancel))
+                if (uiState.friendDetailLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
+                AssignmentSummaryBlock(
+                    sent = uiState.friendAssignmentSummary?.sent,
+                    received = uiState.friendAssignmentSummary?.received
+                )
+                PendingAssignmentDecisionBlock(
+                    items = detail.pendingReceivedItems,
+                    selectedCount = detail.pendingSelectedCount,
+                    totalCount = detail.pendingTotalCount,
+                    allSelected = detail.isAllPendingSelected,
+                    hasSelection = detail.hasPendingSelection,
+                    running = detail.isDecisionRunning,
+                    onToggle = { onAction(FriendsAction.OnTogglePendingAssignment(it)) },
+                    onToggleAll = { onAction(FriendsAction.OnToggleAllPendingAssignments) },
+                    onAcceptSelected = { onAction(FriendsAction.OnAcceptSelectedAssignments) },
+                    onRejectSelected = { onAction(FriendsAction.OnRejectSelectedAssignments) }
+                )
+                AssignmentPreviewList(
+                    title = stringResource(R.string.friends_assignment_sent_title),
+                    caption = stringResource(R.string.friends_assignment_sent_caption),
+                    items = detail.sentItems,
+                    accentColor = Color(0xFF6771C7),
+                    containerColor = Color(0xFFF0F3FF)
+                )
+                AssignmentPreviewList(
+                    title = stringResource(R.string.friends_assignment_received_title),
+                    caption = stringResource(R.string.friends_assignment_received_caption),
+                    items = detail.activeReceivedItems,
+                    accentColor = Color(0xFF4B9A82),
+                    containerColor = Color(0xFFEFF8F4)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onAction(FriendsAction.OnCloseFriendDetail) }) {
+                Text(stringResource(R.string.friends_dialog_close))
             }
         }
-    }
+    )
 }
 
 @Composable
@@ -590,35 +615,310 @@ private fun AssignmentMetric(
 }
 
 @Composable
-private fun AssignmentPreviewList(
-    title: String,
-    items: List<AssignedTodo>
+private fun PendingAssignmentDecisionBlock(
+    items: List<AssignmentTodoUiModel>,
+    selectedCount: Int,
+    totalCount: Int,
+    allSelected: Boolean,
+    hasSelection: Boolean,
+    running: Boolean,
+    onToggle: (String) -> Unit,
+    onToggleAll: () -> Unit,
+    onAcceptSelected: () -> Unit,
+    onRejectSelected: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-            color = Color(0xFF4E5D73)
-        )
-        if (items.isEmpty()) {
-            Text(
-                text = stringResource(R.string.friends_assignment_empty),
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF7A8595)
-            )
-        } else {
-            items.take(3).forEach { item ->
-                Text(
-                    text = stringResource(
-                        R.string.friends_assignment_item_summary,
-                        item.title,
-                        item.progressPercent
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF303440)
+    if (items.isEmpty()) return
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xFFFFF7E8),
+        border = BorderStroke(1.dp, Color(0xFFFFDCA8))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.friends_assignment_pending_title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF303440)
+                    )
+                    Text(
+                        text = stringResource(R.string.friends_assignment_selected_count, selectedCount, totalCount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF8A5F1F)
+                    )
+                }
+                TextButton(
+                    onClick = onToggleAll,
+                    enabled = !running,
+                    modifier = Modifier.testTag("friends_assignment_pending_select_all")
+                ) {
+                    Text(
+                        text = if (allSelected) {
+                            stringResource(R.string.friends_assignment_unselect_all)
+                        } else {
+                            stringResource(R.string.friends_assignment_select_all)
+                        }
+                    )
+                }
+            }
+            items.forEach { item ->
+                PendingAssignmentRow(
+                    item = item,
+                    enabled = !running,
+                    onToggle = { onToggle(item.id) }
                 )
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextButton(
+                    onClick = onRejectSelected,
+                    enabled = hasSelection && !running,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("friends_assignment_reject_selected")
+                ) {
+                    Text(stringResource(R.string.friends_assignment_reject_selected))
+                }
+                Button(
+                    onClick = onAcceptSelected,
+                    enabled = hasSelection && !running,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("friends_assignment_accept_selected"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF676CB4))
+                ) {
+                    if (running) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text(stringResource(R.string.friends_assignment_accept_selected))
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun PendingAssignmentRow(
+    item: AssignmentTodoUiModel,
+    enabled: Boolean,
+    onToggle: () -> Unit
+) {
+    Surface(
+        onClick = onToggle,
+        enabled = enabled,
+        shape = RoundedCornerShape(14.dp),
+        color = if (item.selected) Color(0xFFFFFCF5) else Color.White.copy(alpha = 0.9f),
+        border = BorderStroke(1.dp, if (item.selected) Color(0xFFFFC977) else Color(0xFFE2E8F2)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("friends_assignment_pending_${item.id}")
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = item.selected,
+                onCheckedChange = { onToggle() },
+                enabled = enabled,
+                modifier = Modifier.testTag("friends_assignment_pending_check_${item.id}")
+            )
+            AssignmentTodoSummary(
+                item = item,
+                accentColor = Color(0xFFE2A23A),
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AssignmentPreviewList(
+    title: String,
+    caption: String,
+    items: List<AssignmentTodoUiModel>,
+    accentColor: Color,
+    containerColor: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.18f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 4.dp, height = 30.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accentColor)
+                )
+                Column(modifier = Modifier.padding(start = 9.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = Color(0xFF303440)
+                    )
+                    Text(
+                        text = caption,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF627083)
+                    )
+                }
+            }
+            if (items.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.friends_assignment_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF7A8595)
+                )
+            } else {
+                items.take(3).forEach { item ->
+                    AssignmentTodoCard(
+                        item = item,
+                        accentColor = accentColor
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssignmentTodoCard(
+    item: AssignmentTodoUiModel,
+    accentColor: Color
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.9f),
+        border = BorderStroke(1.dp, Color.White)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 46.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accentColor.copy(alpha = 0.8f))
+            )
+            AssignmentTodoSummary(
+                item = item,
+                accentColor = accentColor,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AssignmentTodoSummary(
+    item: AssignmentTodoUiModel,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val progressFraction = item.progressPercent.coerceIn(0, 100) / 100f
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = item.title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = Color(0xFF303440),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            AssignmentStatusChip(labelRes = item.statusLabelRes, style = item.statusStyle)
+        }
+        AssignmentPersonChip(
+            text = stringResource(item.personLabelRes, item.personName),
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Text(
+            text = stringResource(R.string.friends_assignment_item_summary, item.progressPercent),
+            modifier = Modifier.padding(top = 5.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF647286)
+        )
+        Box(
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color(0xFFE2E8F1))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progressFraction)
+                    .height(6.dp)
+                    .background(accentColor)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AssignmentPersonChip(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(999.dp),
+        color = Color(0xFFE9EEF8)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF4E5D73),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun AssignmentStatusChip(
+    @StringRes labelRes: Int,
+    style: AssignmentTodoStatusStyle
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = style.statusChipColor()
+    ) {
+        Text(
+            text = stringResource(labelRes),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF303440)
+        )
     }
 }
 
@@ -974,6 +1274,15 @@ private fun TodoPriority.shortLabelRes(): Int = when (this) {
     TodoPriority.LOW -> R.string.friends_assignment_priority_low
     TodoPriority.MEDIUM -> R.string.friends_assignment_priority_medium
     TodoPriority.HIGH -> R.string.friends_assignment_priority_high
+}
+
+private fun AssignmentTodoStatusStyle.statusChipColor(): Color = when (this) {
+    AssignmentTodoStatusStyle.PENDING -> Color(0xFFFFF1D6)
+    AssignmentTodoStatusStyle.ACCEPTED -> Color(0xFFE6F0FF)
+    AssignmentTodoStatusStyle.IN_PROGRESS -> Color(0xFFE9F5EC)
+    AssignmentTodoStatusStyle.DONE -> Color(0xFFE5F6EF)
+    AssignmentTodoStatusStyle.REJECTED -> Color(0xFFFCE7EA)
+    AssignmentTodoStatusStyle.CANCELED -> Color(0xFFE9ECF2)
 }
 
 @Composable

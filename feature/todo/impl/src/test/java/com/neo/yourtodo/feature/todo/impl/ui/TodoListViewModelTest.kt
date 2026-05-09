@@ -915,6 +915,22 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun syncClickSyncsLocalTodosAndRefreshesReceivedAssignments() = runTest {
+        advanceUntilIdle()
+        val initialSyncCount = repository.syncCount
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-2", title = "Accepted share"))
+        val emitted = async { viewModel.sideEffect.first() }
+
+        viewModel.onAction(TodoListAction.OnSyncClick)
+        advanceUntilIdle()
+
+        assertThat(repository.syncCount).isEqualTo(initialSyncCount + 1)
+        assertThat(viewModel.uiState.value.isSyncing).isFalse()
+        assertThat(viewModel.uiState.value.items.map { it.title }).contains("Accepted share")
+        assertThat(emitted.await()).isEqualTo(TodoListSideEffect.ShowSnackbar(R.string.todo_sync_success))
+    }
+
+    @Test
     fun receivedAssignedTodoDeleteUsesServerDeleteReceived() = runTest {
         assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-1"))
 

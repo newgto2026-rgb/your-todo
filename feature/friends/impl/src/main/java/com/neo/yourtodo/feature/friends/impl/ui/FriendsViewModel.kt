@@ -12,9 +12,13 @@ import com.neo.yourtodo.core.domain.usecase.GetFriendAssignmentSummaryUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
+import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.feature.friends.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -36,6 +40,7 @@ class FriendsViewModel @Inject constructor(
     private val createAssignmentBundle: CreateAssignmentBundleUseCase,
     private val getFriendAssignmentSummary: GetFriendAssignmentSummaryUseCase,
     private val getAssignedTodos: GetAssignedTodosUseCase,
+    private val respondAssignmentBundle: RespondAssignmentBundleUseCase,
     observeAuthSession: ObserveAuthSessionUseCase
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow(FriendsUiState())
@@ -84,9 +89,20 @@ class FriendsViewModel @Inject constructor(
                     selectedFriend = null,
                     friendAssignmentSummary = null,
                     friendSentAssignedTodos = emptyList(),
-                    friendReceivedAssignedTodos = emptyList()
+                    friendReceivedAssignedTodos = emptyList(),
+                    selectedPendingAssignmentIds = emptySet()
                 )
             }
+            is FriendsAction.OnTogglePendingAssignment -> togglePendingAssignment(action.assignedTodoId)
+            FriendsAction.OnToggleAllPendingAssignments -> toggleAllPendingAssignments()
+            FriendsAction.OnAcceptSelectedAssignments -> decideSelectedAssignments(
+                decision = AssignmentDecision.ACCEPT,
+                successMessage = FriendsMessage.ASSIGNMENT_ACCEPTED
+            )
+            FriendsAction.OnRejectSelectedAssignments -> decideSelectedAssignments(
+                decision = AssignmentDecision.REJECT,
+                successMessage = FriendsMessage.ASSIGNMENT_REJECTED
+            )
             is FriendsAction.OnOpenAssignmentEditor -> mutableUiState.update {
                 it.copy(
                     assignmentTargetFriend = action.friend,
@@ -222,24 +238,25 @@ class FriendsViewModel @Inject constructor(
 
     private suspend fun refreshFriendDetail(friendUserId: String) {
         val summary = getFriendAssignmentSummary(friendUserId)
-        val sent = getAssignedTodos.byFriend(
+        val sent = getActiveAndPendingAssignedTodos(
             friendUserId = friendUserId,
-            direction = AssignmentDirection.SENT,
-            status = AssignmentFeedStatus.ACTIVE
+            direction = AssignmentDirection.SENT
         )
-        val received = getAssignedTodos.byFriend(
+        val received = getActiveAndPendingAssignedTodos(
             friendUserId = friendUserId,
-            direction = AssignmentDirection.RECEIVED,
-            status = AssignmentFeedStatus.ACTIVE
+            direction = AssignmentDirection.RECEIVED
         )
 
         mutableUiState.update {
             if (summary.isSuccess && sent.isSuccess && received.isSuccess) {
+                val receivedItems = received.getOrThrow()
+                val validPendingIds = receivedItems.pendingDecisionItems().map { item -> item.id }.toSet()
                 it.copy(
                     friendDetailLoading = false,
                     friendAssignmentSummary = summary.getOrThrow(),
                     friendSentAssignedTodos = sent.getOrThrow(),
-                    friendReceivedAssignedTodos = received.getOrThrow(),
+                    friendReceivedAssignedTodos = receivedItems,
+                    selectedPendingAssignmentIds = it.selectedPendingAssignmentIds.intersect(validPendingIds),
                     error = null
                 )
             } else {
@@ -250,6 +267,112 @@ class FriendsViewModel @Inject constructor(
                     friendDetailLoading = false,
                     error = failure.toUiError()
                 )
+            }
+        }
+    }
+
+    private suspend fun getActiveAndPendingAssignedTodos(
+        friendUserId: String,
+        direction: AssignmentDirection
+    ): Result<List<AssignedTodo>> {
+        val pending = getAssignedTodos.byFriend(
+            friendUserId = friendUserId,
+            direction = direction,
+            status = AssignmentFeedStatus.PENDING
+        )
+        val active = getAssignedTodos.byFriend(
+            friendUserId = friendUserId,
+            direction = direction,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+
+        return if (pending.isSuccess && active.isSuccess) {
+            Result.success(
+                (pending.getOrThrow() + active.getOrThrow())
+                    .distinctBy { it.id }
+                    .sortedWith(compareBy<AssignedTodo> { it.status != AssignedTodoStatus.PENDING_ACCEPTANCE }
+                        .thenBy { it.dueDate }
+                        .thenBy { it.title })
+            )
+        } else {
+            Result.failure(
+                listOf(pending, active)
+                    .first { it.isFailure }
+                    .exceptionOrNull() ?: IllegalStateException()
+            )
+        }
+    }
+
+    private fun togglePendingAssignment(assignedTodoId: String) {
+        val pendingIds = uiState.value.decisionPendingAssignedTodos().map { it.id }.toSet()
+        if (assignedTodoId !in pendingIds) return
+        mutableUiState.update {
+            val selectedIds = if (assignedTodoId in it.selectedPendingAssignmentIds) {
+                it.selectedPendingAssignmentIds - assignedTodoId
+            } else {
+                it.selectedPendingAssignmentIds + assignedTodoId
+            }
+            it.copy(selectedPendingAssignmentIds = selectedIds)
+        }
+    }
+
+    private fun toggleAllPendingAssignments() {
+        val pendingIds = uiState.value.decisionPendingAssignedTodos().map { it.id }.toSet()
+        if (pendingIds.isEmpty()) return
+        mutableUiState.update {
+            val selectedIds = if (it.selectedPendingAssignmentIds.containsAll(pendingIds)) {
+                it.selectedPendingAssignmentIds - pendingIds
+            } else {
+                it.selectedPendingAssignmentIds + pendingIds
+            }
+            it.copy(selectedPendingAssignmentIds = selectedIds)
+        }
+    }
+
+    private fun decideSelectedAssignments(
+        decision: AssignmentDecision,
+        successMessage: FriendsMessage
+    ) {
+        val state = uiState.value
+        if (state.runningActionKey != null) return
+        val friendUserId = state.selectedFriend?.userId ?: return
+        val selectedItems = state.decisionPendingAssignedTodos()
+            .filter { item -> item.id in state.selectedPendingAssignmentIds }
+        if (selectedItems.isEmpty()) return
+
+        viewModelScope.launch {
+            mutableUiState.update { it.copy(runningActionKey = "assignment_decision", error = null) }
+            val succeededItemIds = mutableSetOf<String>()
+            val result = runCatching {
+                selectedItems
+                    .groupBy { checkNotNull(it.bundleId) }
+                    .forEach { (bundleId, items) ->
+                        respondAssignmentBundle(
+                            bundleId = bundleId,
+                            decisions = items.associate { item -> item.id to decision }
+                        ).getOrThrow()
+                        succeededItemIds += items.map { item -> item.id }
+                    }
+            }
+
+            if (result.isSuccess) {
+                mutableUiState.update { it.copy(selectedPendingAssignmentIds = emptySet()) }
+                refreshFriendDetail(friendUserId)
+                refreshAfterMutation()
+                mutableSideEffect.emit(FriendsSideEffect.ShowSnackbar(successMessage.messageRes))
+            } else {
+                if (succeededItemIds.isNotEmpty()) {
+                    mutableUiState.update {
+                        it.copy(selectedPendingAssignmentIds = it.selectedPendingAssignmentIds - succeededItemIds)
+                    }
+                    refreshFriendDetail(friendUserId)
+                }
+                mutableUiState.update {
+                    it.copy(
+                        runningActionKey = null,
+                        error = result.exceptionOrNull().toUiError()
+                    )
+                }
             }
         }
     }
@@ -384,6 +507,14 @@ class FriendsViewModel @Inject constructor(
         const val MaxDueTimeLength = 5
     }
 }
+
+internal fun FriendsUiState.decisionPendingAssignedTodos(): List<AssignedTodo> =
+    friendReceivedAssignedTodos.pendingDecisionItems()
+
+internal fun List<AssignedTodo>.pendingDecisionItems(): List<AssignedTodo> =
+    filter { item ->
+        item.status == AssignedTodoStatus.PENDING_ACCEPTANCE && item.bundleId != null
+    }
 
 internal fun dueTimeTextToMinutes(value: String): Int? {
     if (value.isBlank()) return null

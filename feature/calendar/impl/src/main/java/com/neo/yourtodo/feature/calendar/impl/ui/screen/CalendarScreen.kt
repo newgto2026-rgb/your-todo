@@ -2,11 +2,21 @@ package com.neo.yourtodo.feature.calendar.impl.ui.screen
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -16,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -25,6 +37,7 @@ import com.neo.yourtodo.core.ui.YourTodoBrandHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.calendar.impl.R
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarAction
+import com.neo.yourtodo.feature.calendar.impl.ui.CalendarSideEffect
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarUiState
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarViewModel
 import com.neo.yourtodo.feature.calendar.impl.ui.initialCalendarUiState
@@ -53,6 +66,8 @@ fun CalendarRouteScreen(
     val uiState by routeUiState.collectAsStateWithLifecycle(
         minActiveState = Lifecycle.State.CREATED
     )
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     var isWaitingForRouteDate by remember(routeDate) {
         mutableStateOf(routeDate != null)
     }
@@ -77,14 +92,24 @@ fun CalendarRouteScreen(
         uiState
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.sideEffect.collect { sideEffect ->
+            when (sideEffect) {
+                is CalendarSideEffect.NavigateToTodoEdit -> onNavigateToTodoEdit(sideEffect.todoId)
+                is CalendarSideEffect.NavigateToTodoAdd -> onNavigateToTodoAdd(sideEffect.dueDate)
+                is CalendarSideEffect.ShowSnackbar ->
+                    snackbarHostState.showSnackbar(context.getString(sideEffect.messageRes))
+            }
+        }
+    }
+
     CalendarScreen(
         uiState = displayedUiState,
         onAction = { action ->
             isWaitingForRouteDate = false
             viewModel.onAction(action)
         },
-        onTodoClick = onNavigateToTodoEdit,
-        onAddTodoClick = onNavigateToTodoAdd
+        snackbarHostState = snackbarHostState
     )
 }
 
@@ -92,21 +117,54 @@ fun CalendarRouteScreen(
 private fun CalendarScreen(
     uiState: CalendarUiState,
     onAction: (CalendarAction) -> Unit,
-    onTodoClick: (Long) -> Unit,
-    onAddTodoClick: (LocalDate) -> Unit
+    snackbarHostState: SnackbarHostState
 ) {
     YourTodoScreenBackground {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
-        ) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            contentWindowInsets = WindowInsets(0.dp)
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+            ) {
             Spacer(modifier = Modifier.height(10.dp))
 
             YourTodoBrandHeader(
                 wordmarkContentDescription = stringResource(R.string.calendar_app_header_title),
                 profileContentDescription = stringResource(R.string.calendar_header_profile_icon),
-                profileInitial = uiState.profileInitial
+                profileInitial = uiState.profileInitial,
+                content = {
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color.White.copy(alpha = 0.88f)
+                    ) {
+                        IconButton(
+                            onClick = { onAction(CalendarAction.OnSyncClick) },
+                            enabled = !uiState.isSyncing,
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .size(38.dp)
+                                .testTag("calendar_sync")
+                        ) {
+                            if (uiState.isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = stringResource(R.string.calendar_sync_action)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.size(8.dp))
+                }
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -137,11 +195,12 @@ private fun CalendarScreen(
             CalendarAgendaSection(
                 selectedDate = uiState.selectedDate,
                 selectedDateTodos = uiState.selectedDateTodos,
-                onTodoClick = onTodoClick,
+                onTodoClick = { todoId -> onAction(CalendarAction.OnTodoClick(todoId)) },
                 onToggleTodoDone = { todoId -> onAction(CalendarAction.OnToggleTodoDone(todoId)) },
-                onAddTodoClick = { onAddTodoClick(uiState.selectedDate) },
+                onAddTodoClick = { onAction(CalendarAction.OnAddTodoClick) },
                 modifier = Modifier.fillMaxWidth()
             )
+        }
         }
     }
 }
