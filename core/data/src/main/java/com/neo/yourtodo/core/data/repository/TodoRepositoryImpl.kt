@@ -190,6 +190,7 @@ class TodoRepositoryImpl @Inject constructor(
                         val refreshedSession = refreshSessionOrNull(session.refreshToken)
                         if (refreshedSession == null) {
                             userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
+                            userPreferencesDataSource.clearAuthSession()
                             throw throwable
                         }
 
@@ -198,6 +199,7 @@ class TodoRepositoryImpl @Inject constructor(
                             syncTodosWithSession(refreshedSession.accessToken, refreshedSession.user.id)
                         } catch (retryThrowable: TodoSyncAuthRequiredException) {
                             userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
+                            userPreferencesDataSource.clearAuthSession()
                             throw retryThrowable
                         }
                     }

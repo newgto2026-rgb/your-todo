@@ -69,11 +69,11 @@ class FriendRepositoryImpl @Inject constructor(
                 block(session.accessToken)
             } catch (throwable: FriendAuthRequiredException) {
                 val refreshedSession = refreshSessionOrNull(session.refreshToken)
-                    ?: throw AuthRequiredException()
+                    ?: authRequired()
                 try {
                     block(refreshedSession.accessToken)
                 } catch (retryThrowable: FriendAuthRequiredException) {
-                    throw AuthRequiredException()
+                    authRequired()
                 }
             }
         }
@@ -88,6 +88,11 @@ class FriendRepositoryImpl @Inject constructor(
         }.getOrNull()?.also { networkSession ->
             userPreferencesDataSource.saveAuthSession(networkSession.toAuthSessionData())
         }
+
+    private suspend fun authRequired(): Nothing {
+        userPreferencesDataSource.clearAuthSession()
+        throw AuthRequiredException()
+    }
 
     private fun NetworkAuthSession.toAuthSessionData() =
         AuthSessionData(

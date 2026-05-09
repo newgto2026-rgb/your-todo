@@ -145,6 +145,26 @@ class AssignmentRepositoryImplTest {
         assertThat(result.exceptionOrNull()).isInstanceOf(AuthRequiredException::class.java)
     }
 
+    @Test
+    fun requestClearsSessionWhenRefreshFails() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeAssignmentNetworkDataSource().apply {
+            authFailuresRemaining = 1
+        }
+        val authNetwork = FakeAuthNetworkDataSource(refreshFails = true)
+        val repository = repository(
+            prefs = prefs,
+            network = network,
+            authNetwork = authNetwork
+        )
+
+        val result = repository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE)
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(AuthRequiredException::class.java)
+        assertThat(authNetwork.lastRefreshToken).isEqualTo("refresh-token")
+        assertThat(prefs.authSession.first()).isNull()
+    }
+
     private fun repository(
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeAssignmentNetworkDataSource = FakeAssignmentNetworkDataSource(),
@@ -216,7 +236,9 @@ class AssignmentRepositoryImplTest {
         }
     }
 
-    private class FakeAuthNetworkDataSource : AuthNetworkDataSource {
+    private class FakeAuthNetworkDataSource(
+        private val refreshFails: Boolean = false
+    ) : AuthNetworkDataSource {
         var lastRefreshToken: String? = null
 
         override suspend fun signInWithGoogle(idToken: String): NetworkAuthSession =
@@ -224,6 +246,7 @@ class AssignmentRepositoryImplTest {
 
         override suspend fun refreshSession(refreshToken: String): NetworkAuthSession {
             lastRefreshToken = refreshToken
+            if (refreshFails) error("Refresh failed")
             return refreshedSession()
         }
 

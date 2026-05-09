@@ -81,6 +81,7 @@ class FriendRepositoryImplTest {
 
         assertThat(result.exceptionOrNull()).isInstanceOf(AuthRequiredException::class.java)
         assertThat(network.acceptTokens).containsExactly("access-token")
+        assertThat(prefs.authSession.first()).isNull()
     }
 
     @Test

@@ -157,11 +157,11 @@ class AssignmentRepositoryImpl @Inject constructor(
                 block(session.accessToken)
             } catch (throwable: AssignmentAuthRequiredException) {
                 val refreshedSession = refreshSessionOrNull(session.refreshToken)
-                    ?: throw AuthRequiredException()
+                    ?: authRequired()
                 try {
                     block(refreshedSession.accessToken)
                 } catch (retryThrowable: AssignmentAuthRequiredException) {
-                    throw AuthRequiredException()
+                    authRequired()
                 }
             }
         }
@@ -176,6 +176,11 @@ class AssignmentRepositoryImpl @Inject constructor(
         }.getOrNull()?.also { networkSession ->
             userPreferencesDataSource.saveAuthSession(networkSession.toAuthSessionData())
         }
+
+    private suspend fun authRequired(): Nothing {
+        userPreferencesDataSource.clearAuthSession()
+        throw AuthRequiredException()
+    }
 
     private fun AuthNetworkSession.toAuthSessionData() =
         AuthSessionData(
