@@ -364,6 +364,7 @@ POST /api/assigned-todos/{assignedTodoId}/complete
 - 체크리스트 완료 여부만 변경 가능.
 - progressPercent는 서버가 계산한다.
 - `complete` 성공 시 `ASSIGNED_TODO_COMPLETED` 이벤트를 생성한다.
+- `reopen` 성공 시 `ASSIGNED_TODO_REOPENED` 이벤트를 생성한다.
 
 `PATCH /checklist/{checklistItemId}` request:
 ```json

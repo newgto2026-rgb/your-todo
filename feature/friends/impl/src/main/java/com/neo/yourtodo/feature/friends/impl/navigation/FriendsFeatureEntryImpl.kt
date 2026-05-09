@@ -26,7 +26,9 @@ class FriendsFeatureEntryImpl @Inject constructor() : FriendsFeatureEntry {
             FriendsRouteScreen(
                 workspaceSyncState = routeActions.workspaceSyncState,
                 onWorkspaceSyncClick = routeActions::requestWorkspaceSync,
+                initialFriendsRouteKey = route,
                 initialIncomingAssignmentFriendUserId = route.friendUserId,
+                initialIncomingAssignmentFriendNickname = route.friendNickname,
                 initialIncomingAssignmentBundleId = route.bundleId
             )
         }

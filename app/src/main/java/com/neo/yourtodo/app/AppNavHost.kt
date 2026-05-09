@@ -137,9 +137,17 @@ fun AppNavHost(
             )
         }
     ) { innerPadding ->
+        val activeRoute = navigationState.currentStack.last()
+        val activeContentKey = navEntries
+            .lastOrNull { entry ->
+                entry.contentKey == activeRoute ||
+                    entry.contentKey.toString() == activeRoute.toString()
+            }
+            ?.contentKey
+            ?: activeRoute
         ImmediateNavDisplay(
             entries = navEntries,
-            activeContentKey = navigationState.currentStack.last().toString(),
+            activeContentKey = activeContentKey,
             onBack = {
                 if (!navigator.goBack()) {
                     (context as? android.app.Activity)?.finish()

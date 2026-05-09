@@ -65,6 +65,7 @@ class AppLaunchNavigationRequestTest {
             deepLink = "yourtodo://assignment-bundles/received/bundle-id",
             bundleId = null,
             actorUserId = "friend-user-id",
+            actorNickname = "monday",
             dataScheme = null,
             requestId = 10L
         )
@@ -75,6 +76,7 @@ class AppLaunchNavigationRequestTest {
                 topLevelRoute = FriendsRoute,
                 contentRoute = FriendsIncomingAssignmentRoute(
                     friendUserId = "friend-user-id",
+                    friendNickname = "monday",
                     bundleId = "bundle-id"
                 ),
                 syncOnOpen = true
@@ -89,11 +91,38 @@ class AppLaunchNavigationRequestTest {
             selectedDate = null,
             pushType = null,
             deepLink = null,
+            actorNickname = null,
             dataScheme = "yourtodo",
             requestId = 11L
         )
 
         assertThat(request?.topLevelRoute).isEqualTo(FriendsRoute)
         assertThat(request?.syncOnOpen).isTrue()
+    }
+
+    @Test
+    fun parseYourTodoAssignmentDeepLink_returnsIncomingAssignmentRoute() {
+        val request = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = null,
+            deepLink = null,
+            actorNickname = null,
+            dataScheme = "yourtodo",
+            dataString = "yourtodo://assignment-bundles/received/bundle-id",
+            requestId = 12L
+        )
+
+        assertThat(request).isEqualTo(
+            AppLaunchNavigationRequest(
+                id = 12L,
+                topLevelRoute = FriendsRoute,
+                contentRoute = FriendsIncomingAssignmentRoute(
+                    friendUserId = null,
+                    bundleId = "bundle-id"
+                ),
+                syncOnOpen = true
+            )
+        )
     }
 }

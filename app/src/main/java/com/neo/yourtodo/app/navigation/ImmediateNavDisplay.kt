@@ -33,7 +33,10 @@ fun <T : Any> ImmediateNavDisplay(
     Box(modifier = modifier) {
         val bottomSheetScene = calculateBottomSheetScene(entries = entries, onBack = onBack)
         val baseEntries = bottomSheetScene?.overlaidEntries ?: entries
-        val activeEntry = baseEntries.lastOrNull { entry -> entry.contentKey == activeContentKey }
+        val activeEntry = baseEntries.lastOrNull { entry ->
+            entry.contentKey == activeContentKey ||
+                entry.contentKey.toString() == activeContentKey.toString()
+        }
             ?: baseEntries.last()
 
         baseEntries.forEach { entry ->

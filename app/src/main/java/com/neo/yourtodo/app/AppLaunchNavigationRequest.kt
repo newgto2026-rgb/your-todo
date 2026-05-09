@@ -28,6 +28,7 @@ fun parseAppLaunchNavigationRequest(
         deepLink = intent?.getStringExtra(PushNotificationContract.EXTRA_DEEP_LINK),
         bundleId = intent?.getStringExtra(PushNotificationContract.EXTRA_BUNDLE_ID),
         actorUserId = intent?.getStringExtra(PushNotificationContract.EXTRA_ACTOR_USER_ID),
+        actorNickname = intent?.getStringExtra(PushNotificationContract.EXTRA_ACTOR_NICKNAME),
         dataScheme = intent?.data?.scheme,
         dataString = intent?.dataString,
         requestId = requestId
@@ -64,6 +65,7 @@ fun parseAppLaunchNavigationRequest(
     deepLink: String?,
     bundleId: String? = null,
     actorUserId: String? = null,
+    actorNickname: String? = null,
     dataScheme: String?,
     dataString: String? = null,
     requestId: Long
@@ -74,6 +76,7 @@ fun parseAppLaunchNavigationRequest(
         deepLink = deepLink,
         bundleId = bundleId,
         actorUserId = actorUserId,
+        actorNickname = actorNickname,
         dataScheme = dataScheme,
         dataString = dataString,
         requestId = requestId
@@ -89,6 +92,7 @@ private fun parsePushNavigationRequest(
     deepLink: String?,
     bundleId: String?,
     actorUserId: String?,
+    actorNickname: String?,
     dataScheme: String?,
     dataString: String?,
     requestId: Long
@@ -106,7 +110,8 @@ private fun parsePushNavigationRequest(
     val incomingAssignmentRoute = incomingAssignmentRoute(
         deepLink = parsedDeepLink,
         bundleId = bundleId,
-        actorUserId = actorUserId
+        actorUserId = actorUserId,
+        actorNickname = actorNickname
     )
 
     return AppLaunchNavigationRequest(
@@ -120,14 +125,17 @@ private fun parsePushNavigationRequest(
 private fun incomingAssignmentRoute(
     deepLink: String?,
     bundleId: String?,
-    actorUserId: String?
+    actorUserId: String?,
+    actorNickname: String?
 ): FriendsIncomingAssignmentRoute? {
     val parsedBundleId = bundleId?.takeIf { it.isNotBlank() }
         ?: deepLink.assignmentBundleIdOrNull()
     val parsedActorUserId = actorUserId?.takeIf { it.isNotBlank() }
+    val parsedActorNickname = actorNickname?.takeIf { it.isNotBlank() }
     if (parsedBundleId == null && parsedActorUserId == null) return null
     return FriendsIncomingAssignmentRoute(
         friendUserId = parsedActorUserId,
+        friendNickname = parsedActorNickname,
         bundleId = parsedBundleId
     )
 }
