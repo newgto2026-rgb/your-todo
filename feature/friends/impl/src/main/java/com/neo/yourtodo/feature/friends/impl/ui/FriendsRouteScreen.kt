@@ -623,7 +623,10 @@ private fun FriendAssignmentMonitorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onAction(FriendsAction.OnCloseFriendDetail) }) {
+            TextButton(
+                onClick = { onAction(FriendsAction.OnCloseFriendDetail) },
+                modifier = Modifier.testTag("friends_assignment_dialog_close")
+            ) {
                 Text(stringResource(R.string.friends_dialog_close))
             }
         }

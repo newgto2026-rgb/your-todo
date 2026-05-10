@@ -366,14 +366,14 @@ class TodoListViewModelTest {
         val state = viewModel.uiState.value
         assertThat(state.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.ALL)
         assertThat(state.items.map { it.title }).containsExactly(
-            "Completed medium",
             "Future high",
-            "Today medium"
+            "Today medium",
+            "Completed medium"
         ).inOrder()
     }
 
     @Test
-    fun dueDateSortUsesDueDateWithoutMovingCompletedToEnd() = runTest {
+    fun dueDateSortKeepsCompletedItemsBelowActiveItems() = runTest {
         val today = LocalDate.now()
         repository.addTodo(
             title = "No date",
@@ -421,18 +421,24 @@ class TodoListViewModelTest {
         val state = viewModel.uiState.value
         assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
         assertThat(state.items.map { it.title }).containsExactly(
-            "Completed urgent",
             "Today early",
             "Today late",
             "Today no time",
             "Future",
-            "No date"
+            "No date",
+            "Completed urgent"
         ).inOrder()
     }
 
     @Test
     fun prioritySortShowsHigherPriorityFirstWithDueDateTieBreaker() = runTest {
         val today = LocalDate.now()
+        val completedHighId = repository.addTodo(
+            title = "Completed high",
+            dueDate = today.minusDays(2),
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        ).getOrThrow()
         repository.addTodo(
             title = "Medium overdue",
             dueDate = today.minusDays(1),
@@ -464,6 +470,7 @@ class TodoListViewModelTest {
             categoryId = null,
             priority = TodoPriority.LOW
         )
+        repository.toggleTodoDone(completedHighId)
 
         viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.PRIORITY))
         advanceUntilIdle()
@@ -475,7 +482,8 @@ class TodoListViewModelTest {
             "High today no time",
             "High future",
             "Medium overdue",
-            "Low today"
+            "Low today",
+            "Completed high"
         ).inOrder()
     }
 
@@ -990,7 +998,7 @@ class TodoListViewModelTest {
     }
 
     @Test
-    fun todoCompletionKeepsAllFilterRowIdentityAndOrderStable() = runTest {
+    fun todoCompletionMovesCompletedRowsBelowActiveRows() = runTest {
         val firstId = repository.addTodo(
             title = "First",
             dueDate = null,
@@ -1022,7 +1030,8 @@ class TodoListViewModelTest {
         advanceUntilIdle()
 
         val updatedItems = viewModel.uiState.value.items
-        assertThat(updatedItems.map { it.id }).containsExactlyElementsIn(initialIds).inOrder()
+        assertThat(updatedItems.map { it.id }).containsExactly(firstId, secondId).inOrder()
+        assertThat(updatedItems.map { it.id }).containsExactlyElementsIn(initialIds)
         assertThat(updatedItems.single { it.id == secondId }.isDone).isTrue()
         assertThat(updatedItems.single { it.id == firstId }.isDone).isFalse()
     }
@@ -1053,6 +1062,35 @@ class TodoListViewModelTest {
         assertThat(completedItems.map { it.id }).containsExactlyElementsIn(initialIds).inOrder()
         assertThat(completedItems.single { it.assignedTodoId == "assigned-delayed" }.isDone).isTrue()
         assertThat(viewModel.uiState.value.completedAssignedTodoIds).containsExactly("assigned-delayed")
+    }
+
+    @Test
+    fun dueDateSortKeepsCompletedAssignedTodosBelowActiveItems() = runTest {
+        val today = LocalDate.now()
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "assigned-done",
+                title = "Done shared",
+                status = AssignedTodoStatus.DONE,
+                dueDate = today.minusDays(1)
+            ),
+            assignedTodo(
+                id = "assigned-active",
+                title = "Active shared",
+                dueDate = today.plusDays(1)
+            )
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.items.map { it.title }).containsExactly(
+            "Active shared",
+            "Done shared"
+        ).inOrder()
     }
 
     @Test

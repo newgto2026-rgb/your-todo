@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.core.net.toUri
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -83,6 +84,10 @@ class PushNotificationLaunchUiTest {
             .assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_assignment_accept_selected")
             .assertIsDisplayed()
+        composeTestRule.onNodeWithTag("friends_assignment_dialog_close")
+            .assertIsDisplayed()
+            .performClick()
+        composeTestRule.assertNodeDoesNotExist("friends_assignment_monitor_dialog")
         assertFriendsRouteIdentityRetained()
     }
 

@@ -377,20 +377,21 @@
 - Status: Android automated verification complete, manual confirmation pending
 - Report: 사용자가 할 일 완료 체크를 하면 목록 아이템이 깜빡인다.
 - User hypothesis: 로컬 optimistic update와 서버 동기화/Room 재반영 과정에서 같은 아이템이 사라졌다가 다시 들어오거나, key/identity가 흔들리면서 Compose list item이 재생성되는 것으로 추정된다.
-- Expected: 완료 체크/해제 시 해당 row의 체크 상태와 스타일만 자연스럽게 바뀌어야 한다. 로컬-서버 동기화 중에도 목록 아이템이 깜빡이거나 위치가 튀거나 재생성된 것처럼 보이면 안 된다.
+- Expected: 완료 체크/해제 시 해당 row의 체크 상태와 스타일이 자연스럽게 바뀌어야 한다. 로컬-서버 동기화 중에도 같은 item이 사라졌다 다시 들어오거나 key가 바뀌어 재생성된 것처럼 보이면 안 된다. 단, 완료 항목은 별도 하단 그룹으로 이동하는 것이 현재 정책이다.
 - Investigation:
   - Done: 일반 Todo 완료 체크, 받은 공유 할 일 완료 체크, 완료 해제 각각의 row identity/order 유지 경로를 ViewModel 테스트로 분리했다.
   - Done: local optimistic update와 Room flow emission은 같은 item id를 유지했지만, `TodoListUiMapper`의 sort comparator가 `isDone`을 최우선 정렬키로 사용해 완료 직후 row 위치가 바뀌는 것을 확인했다.
   - Done: Lazy list key는 `todo_row_{id}`/assigned todo id 기반으로 유지되고 있었고, 깜빡임의 직접 원인은 key 전환이 아니라 완료 상태 정렬 우선순위였다.
-  - Done: server sync result를 지연시킨 상태에서도 완료/되돌림 후 같은 item이 사라졌다 다시 들어오지 않고 같은 순서에 남는지 검증했다.
+  - Done: server sync result를 지연시킨 상태에서도 완료/되돌림 후 같은 item이 사라졌다 다시 들어오지 않고 같은 key/identity를 유지하는지 검증했다.
 - 2026-05-10 fix:
-  - Android Todo list 기본/기한/우선순위 정렬에서 완료 상태를 최우선 정렬키로 쓰지 않도록 변경했다. 완료 체크/해제는 row의 체크 상태와 스타일만 바꾸고, All 목록 내 위치를 즉시 밀어내지 않는다.
+  - Android Todo list의 stable row id/key와 optimistic assigned todo 상태 반영을 검증했다.
+  - 사용자 추가 요구에 따라 완료 항목은 정렬 옵션보다 우선해 하단 그룹으로 내려가도록 정책을 갱신했다.
   - 전체 UI 스위트 실행 중 드러난 기존 계측 테스트 대기 불안정성은 공통 UI 대기 한도를 현실화해 보강했다. 동작 검증 조건은 유지했다.
 - Automated coverage to add/update:
-  - Done: `TodoListViewModelTest.todoCompletionKeepsAllFilterRowIdentityAndOrderStable`
+  - Done: `TodoListViewModelTest.todoCompletionMovesCompletedRowsBelowActiveRows`
   - Done: `TodoListViewModelTest.receivedAssignedTodoCompletionKeepsRowStableWhileServerResultIsDelayed`
   - Done: `TodoListViewModelTest.completedReceivedAssignedTodoReopenKeepsRowStableWhileServerResultIsDelayed`
-  - Done: `TodoUiTest.allTab_toggleDoneKeepsRowInPlace`
+  - Done: `TodoUiTest.allTab_toggleDoneMovesCompletedRowBelowActiveRows`
   - Done: targeted `:feature:todo:impl:testDebugUnitTest` regression tests
   - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy SM-S906N
   - Done: full `./gradlew testDebugUnitTest lintDebug assembleDebug`
@@ -450,3 +451,46 @@
   - 친구와 관련 없는 상태 알림은 첫 탭으로 진입
   - 완료/되돌림 알림 문구에서 대상 할 일 제목 확인 가능
   - Pending: 활성 서버가 완료/되돌림 payload에 `itemTitle`을 포함하도록 반영된 뒤 사용자 실제 기기 수동 확인
+
+## BUG-2026-05-10-17: 공유한 일 팝업 로딩 중 닫기 경로 없음
+
+- Status: Android automated verification complete, manual confirmation pending
+- Report: 네트워크 상황 때문에 추가 공유한 일 팝업이 공유한일 목록 로딩을 끝내지 못하면 무한 로딩에 갇히고 나갈 방법이 없다.
+- Expected: 공유한 일 상세/수락 다이얼로그는 목록 로딩 중이어도 사용자가 즉시 닫을 수 있어야 한다.
+- Investigation:
+  - Done: 기존 다이얼로그에는 하단 `닫기` 버튼이 이미 있었다. 문제는 로딩 중 별도 refresh job이 계속 살아 있어 닫기 이후에도 네트워크 결과가 돌아오면 다이얼로그 상태를 다시 덮을 수 있는 구조였다.
+  - Done: `OnCloseFriendDetail`가 observation job은 취소하지만 refresh job과 `friendDetailLoading`을 명시적으로 정리하지 않는 상태 전이를 확인했다.
+- 2026-05-10 fix:
+  - 추가 상단 닫기 버튼은 만들지 않고 기존 하단 `닫기` 버튼을 유지한다.
+  - `OnCloseFriendDetail` 처리 시 friend detail refresh job을 취소하고 `friendDetailLoading = false`를 함께 반영해 로딩 중 닫아도 상태가 남거나 뒤늦은 네트워크 결과로 다이얼로그가 되살아나지 않게 했다.
+- Automated coverage to add/update:
+  - Done: `FriendsViewModelTest.closeFriendDetailWhileAssignmentDetailIsLoadingCancelsRefreshAndDismissesDialog`
+  - Done: `PushNotificationLaunchUiTest.foregroundPushClick_opensIncomingAssignmentDecisionDialog`에서 다이얼로그 하단 닫기 버튼 표시와 dismiss 검증
+  - Done: targeted `:feature:friends:impl:testDebugUnitTest`
+  - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy SM-S906N
+- Manual verification:
+  - 네트워크 지연/실패 상태에서 공유한 일 팝업 표시
+  - 로딩 중 기존 하단 닫기 버튼으로 즉시 닫히는지 확인
+  - Pending: 사용자 실제 기기 수동 확인
+
+## BUG-2026-05-10-18: 완료 항목이 정렬 옵션과 섞여 중간/상단에 노출됨
+
+- Status: Android automated verification complete, manual confirmation pending
+- Report: 완료된 항목은 ordering과 상관없이 무조건 하단으로 가야 한다. 완료한 일이 할 일과 섞이면 안 된다.
+- Expected: All 목록에서는 미완료/진행 중 항목이 먼저 나오고 완료 항목은 항상 하단 그룹에 표시된다. 기본/기한/우선순위 정렬은 각 그룹 내부에서만 적용된다.
+- Investigation:
+  - Done: `TodoListUiMapper`의 All 필터 정렬이 선택 정렬 옵션을 곧바로 적용해, 기한이 빠르거나 우선순위가 높은 완료 항목이 미완료 항목 사이에 끼어들 수 있음을 확인했다.
+  - Done: 일반 Todo와 받은 공유 Todo 모두 같은 UI mapper 결과에 합쳐지므로 동일 정책을 적용해야 함을 확인했다.
+- 2026-05-10 fix:
+  - All 필터 comparator에 `completionLastComparator`를 추가해 `isDone=false` 항목을 항상 먼저 정렬하고, 선택한 정렬 옵션은 미완료/완료 그룹 내부에서만 적용한다.
+- Automated coverage to add/update:
+  - Done: `TodoListViewModelTest.dueDateSortKeepsCompletedItemsBelowActiveItems`
+  - Done: `TodoListViewModelTest.prioritySortShowsHigherPriorityFirstWithDueDateTieBreaker`
+  - Done: `TodoListViewModelTest.todoCompletionMovesCompletedRowsBelowActiveRows`
+  - Done: `TodoListViewModelTest.dueDateSortKeepsCompletedAssignedTodosBelowActiveItems`
+  - Done: `TodoUiTest.allTab_toggleDoneMovesCompletedRowBelowActiveRows`
+  - Done: targeted `:feature:todo:impl:testDebugUnitTest`
+- Manual verification:
+  - All 탭에서 완료한 일반 Todo가 정렬 옵션과 무관하게 미완료 항목 아래로 이동하는지 확인
+  - 받은 공유 Todo 완료 항목도 미완료 항목과 섞이지 않고 하단에 표시되는지 확인
+  - Pending: 사용자 실제 기기 수동 확인

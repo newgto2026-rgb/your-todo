@@ -74,14 +74,22 @@ private fun List<TodoItemUiModel>.filterByPriority(filter: TodoPriorityFilter): 
 
 private fun TodoSortOption.comparatorFor(filter: TodoFilter): Comparator<TodoItemUiModel> =
     if (filter == TodoFilter.ALL) {
-        when (this) {
-            TodoSortOption.DEFAULT -> defaultTodoComparator()
-            TodoSortOption.DUE_DATE -> dueDateTodoComparator()
-            TodoSortOption.PRIORITY -> priorityTodoComparator()
-        }
+        completionLastComparator(
+            when (this) {
+                TodoSortOption.DEFAULT -> defaultTodoComparator()
+                TodoSortOption.DUE_DATE -> dueDateTodoComparator()
+                TodoSortOption.PRIORITY -> priorityTodoComparator()
+            }
+        )
     } else {
         contextualTodoComparator()
     }
+
+private fun completionLastComparator(
+    itemComparator: Comparator<TodoItemUiModel>
+): Comparator<TodoItemUiModel> =
+    compareBy<TodoItemUiModel> { it.isDone }
+        .then(itemComparator)
 
 private fun defaultTodoComparator(): Comparator<TodoItemUiModel> =
     compareByDescending { it.id }
