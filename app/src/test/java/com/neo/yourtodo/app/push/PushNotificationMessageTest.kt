@@ -106,6 +106,33 @@ class PushNotificationMessageTest {
     }
 
     @Test
+    fun body_usesCompletedPayloadTitle() {
+        val data = mapOf(
+            PushNotificationContract.EXTRA_TYPE to "ASSIGNED_TODO_COMPLETED",
+            PushNotificationContract.EXTRA_ITEM_TITLE to "아침 운동"
+        )
+
+        val body = PushNotificationMessage.body(data)
+
+        assertThat(body.resId).isEqualTo(R.string.push_assigned_todo_completed_single_body)
+        assertThat(body.args).containsExactly("아침 운동")
+    }
+
+    @Test
+    fun body_usesCompletedPayloadActorAndTitle() {
+        val data = mapOf(
+            PushNotificationContract.EXTRA_TYPE to "ASSIGNED_TODO_COMPLETED",
+            PushNotificationContract.EXTRA_ACTOR_NICKNAME to "tee",
+            PushNotificationContract.EXTRA_ITEM_TITLE to "아침 운동"
+        )
+
+        val body = PushNotificationMessage.body(data)
+
+        assertThat(body.resId).isEqualTo(R.string.push_assigned_todo_completed_by_friend_body)
+        assertThat(body.args).containsExactly("tee", "아침 운동").inOrder()
+    }
+
+    @Test
     fun defaultMessage_unknownPayloadFallsBackToGenericUpdate() {
         val data = mapOf(PushNotificationContract.EXTRA_TYPE to "UNKNOWN")
 
@@ -113,5 +140,19 @@ class PushNotificationMessageTest {
             .isEqualTo(R.string.push_default_title)
         assertThat(PushNotificationMessage.defaultBody(data))
             .isEqualTo(R.string.push_default_body)
+    }
+
+    @Test
+    fun supportsLocalFormatting_returnsFalseForUnmappedPushType() {
+        val data = mapOf(PushNotificationContract.EXTRA_TYPE to "TODO_REMINDER")
+
+        assertThat(PushNotificationMessage.supportsLocalFormatting(data)).isFalse()
+    }
+
+    @Test
+    fun supportsLocalFormatting_returnsTrueForMappedPushType() {
+        val data = mapOf(PushNotificationContract.EXTRA_TYPE to "ASSIGNED_TODO_COMPLETED")
+
+        assertThat(PushNotificationMessage.supportsLocalFormatting(data)).isTrue()
     }
 }

@@ -7,6 +7,7 @@ import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.app.push.PushNotificationContract
 import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.friends.api.FriendsRoute
+import com.neo.yourtodo.feature.todo.api.TodoAllRoute
 import org.junit.Test
 
 class AppLaunchNavigationRequestTest {
@@ -185,7 +186,7 @@ class AppLaunchNavigationRequestTest {
     }
 
     @Test
-    fun parseStatusOnlyAssignmentPush_returnsNull() {
+    fun parseFriendRelatedStatusPush_returnsFriendsTabRequest() {
         listOf(
             "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
             "ASSIGNMENT_BUNDLE_FULLY_DECIDED",
@@ -205,7 +206,62 @@ class AppLaunchNavigationRequestTest {
                 requestId = 20L + index
             )
 
-            assertThat(request).isNull()
+            assertThat(request).isEqualTo(
+                AppLaunchNavigationRequest(
+                    id = 20L + index,
+                    topLevelRoute = FriendsRoute,
+                    contentRoute = null,
+                    syncOnOpen = true
+                )
+            )
         }
+    }
+
+    @Test
+    fun parseFriendRelatedStatusPushWithBundleId_doesNotOpenDecisionRoute() {
+        val request = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = "ASSIGNMENT_BUNDLE_FULLY_DECIDED",
+            deepLink = "yourtodo://assignment-bundles/received/bundle-id",
+            bundleId = "bundle-id",
+            actorUserId = "friend-user-id",
+            actorNickname = "monday",
+            dataScheme = null,
+            requestId = 27L
+        )
+
+        assertThat(request).isEqualTo(
+            AppLaunchNavigationRequest(
+                id = 27L,
+                topLevelRoute = FriendsRoute,
+                contentRoute = null,
+                syncOnOpen = true
+            )
+        )
+    }
+
+    @Test
+    fun parseNonFriendStatusPush_returnsFirstTabRequest() {
+        val request = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = "TODO_REMINDER",
+            deepLink = "yourtodo://todos/123",
+            bundleId = null,
+            actorUserId = null,
+            actorNickname = null,
+            dataScheme = null,
+            requestId = 31L
+        )
+
+        assertThat(request).isEqualTo(
+            AppLaunchNavigationRequest(
+                id = 31L,
+                topLevelRoute = TodoAllRoute,
+                contentRoute = null,
+                syncOnOpen = true
+            )
+        )
     }
 }

@@ -46,6 +46,7 @@ import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -345,6 +346,42 @@ class FriendsViewModelTest {
             assertThat(loaded.friendAssignmentSummary).isNotNull()
             assertThat(loaded.friendSentAssignedTodos).hasSize(1)
             assertThat(loaded.friendReceivedAssignedTodos).hasSize(1)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun closeFriendDetailWhileAssignmentDetailIsLoadingCancelsRefreshAndDismissesDialog() = runTest {
+        val refreshGate = CompletableDeferred<Unit>()
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            friendAssignedTodosGate = refreshGate
+            sentItems = listOf(assignedTodo(id = "sent-1", title = "Sent"))
+            receivedItems = listOf(assignedTodo(id = "received-1", title = "Received"))
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            val loading = awaitItem()
+            assertThat(loading.friendDetailLoading).isTrue()
+            assertThat(loading.selectedFriend?.userId).isEqualTo("friend-1")
+
+            viewModel.onAction(FriendsAction.OnCloseFriendDetail)
+            val closed = awaitItem()
+            assertThat(closed.selectedFriend).isNull()
+            assertThat(closed.friendDetailLoading).isFalse()
+            assertThat(closed.friendAssignmentSummary).isNull()
+            assertThat(closed.friendSentAssignedTodos).isEmpty()
+            assertThat(closed.friendReceivedAssignedTodos).isEmpty()
+
+            refreshGate.complete(Unit)
+            advanceUntilIdle()
+            expectNoEvents()
         }
     }
 
@@ -1305,6 +1342,7 @@ class FriendsViewModelTest {
         var failedBundleIds = emptySet<String>()
         var friendSummaryCalls = 0
         var friendSummaryResult: Result<FriendAssignmentSummary>? = null
+        var friendAssignedTodosGate: CompletableDeferred<Unit>? = null
         val decisionsByBundle = mutableMapOf<String, Map<String, AssignmentDecision>>()
 
         override suspend fun createBundle(
@@ -1330,6 +1368,7 @@ class FriendsViewModelTest {
             direction: AssignmentDirection,
             status: AssignmentFeedStatus
         ): Result<List<AssignedTodo>> {
+            friendAssignedTodosGate?.await()
             val items = when (direction) {
                 AssignmentDirection.SENT -> when (status) {
                     AssignmentFeedStatus.ACTIVE -> sentItems

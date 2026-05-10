@@ -59,6 +59,7 @@ class FriendsViewModel @Inject constructor(
     private val mutableSideEffect = MutableSharedFlow<FriendsSideEffect>()
     val sideEffect: SharedFlow<FriendsSideEffect> = mutableSideEffect
     private var friendDetailObservationJob: Job? = null
+    private var friendDetailRefreshJob: Job? = null
     private var pendingIncomingAssignmentTarget: IncomingAssignmentTarget? = null
     private var pendingIncomingAssignmentResolutionJob: Job? = null
     private var pendingIncomingAssignmentBundleSelectionId: String? = null
@@ -107,9 +108,13 @@ class FriendsViewModel @Inject constructor(
             FriendsAction.OnCloseFriendDetail -> {
                 friendDetailObservationJob?.cancel()
                 friendDetailObservationJob = null
+                friendDetailRefreshJob?.cancel()
+                friendDetailRefreshJob = null
+                pendingIncomingAssignmentBundleSelectionId = null
                 mutableUiState.update {
                     it.copy(
                         selectedFriend = null,
+                        friendDetailLoading = false,
                         friendAssignmentSummary = null,
                         friendSentAssignedTodos = emptyList(),
                         friendReceivedAssignedTodos = emptyList(),
@@ -346,7 +351,8 @@ class FriendsViewModel @Inject constructor(
             )
         }
         observeFriendAssignmentCache(friend)
-        viewModelScope.launch {
+        friendDetailRefreshJob?.cancel()
+        friendDetailRefreshJob = viewModelScope.launch {
             refreshFriendDetail(friend, initialBundleId = initialBundleId)
         }
     }
@@ -439,54 +445,57 @@ class FriendsViewModel @Inject constructor(
         )
 
         mutableUiState.update {
-            if (
-                sent.isSuccess &&
-                received.isSuccess &&
-                sentHistory.isSuccess &&
-                receivedHistory.isSuccess
-            ) {
-                val sentItems = sent.getOrThrow()
-                val receivedItems = received.getOrThrow()
-                val sentHistoryItems = sentHistory.getOrThrow()
-                val receivedHistoryItems = receivedHistory.getOrThrow()
-                val validPendingIds = receivedItems.pendingDecisionItems().map { item -> item.id }.toSet()
-                val initialSelectedIds = (initialBundleId ?: pendingIncomingAssignmentBundleSelectionId)
-                    ?.let { bundleId ->
-                        receivedItems.pendingBundleItemIds(bundleId)
-                    }
-                    .orEmpty()
-                if (initialSelectedIds.isNotEmpty()) {
-                    pendingIncomingAssignmentBundleSelectionId = null
-                }
-                it.copy(
-                    selectedFriend = friend,
-                    friendDetailLoading = false,
-                    friendAssignmentSummary = buildFriendAssignmentSummary(
-                        friendUserId = friendUserId,
-                        sent = sentItems,
-                        sentHistory = sentHistoryItems,
-                        received = receivedItems,
-                        receivedHistory = receivedHistoryItems
-                    ),
-                    friendSentAssignedTodos = sentItems,
-                    friendReceivedAssignedTodos = receivedItems,
-                    friendSentCompletedHistoryTodos = sentHistoryItems,
-                    friendReceivedCompletedHistoryTodos = receivedHistoryItems,
-                    selectedPendingAssignmentIds = if (initialSelectedIds.isNotEmpty()) {
-                        initialSelectedIds
-                    } else {
-                        it.selectedPendingAssignmentIds.intersect(validPendingIds)
-                    },
-                    error = null
-                )
+            if (it.selectedFriend?.userId != friend.userId) {
+                it
             } else {
-                val failure = listOf(sent, received, sentHistory, receivedHistory)
-                    .firstOrNull { result -> result.isFailure }
-                    ?.exceptionOrNull()
-                it.copy(
-                    friendDetailLoading = false,
-                    error = failure.toUiError()
-                )
+                if (
+                    sent.isSuccess &&
+                    received.isSuccess &&
+                    sentHistory.isSuccess &&
+                    receivedHistory.isSuccess
+                ) {
+                    val sentItems = sent.getOrThrow()
+                    val receivedItems = received.getOrThrow()
+                    val sentHistoryItems = sentHistory.getOrThrow()
+                    val receivedHistoryItems = receivedHistory.getOrThrow()
+                    val validPendingIds = receivedItems.pendingDecisionItems().map { item -> item.id }.toSet()
+                    val initialSelectedIds = (initialBundleId ?: pendingIncomingAssignmentBundleSelectionId)
+                        ?.let { bundleId ->
+                            receivedItems.pendingBundleItemIds(bundleId)
+                        }
+                        .orEmpty()
+                    if (initialSelectedIds.isNotEmpty()) {
+                        pendingIncomingAssignmentBundleSelectionId = null
+                    }
+                    it.copy(
+                        friendDetailLoading = false,
+                        friendAssignmentSummary = buildFriendAssignmentSummary(
+                            friendUserId = friendUserId,
+                            sent = sentItems,
+                            sentHistory = sentHistoryItems,
+                            received = receivedItems,
+                            receivedHistory = receivedHistoryItems
+                        ),
+                        friendSentAssignedTodos = sentItems,
+                        friendReceivedAssignedTodos = receivedItems,
+                        friendSentCompletedHistoryTodos = sentHistoryItems,
+                        friendReceivedCompletedHistoryTodos = receivedHistoryItems,
+                        selectedPendingAssignmentIds = if (initialSelectedIds.isNotEmpty()) {
+                            initialSelectedIds
+                        } else {
+                            it.selectedPendingAssignmentIds.intersect(validPendingIds)
+                        },
+                        error = null
+                    )
+                } else {
+                    val failure = listOf(sent, received, sentHistory, receivedHistory)
+                        .firstOrNull { result -> result.isFailure }
+                        ?.exceptionOrNull()
+                    it.copy(
+                        friendDetailLoading = false,
+                        error = failure.toUiError()
+                    )
+                }
             }
         }
     }

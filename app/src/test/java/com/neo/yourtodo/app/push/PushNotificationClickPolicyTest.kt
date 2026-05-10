@@ -29,7 +29,7 @@ class PushNotificationClickPolicyTest {
     }
 
     @Test
-    fun statusOnlyNotificationsDoNotOpenApp() {
+    fun statusNotificationsOpenAppForDefaultNavigation() {
         listOf(
             "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
             "ASSIGNMENT_BUNDLE_FULLY_DECIDED",
@@ -44,7 +44,34 @@ class PushNotificationClickPolicyTest {
                 )
             )
 
-            assertThat(opensApp).isFalse()
+            assertThat(opensApp).isTrue()
         }
+    }
+
+    @Test
+    fun requestCodeUsesNotificationEventIdWhenPresent() {
+        val first = pushNotificationRequestCode(
+            data = mapOf(PushNotificationContract.EXTRA_NOTIFICATION_EVENT_ID to "event-1"),
+            fallbackNonce = 1L
+        )
+        val second = pushNotificationRequestCode(
+            data = mapOf(PushNotificationContract.EXTRA_NOTIFICATION_EVENT_ID to "event-1"),
+            fallbackNonce = 2L
+        )
+
+        assertThat(first).isEqualTo(second)
+    }
+
+    @Test
+    fun requestCodeSeparatesNotificationsWithoutEventId() {
+        val data = mapOf(
+            PushNotificationContract.EXTRA_TYPE to "ASSIGNED_TODO_COMPLETED",
+            PushNotificationContract.EXTRA_ASSIGNED_TODO_ID to "assigned-1"
+        )
+
+        val first = pushNotificationRequestCode(data = data, fallbackNonce = 1L)
+        val second = pushNotificationRequestCode(data = data, fallbackNonce = 2L)
+
+        assertThat(first).isNotEqualTo(second)
     }
 }

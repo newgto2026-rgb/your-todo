@@ -42,6 +42,7 @@ import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.todo.impl.R
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -372,7 +373,7 @@ class TodoListViewModelTest {
     }
 
     @Test
-    fun dueDateSortShowsDatedOpenItemsBeforeUnscheduledAndCompleted() = runTest {
+    fun dueDateSortKeepsCompletedItemsBelowActiveItems() = runTest {
         val today = LocalDate.now()
         repository.addTodo(
             title = "No date",
@@ -432,6 +433,12 @@ class TodoListViewModelTest {
     @Test
     fun prioritySortShowsHigherPriorityFirstWithDueDateTieBreaker() = runTest {
         val today = LocalDate.now()
+        val completedHighId = repository.addTodo(
+            title = "Completed high",
+            dueDate = today.minusDays(2),
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        ).getOrThrow()
         repository.addTodo(
             title = "Medium overdue",
             dueDate = today.minusDays(1),
@@ -463,6 +470,7 @@ class TodoListViewModelTest {
             categoryId = null,
             priority = TodoPriority.LOW
         )
+        repository.toggleTodoDone(completedHighId)
 
         viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.PRIORITY))
         advanceUntilIdle()
@@ -474,7 +482,8 @@ class TodoListViewModelTest {
             "High today no time",
             "High future",
             "Medium overdue",
-            "Low today"
+            "Low today",
+            "Completed high"
         ).inOrder()
     }
 
@@ -989,6 +998,132 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun todoCompletionMovesCompletedRowsBelowActiveRows() = runTest {
+        val firstId = repository.addTodo(
+            title = "First",
+            dueDate = null,
+            categoryId = null,
+            dueTimeMinutes = null,
+            reminderAtEpochMillis = null,
+            isReminderEnabled = false,
+            reminderRepeatType = ReminderRepeatType.NONE,
+            reminderRepeatDaysMask = 0,
+            reminderLeadMinutes = null,
+            priority = TodoPriority.MEDIUM
+        ).getOrThrow()
+        val secondId = repository.addTodo(
+            title = "Second",
+            dueDate = null,
+            categoryId = null,
+            dueTimeMinutes = null,
+            reminderAtEpochMillis = null,
+            isReminderEnabled = false,
+            reminderRepeatType = ReminderRepeatType.NONE,
+            reminderRepeatDaysMask = 0,
+            reminderLeadMinutes = null,
+            priority = TodoPriority.MEDIUM
+        ).getOrThrow()
+        advanceUntilIdle()
+        val initialIds = viewModel.uiState.value.items.map { it.id }
+
+        viewModel.onAction(TodoListAction.OnToggleDone(secondId))
+        advanceUntilIdle()
+
+        val updatedItems = viewModel.uiState.value.items
+        assertThat(updatedItems.map { it.id }).containsExactly(firstId, secondId).inOrder()
+        assertThat(updatedItems.map { it.id }).containsExactlyElementsIn(initialIds)
+        assertThat(updatedItems.single { it.id == secondId }.isDone).isTrue()
+        assertThat(updatedItems.single { it.id == firstId }.isDone).isFalse()
+    }
+
+    @Test
+    fun receivedAssignedTodoCompletionKeepsRowStableWhileServerResultIsDelayed() = runTest {
+        assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-delayed"))
+        val completeGate = CompletableDeferred<Unit>()
+        assignmentRepository.completeGate = completeGate
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+        val initialIds = viewModel.uiState.value.items.map { it.id }
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-delayed"))
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        val optimisticItems = viewModel.uiState.value.items
+        assertThat(optimisticItems.map { it.id }).containsExactlyElementsIn(initialIds).inOrder()
+        assertThat(optimisticItems.single { it.assignedTodoId == "assigned-delayed" }.isDone).isTrue()
+
+        completeGate.complete(Unit)
+        advanceUntilIdle()
+
+        val completedItems = viewModel.uiState.value.items
+        assertThat(completedItems.map { it.id }).containsExactlyElementsIn(initialIds).inOrder()
+        assertThat(completedItems.single { it.assignedTodoId == "assigned-delayed" }.isDone).isTrue()
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).containsExactly("assigned-delayed")
+    }
+
+    @Test
+    fun dueDateSortKeepsCompletedAssignedTodosBelowActiveItems() = runTest {
+        val today = LocalDate.now()
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "assigned-done",
+                title = "Done shared",
+                status = AssignedTodoStatus.DONE,
+                dueDate = today.minusDays(1)
+            ),
+            assignedTodo(
+                id = "assigned-active",
+                title = "Active shared",
+                dueDate = today.plusDays(1)
+            )
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.items.map { it.title }).containsExactly(
+            "Active shared",
+            "Done shared"
+        ).inOrder()
+    }
+
+    @Test
+    fun completedReceivedAssignedTodoReopenKeepsRowStableWhileServerResultIsDelayed() = runTest {
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(id = "assigned-reopen-delayed", status = AssignedTodoStatus.DONE)
+        )
+        val reopenGate = CompletableDeferred<Unit>()
+        assignmentRepository.reopenGate = reopenGate
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+        val initialIds = viewModel.uiState.value.items.map { it.id }
+
+        viewModel.onAction(TodoListAction.OnToggleAssignedDone("assigned-reopen-delayed"))
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        val optimisticItems = viewModel.uiState.value.items
+        assertThat(optimisticItems.map { it.id }).containsExactlyElementsIn(initialIds).inOrder()
+        assertThat(optimisticItems.single { it.assignedTodoId == "assigned-reopen-delayed" }.isDone).isFalse()
+
+        reopenGate.complete(Unit)
+        advanceUntilIdle()
+
+        val reopenedItems = viewModel.uiState.value.items
+        assertThat(reopenedItems.map { it.id }).containsExactlyElementsIn(initialIds).inOrder()
+        assertThat(reopenedItems.single { it.assignedTodoId == "assigned-reopen-delayed" }.isDone).isFalse()
+        assertThat(viewModel.uiState.value.completedAssignedTodoIds).isEmpty()
+    }
+
+    @Test
     fun receivedAssignedTodoCompleteRollsBackWhenServerFails() = runTest {
         assignmentRepository.receivedItems = listOf(assignedTodo(id = "assigned-fail"))
         assignmentRepository.completeFailure = IllegalStateException("server failed")
@@ -1227,6 +1362,8 @@ class TodoListViewModelTest {
         val hiddenAssignedTodoIds: Set<String>
             get() = hiddenAssignedTodoIdsState.value
         var completeFailure: Throwable? = null
+        var completeGate: CompletableDeferred<Unit>? = null
+        var reopenGate: CompletableDeferred<Unit>? = null
         var upsertedReminder: Pair<String, String>? = null
         var deletedReminderAssignedTodoId: String? = null
 
@@ -1272,6 +1409,7 @@ class TodoListViewModelTest {
         override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
             completeFailure?.let { return Result.failure(it) }
             completedAssignedTodoId = assignedTodoId
+            completeGate?.await()
             receivedItems = receivedItems.map {
                 if (it.id == assignedTodoId) {
                     it.copy(status = AssignedTodoStatus.DONE, progressPercent = 100)
@@ -1284,6 +1422,7 @@ class TodoListViewModelTest {
 
         override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
             reopenedAssignedTodoId = assignedTodoId
+            reopenGate?.await()
             receivedItems = receivedItems.map {
                 if (it.id == assignedTodoId) {
                     it.copy(status = AssignedTodoStatus.ACCEPTED, progressPercent = 0, completedAt = null)

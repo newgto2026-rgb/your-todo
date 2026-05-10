@@ -74,18 +74,25 @@ private fun List<TodoItemUiModel>.filterByPriority(filter: TodoPriorityFilter): 
 
 private fun TodoSortOption.comparatorFor(filter: TodoFilter): Comparator<TodoItemUiModel> =
     if (filter == TodoFilter.ALL) {
-        when (this) {
-            TodoSortOption.DEFAULT -> defaultTodoComparator()
-            TodoSortOption.DUE_DATE -> dueDateTodoComparator()
-            TodoSortOption.PRIORITY -> priorityTodoComparator()
-        }
+        completionLastComparator(
+            when (this) {
+                TodoSortOption.DEFAULT -> defaultTodoComparator()
+                TodoSortOption.DUE_DATE -> dueDateTodoComparator()
+                TodoSortOption.PRIORITY -> priorityTodoComparator()
+            }
+        )
     } else {
         contextualTodoComparator()
     }
 
-private fun defaultTodoComparator(): Comparator<TodoItemUiModel> =
+private fun completionLastComparator(
+    itemComparator: Comparator<TodoItemUiModel>
+): Comparator<TodoItemUiModel> =
     compareBy<TodoItemUiModel> { it.isDone }
-        .thenByDescending { it.id }
+        .then(itemComparator)
+
+private fun defaultTodoComparator(): Comparator<TodoItemUiModel> =
+    compareByDescending { it.id }
 
 private fun contextualTodoComparator(): Comparator<TodoItemUiModel> =
     compareBy<TodoItemUiModel> { it.isDone }
@@ -93,8 +100,7 @@ private fun contextualTodoComparator(): Comparator<TodoItemUiModel> =
         .thenBy { it.id }
 
 private fun dueDateTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.isDone }
-        .thenBy { it.dueDate == null }
+    compareBy<TodoItemUiModel> { it.dueDate == null }
         .thenBy { it.dueDate ?: LocalDate.MAX }
         .thenBy { it.dueTimeText == null }
         .thenBy { it.dueTimeText.orEmpty() }
@@ -102,8 +108,7 @@ private fun dueDateTodoComparator(): Comparator<TodoItemUiModel> =
         .thenBy { it.id }
 
 private fun priorityTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.isDone }
-        .thenByDescending { it.priority.sortRank() }
+    compareByDescending<TodoItemUiModel> { it.priority.sortRank() }
         .thenBy { it.dueDate == null }
         .thenBy { it.dueDate ?: LocalDate.MAX }
         .thenBy { it.dueTimeText == null }
