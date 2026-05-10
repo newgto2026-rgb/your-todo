@@ -23,10 +23,11 @@
 - Latest server verification: shared-todo-server `db:validate`, 전체 `npm test` 64개, `npm run build` 통과. 로컬 compose 서버 재빌드/재기동 후 `/api/health/ready` 확인 완료
 - Latest push payload verification: 서버 notification payload가 `itemTitle`, `count`, `itemCount`, `acceptedCount`, `rejectedCount`, `actionResult` semantic fields를 제공하고, Android가 `itemCount`/`count` 양쪽을 읽어 로케일 리소스로 포맷하도록 검증
 - Latest calendar sync verification: `CalendarViewModelTest.workspaceSyncSnapshotImmediatelyUpdatesAssignedTodos`로 workspace sync snapshot이 캘린더 선택 날짜 agenda에 즉시 반영되는지 검증
+- 2026-05-10 user batch confirmation: 사용자가 수동 검증 리스트의 해당 사항을 문서상 수동 확인 완료로 전환하라고 지시했다. 아래 QA 항목은 자동 검증과 사용자 수동 확인 완료 상태로 갱신한다.
 
 ## BUG-2026-05-10-14: 요청 수신 후 선택 수락하면 요청받음 완료 카운트가 달라짐
 
-- Status: Android fix + automated/Galaxy verification complete, user batch verification pending
+- Status: Manually confirmed after Android fix + automated/Galaxy verification
 - Report: 갤럭시에서 요청을 받고 `선택 수락`한 뒤 Friends 상세의 완료 카운트가 달라진다.
 - Expected: 요청 수신 전/후/수락 후의 `요청받음 완료 x/y` metric은 같은 데이터셋과 같은 정책으로 계산되어야 한다. Pending 요청이 도착했을 때와 수락 직후에 분모/분자가 갑자기 다른 기준으로 바뀌면 안 된다.
 - Root cause:
@@ -58,11 +59,11 @@
 - Manual verification:
   - Galaxy neo에서 새 요청 수신
   - 선택 수락 전후 `요청받음 완료 x/y`가 정책상 일관되게 유지되는지 확인
-  - 자동/Galaxy 직접 검증 완료, 사용자 일괄 확인 대기
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-13: 푸시가 오지 않음 / 활성 서버가 푸시 구현 코드를 서빙하지 않음
 
-- Status: Active server corrected, device token registration verified, real push delivery and notification click verified, user batch verification pending
+- Status: Manually confirmed after active server correction, device token registration, real push delivery and notification click verification
 - Report: 사용자가 푸시 자체가 오지 않는다고 보고했고, 현재 QA가 다른 서버를 바라본 것 아니냐고 지적했다.
 - Expected: 설치 앱이 바라보는 서버에 `PUT /api/push-token` 등록 API, `push_tokens` 테이블, FCM dispatch 코드, 관련 migration/env가 모두 반영되어야 한다. 토큰 등록 실패가 있으면 푸시 수신 QA를 진행할 수 없다.
 - Confirmed finding:
@@ -99,7 +100,7 @@
 
 ## BUG-2026-05-10-12: 푸시 클릭 정책이 상태 알림까지 Friends 진입으로 처리됨
 
-- Status: Unit/server payload tests passed after active server correction, status notifications no longer attach app-opening content intent, user batch verification pending
+- Status: Manually confirmed after unit/server payload tests and status-notification click policy fix
 - Report: 푸시 클릭 정책을 사용자 액션 필요 여부에 따라 정해야 한다. 지금은 상태 알림도 화면 진입으로 처리될 수 있어 불필요한 Friends 이동이 발생한다.
 - Expected:
   - 할 일 요청 수신(`ASSIGNMENT_BUNDLE_RECEIVED`): 공유한 일/요청받은 일 상세로 진입해 수락/거절 판단을 바로 할 수 있게 한다.
@@ -121,10 +122,11 @@
 - Manual verification:
   - 할 일 요청 푸시 클릭은 요청받은 일 수락/거절 화면으로 진입 확인
   - 수락/거절 결과, 완료, 되돌림, 취소 알림 클릭은 불필요하게 Friends 상세로 이동하지 않는지 확인
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-01: 캘린더 위젯 진입 후 로컬 데이터 미표시
 
-- Status: Targeted connected test passed after QA reset, user batch verification pending
+- Status: Manually confirmed after targeted connected test
 - Report: 캘린더 위젯에서 앱 캘린더 진입은 되지만, 리프레시 전까지 로컬에 있던 데이터가 보이지 않는다.
 - Expected: 위젯이 선택한 날짜로 진입하면 기존 Room todo/assigned todo 캐시가 즉시 표시된다.
 - Resolved root cause: 위젯 날짜 진입이 별도 route entry/ViewModel을 만들 수 있어 기존 Room/선택 날짜 상태 흐름과 분리될 수 있었다.
@@ -137,10 +139,11 @@
 - Manual verification:
   - 에뮬레이터와 갤럭시에서 위젯 날짜 클릭
   - 선택 날짜, 월 표시, 해당 날짜 todo 목록 표시 확인
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-02: 포어그라운드 푸시 클릭 시 수락 화면 미진입
 
-- Status: Real push click verified on emulator, targeted connected test passed after QA reset, user batch verification pending
+- Status: Manually confirmed after real push click and targeted connected test
 - Report: 앱이 켜져 있을 때 푸시를 클릭하면 친구 탭까지만 이동하고 수락 화면이 보이지 않는다.
 - Expected: 받은 할 일 푸시 클릭 시 친구 탭을 거쳐 바로 받은 요청 수락/거절 화면으로 이어진다.
 - Historical findings: 초기에 route guard, 반복 push event id, PendingIntent extras를 의심했으나 최종 원인은 같은 화면을 `FriendsRoute`와 `FriendsIncomingAssignmentRoute` 두 entry로 등록한 구조였다.
@@ -162,10 +165,11 @@
   - 앱 foreground 상태
   - 친구가 보낸 할 일 푸시 클릭
   - 친구 탭만이 아니라 수락/거절 화면까지 표시 확인
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-03: 완료탭 정리 시 받은 일 기록이 거절/삭제처럼 사라짐
 
-- Status: Unit tests passed after QA reset, user batch verification pending
+- Status: Manually confirmed after unit tests
 - Report: 받은 일을 완료한 뒤 완료탭에서 완료 항목 정리로 삭제하면 친구 탭 요청받은일에서는 완료로 보여야 하는데 사라진다.
 - Expected: Todo 완료탭 정리는 내 Todo 목록 표시만 정리한다. 친구 탭 요청받은일 기록은 DONE 상태로 유지된다.
 - Current finding: 완료 항목 정리에서 completed assigned todo에도 `deleteReceived`를 호출해 서버/캐시 상태가 `REJECTED/DELETED_BY_RECEIVER`로 바뀐다.
@@ -177,10 +181,11 @@
   - 완료탭에서 완료 항목 정리
   - Todo 완료탭에서는 정리됨
   - 친구 탭 요청받은일/공유한 일 상세에서는 완료 상태로 남음
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-04: 과거에 완료탭 정리로 삭제된 요청받은일이 복구되지 않음
 
-- Status: Client/server automated tests passed and active server data path rechecked, user batch verification pending
+- Status: Manually confirmed after client/server automated tests and active server data path recheck
 - Report: BUG-2026-05-10-03 수정 후 새로 정리한 요청받은일은 유지되지만, 과거 버그 상태에서 이미 지운 요청받은일은 여전히 요청받은일에 보이지 않는다.
 - Expected: 사용자가 완료했던 받은 일이라면 요청받은일 히스토리에서 완료 상태로 확인할 수 있다.
 - Resolved root cause: 과거 완료탭 정리가 `deleteReceived` API를 호출해 서버 상태가 `REJECTED + DELETED_BY_RECEIVER + completedAt`로 남았고, 클라이언트 완료 이력 필터와 서버 Friends received history 필터가 이 항목을 각각 누락했다.
@@ -195,10 +200,11 @@
 - Manual verification:
   - 과거 삭제된 assigned todo id가 서버에 남아 있는지 확인
   - 복구 정책 적용 후 요청받은일 히스토리 노출 확인
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-08: 거절된 공유 요청이 요청한 일 기록에 표시되지 않음
 
-- Status: Unit/ViewModel tests passed after QA reset, user batch verification pending
+- Status: Manually confirmed after unit/ViewModel tests
 - Report: 받은 사람이 할 일 요청을 거절했을 때, 요청한 사람의 친구 상세/요청한 일 기록에서 해당 거절 건이 보이지 않는다.
 - Expected: 받은 사람이 거절한 요청은 기본 active 요청 목록에서는 제외될 수 있지만, 요청한 사람의 공유 이력에서는 `REJECTED + REJECTED_BY_RECEIVER` 상태로 확인할 수 있어야 한다.
 - Resolved root cause: 서버 `history` feed는 `DONE`, `REJECTED`, `CANCELED`를 내려주지만, 클라이언트 friend detail history 필터가 완료 항목 중심으로 구성되어 `REJECTED_BY_RECEIVER` 항목을 UI 모델로 전달하지 못했다.
@@ -225,7 +231,7 @@
 
 ## BUG-2026-05-10-09: neo/tee 친구 상세 요청함/요청받음 카운트 불일치
 
-- Status: Active server DB/API rechecked and server summary fixed, user batch verification pending
+- Status: Manually confirmed after active server DB/API recheck and server summary fix
 - Report: neo와 tee 사이 친구 상세 카운트가 양쪽에서 다르게 표시된다. 한쪽은 `요청함 1/4`, `요청받음 4/11`이고, 다른 쪽은 `요청함 16/23`, `요청받음 1/4`로 보인다. 사용자는 `16/23`이 맞는 것 같고 `4/11`로 나오는 이유를 확인하길 원한다.
 - Expected: 같은 친구 관계를 서로 반대 계정에서 보더라도 현재 사용자 관점의 `요청함(sent)`과 `요청받음(received)`은 서버 데이터 방향과 일관되어야 한다. 한쪽의 `요청함`은 상대쪽의 `요청받음`과 대응되어야 하며, summary 카운트와 실제 sent/received feed 카운트가 같은 정책으로 계산되어야 한다.
 - Ruled-out hypotheses:
@@ -264,10 +270,11 @@
   - tee 계정에서 neo 친구 상세 진입 후 요청함/요청받음 metric 확인
   - 서로 반대 방향 카운트가 대응되는지 확인
   - summary metric과 실제 기록/진행 목록 카운트가 정책상 같은 데이터셋을 기준으로 하는지 확인
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-10: 완료한 일 정리 후 받은 공유 완료 항목이 다시 나타남
 
-- Status: Unit/DAO/migration tests passed after QA reset, user batch verification pending
+- Status: Manually confirmed after unit/DAO/migration tests
 - Report: 완료한 일을 삭제/정리해도 완료 목록에서만 없어지고, 이후 다시 나타나거나 실제 정리 상태가 유지되지 않는 것으로 보인다.
 - Expected:
   - 일반 완료 Todo는 완료탭 정리/삭제 시 `DeleteTodoUseCase -> TodoRepository.deleteTodo` 경로로 서버 delete/tombstone sync 대상이 되며 모든 todo surface에서 사라진다.
@@ -291,10 +298,11 @@
   - 일반 완료 Todo를 완료탭에서 삭제/정리하면 전체/완료/캘린더 surface에서 사라지는지 확인
   - 받은 공유 할 일을 완료한 뒤 완료탭에서 정리/단건 삭제하면 완료탭에는 다시 나타나지 않는지 확인
   - 같은 항목이 친구 상세 요청받은 일 history에는 완료 기록으로 남는지 확인
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-05: 캘린더 날짜 전환 전까지 일부 할 일이 보이지 않음
 
-- Status: Targeted connected/ViewModel tests passed after QA reset, user batch verification pending
+- Status: Manually confirmed after targeted connected/ViewModel tests
 - Report: 캘린더로 이동했을 때 일부 할 일이 바로 보이지 않고, 다른 날짜를 클릭하는 사용자 인터랙션이 발생한 뒤에야 표시된다.
 - Expected: 캘린더 화면 진입 또는 DB 갱신 직후 현재 선택 날짜의 할 일/받은 할 일이 사용자 추가 조작 없이 즉시 표시된다.
 - Resolved root cause: route date 진입이 별도 entry/ViewModel을 만들 수 있었고, 선택 날짜 기준 agenda 계산이 기존 화면 상태와 분리될 수 있었다.
@@ -312,7 +320,7 @@
 
 ## BUG-2026-05-10-11: 캘린더 수동 동기화 후 선택 날짜 agenda가 즉시 갱신되지 않음
 
-- Status: ViewModel tests passed after QA reset, user batch verification pending
+- Status: Manually confirmed after ViewModel tests
 - Report: 캘린더에서 동기화가 바로바로 반영되지 않는다.
 - Expected: 동기화 버튼 또는 딥링크/푸시 자동 동기화로 workspace refresh가 완료되면, 현재 선택된 날짜의 일반 todo/받은 공유 할 일이 다른 날짜 클릭 없이 즉시 갱신된다.
 - Current finding: CalendarViewModel은 Room Flow를 구독하지만 `WorkspaceSyncNotifier` snapshot을 직접 듣지 않았다. DB cache emission 타이밍이 늦거나 구독 타이밍이 어긋나면 sync 결과가 다른 날짜 클릭 같은 상태 변경 후에야 agenda에 보이는 회귀가 생길 수 있다.
@@ -325,10 +333,11 @@
   - 다른 기기/계정에서 해당 날짜 데이터 변경
   - 캘린더 sync 버튼 클릭
   - 다른 날짜 클릭 없이 선택 날짜 agenda와 월 indicator가 즉시 갱신되는지 확인
+  - Done: 2026-05-10 사용자 수동 확인 완료
 
 ## BUG-2026-05-10-06: 캘린더 위젯에서 완료한 일이 표시되지 않음
 
-- Status: Targeted connected/widget tests passed after QA reset, user batch verification pending
+- Status: Manually confirmed after targeted connected/widget tests
 - Report: 갤럭시 실기기에서 캘린더 위젯으로 진입했을 때 완료한 일이 보이지 않는다.
 - Expected: 캘린더 위젯에서 선택 날짜로 진입했을 때 해당 날짜의 미완료/완료 일반 todo와 받은 assigned todo가 캘린더 agenda에 표시된다.
 - Current finding: `CalendarDateRoute` 진입이 별도 entry/ViewModel을 만들던 라우팅 문제는 `CalendarWidgetLaunchUiTest`의 identity hash 검증으로 해결됨을 확인했다. 별도 확인 중 캘린더 화면에서 일반 todo 완료 상태를 변경할 때 앱 화면 Flow는 갱신되지만 홈 위젯 snapshot 갱신 호출이 누락되어 실제 캘린더 데이터와 위젯 데이터가 달라질 수 있었다.
@@ -347,7 +356,7 @@
 
 ## BUG-2026-05-10-07: 친구 탭 진입 시 일부 동기화 실패 스낵바가 표시됨
 
-- Status: App unit test and push connected test passed after QA reset, user batch verification pending
+- Status: Manually confirmed after app unit test and push connected test
 - Report: 친구 탭에 진입할 때 "일부 동기화가 진행되지 않습니다" 계열의 스낵바/토스트가 표시된다.
 - Expected: 사용자 액션 없이 친구 탭 진입만 했을 때 불필요한 동기화 실패 안내가 뜨지 않는다. 푸시 진입 시에도 수락 화면 진입을 막거나 가리지 않아야 한다.
 - Resolved root cause: 푸시/딥링크 자동 launch sync 결과를 사용자에게 스낵바로 노출해, 화면 라우팅과 무관한 부분 실패 메시지가 친구 탭 진입 시 보일 수 있었다.
