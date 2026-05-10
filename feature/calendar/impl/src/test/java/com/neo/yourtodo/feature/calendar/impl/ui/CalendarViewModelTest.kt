@@ -144,6 +144,29 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun selectRouteDate_showsLocalTodosWithoutManualRefresh() = runTest {
+        val repository = FakeTodoRepository()
+        val viewModel = createViewModel(repository)
+        val targetDate = LocalDate.of(2026, 5, 10)
+        repository.addTodo(
+            title = "Route date cached todo",
+            dueDate = targetDate,
+            categoryId = null,
+            reminderAtEpochMillis = null,
+            isReminderEnabled = false,
+            reminderRepeatType = ReminderRepeatType.NONE,
+            reminderRepeatDaysMask = 0
+        )
+
+        viewModel.selectRouteDate(targetDate.toString())
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedDate).isEqualTo(targetDate)
+        assertThat(viewModel.uiState.value.selectedDateTodos.map { it.title })
+            .contains("Route date cached todo")
+    }
+
+    @Test
     fun selectRouteDate_withInvalidDateFallsBackToToday() = runTest {
         val viewModel = createViewModel(FakeTodoRepository())
         val today = LocalDate.now()

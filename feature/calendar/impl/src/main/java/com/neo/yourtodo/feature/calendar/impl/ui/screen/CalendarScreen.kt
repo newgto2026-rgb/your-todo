@@ -58,11 +58,12 @@ fun CalendarRouteScreen(
             runCatching { LocalDate.parse(rawDate) }.getOrNull()
         }
     }
-    val routeUiState = remember(viewModel, initialSelectedDate) {
-        initialSelectedDate?.let(viewModel::selectRouteDate)
-        viewModel.uiState
+    LaunchedEffect(routeDate) {
+        routeDate?.let { selectedDate ->
+            viewModel.selectRouteDate(selectedDate.toString())
+        }
     }
-    val uiState by routeUiState.collectAsStateWithLifecycle(
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle(
         minActiveState = Lifecycle.State.CREATED
     )
     val snackbarHostState = remember { SnackbarHostState() }

@@ -932,7 +932,7 @@ class TodoListViewModelTest {
     }
 
     @Test
-    fun clearCompletedDeletesCompletedReceivedAssignedTodos() = runTest {
+    fun clearCompletedHidesCompletedReceivedAssignedTodosWithoutDeletingAssignmentRecord() = runTest {
         assignmentRepository.receivedItems = listOf(
             assignedTodo(id = "assigned-done", status = AssignedTodoStatus.DONE)
         )
@@ -955,7 +955,9 @@ class TodoListViewModelTest {
         viewModel.onAction(TodoListAction.OnDeleteConfirm)
         advanceUntilIdle()
 
-        assertThat(assignmentRepository.deletedAssignedTodoIds).containsExactly("assigned-done")
+        assertThat(assignmentRepository.deletedAssignedTodoIds).isEmpty()
+        assertThat(assignmentRepository.receivedItems.single { it.id == "assigned-done" }.status)
+            .isEqualTo(AssignedTodoStatus.DONE)
         assertThat(viewModel.uiState.value.items.map { it.assignedTodoId }).doesNotContain("assigned-done")
     }
 

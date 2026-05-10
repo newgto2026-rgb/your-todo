@@ -19,6 +19,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.neo.yourtodo.app.MainActivity
 import com.neo.yourtodo.core.database.AppDatabase
+import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
@@ -119,6 +120,33 @@ class CalendarWidgetLaunchUiTest {
             "Widget launch back should leave the foreground instead of popping to the default calendar.",
             activityScenario.state < Lifecycle.State.RESUMED
         )
+    }
+
+    @Test
+    fun widgetDateIntent_showsCachedTodoWithoutManualRefresh() {
+        val selectedDate = LocalDate.of(2026, 7, 12)
+        val title = "Widget cached todo"
+        runBlocking {
+            appDatabase.todoDao().insert(
+                TodoEntity(
+                    title = title,
+                    isDone = false,
+                    dueDateEpochDay = selectedDate.toEpochDay(),
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null
+                )
+            )
+        }
+
+        activityScenario = ActivityScenario.launch(widgetDateIntent(selectedDate))
+        composeTestRule.waitForIdle()
+        waitUntilNodeExists("app_tab_calendar")
+
+        composeTestRule.onNodeWithTag("app_tab_calendar", useUnmergedTree = true)
+            .assertIsSelected()
+        composeTestRule.onNodeWithText(title)
+            .assertIsDisplayed()
     }
 
     private fun widgetDateIntent(date: LocalDate): Intent {

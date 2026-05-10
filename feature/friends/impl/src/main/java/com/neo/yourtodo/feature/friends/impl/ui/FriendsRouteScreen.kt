@@ -129,7 +129,7 @@ fun FriendsRouteScreen(
         }
     }
     LaunchedEffect(initialFriendsRouteKey, initialIncomingAssignmentFriendUserId, initialIncomingAssignmentBundleId) {
-        if (!initialIncomingAssignmentFriendUserId.isNullOrBlank() || !initialIncomingAssignmentBundleId.isNullOrBlank()) {
+        if (initialFriendsRouteKey != Unit) {
             viewModel.onAction(
                 FriendsAction.OnOpenIncomingAssignment(
                     friendUserId = initialIncomingAssignmentFriendUserId,

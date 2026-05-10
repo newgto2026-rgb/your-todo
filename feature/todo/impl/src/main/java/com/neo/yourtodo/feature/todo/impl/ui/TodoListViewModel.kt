@@ -485,13 +485,7 @@ class TodoListViewModel @Inject constructor(
                     }
             }
             assignedTodoIds.forEach { assignedTodoId ->
-                manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
-                    .onSuccess {
-                        deletedAssignedIds += assignedTodoId
-                    }
-                    .onFailure {
-                        hasFailure = true
-                    }
+                deletedAssignedIds += assignedTodoId
             }
             updateLocalState {
                 val shouldDismissEditor = editingItem?.id?.let { it in deletedIds } == true
@@ -500,7 +494,7 @@ class TodoListViewModel @Inject constructor(
                 clearedState.copy(
                     deleteConfirmation = null,
                     optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - deletedAssignedIds,
-                    optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - deletedAssignedIds - failedAssignedIds
+                    optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - failedAssignedIds
                 )
             }
 
@@ -508,10 +502,6 @@ class TodoListViewModel @Inject constructor(
                 notifyCalendarWidgetChanged()
                 syncTodosQuietly()
             }
-            if (deletedAssignedIds.isNotEmpty()) {
-                refreshAssignedTodosQuietly()
-            }
-
             if (hasFailure) {
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(R.string.todo_error_delete_failed)
