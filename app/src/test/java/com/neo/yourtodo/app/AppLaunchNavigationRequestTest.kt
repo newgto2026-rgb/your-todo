@@ -82,7 +82,8 @@ class AppLaunchNavigationRequestTest {
                 contentRoute = FriendsIncomingAssignmentRoute(
                     friendUserId = "friend-user-id",
                     friendNickname = "monday",
-                    bundleId = "bundle-id"
+                    bundleId = "bundle-id",
+                    requestId = 10L
                 ),
                 syncOnOpen = true
             )
@@ -107,7 +108,7 @@ class AppLaunchNavigationRequestTest {
             AppLaunchNavigationRequest(
                 id = 13L,
                 topLevelRoute = FriendsRoute,
-                contentRoute = FriendsIncomingAssignmentRoute(),
+                contentRoute = FriendsIncomingAssignmentRoute(requestId = 13L),
                 syncOnOpen = true
             )
         )
@@ -148,10 +149,39 @@ class AppLaunchNavigationRequestTest {
                 topLevelRoute = FriendsRoute,
                 contentRoute = FriendsIncomingAssignmentRoute(
                     friendUserId = null,
-                    bundleId = "bundle-id"
+                    bundleId = "bundle-id",
+                    requestId = 12L
                 ),
                 syncOnOpen = true
             )
         )
+    }
+
+    @Test
+    fun parseRepeatedPushIntent_returnsDistinctIncomingAssignmentRoutes() {
+        val first = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = "ASSIGNMENT_BUNDLE_RECEIVED",
+            deepLink = "yourtodo://assignment-bundles/received/bundle-id",
+            bundleId = null,
+            actorUserId = null,
+            actorNickname = null,
+            dataScheme = null,
+            requestId = 14L
+        )
+        val second = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = "ASSIGNMENT_BUNDLE_RECEIVED",
+            deepLink = "yourtodo://assignment-bundles/received/bundle-id",
+            bundleId = null,
+            actorUserId = null,
+            actorNickname = null,
+            dataScheme = null,
+            requestId = 15L
+        )
+
+        assertThat(first?.contentRoute).isNotEqualTo(second?.contentRoute)
     }
 }

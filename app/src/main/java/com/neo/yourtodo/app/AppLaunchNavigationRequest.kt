@@ -116,7 +116,8 @@ private fun parsePushNavigationRequest(
         deepLink = parsedDeepLink,
         bundleId = bundleId,
         actorUserId = actorUserId,
-        actorNickname = actorNickname
+        actorNickname = actorNickname,
+        requestId = requestId
     )
 
     return AppLaunchNavigationRequest(
@@ -132,7 +133,8 @@ private fun incomingAssignmentRoute(
     deepLink: String?,
     bundleId: String?,
     actorUserId: String?,
-    actorNickname: String?
+    actorNickname: String?,
+    requestId: Long
 ): FriendsIncomingAssignmentRoute? {
     val parsedBundleId = bundleId?.takeIf { it.isNotBlank() }
         ?: deepLink.assignmentBundleIdOrNull()
@@ -148,7 +150,8 @@ private fun incomingAssignmentRoute(
     return FriendsIncomingAssignmentRoute(
         friendUserId = parsedActorUserId,
         friendNickname = parsedActorNickname,
-        bundleId = parsedBundleId
+        bundleId = parsedBundleId,
+        requestId = requestId
     )
 }
 
