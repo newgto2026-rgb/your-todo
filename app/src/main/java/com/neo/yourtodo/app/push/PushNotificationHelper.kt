@@ -44,9 +44,10 @@ object PushNotificationHelper {
         }
 
         ensureChannel(context)
-        val requestCode = data[PushNotificationContract.EXTRA_NOTIFICATION_EVENT_ID]
-            ?.hashCode()
-            ?: System.currentTimeMillis().toInt()
+        val requestCode = pushNotificationRequestCode(
+            data = data,
+            fallbackNonce = System.nanoTime()
+        )
         val notification = NotificationCompat.Builder(context, PushNotificationContract.CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)

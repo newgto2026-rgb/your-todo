@@ -49,14 +49,25 @@ object PushNotificationMessage {
         val actionResult = data[PushNotificationContract.EXTRA_ACTION_RESULT]
         val itemTitle = data[PushNotificationContract.EXTRA_ITEM_TITLE]
             ?.takeIf { it.isNotBlank() }
+        val actorNickname = data[PushNotificationContract.EXTRA_ACTOR_NICKNAME]
+            ?.takeIf { it.isNotBlank() }
         val itemCount = data[PushNotificationContract.EXTRA_ITEM_COUNT]?.toIntOrNull()
             ?: data[PushNotificationContract.EXTRA_COUNT]?.toIntOrNull()
 
         return when (type) {
             "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
             "ASSIGNMENT_BUNDLE_FULLY_DECIDED" -> decisionBody(actionResult, itemTitle, itemCount)
-            "ASSIGNED_TODO_COMPLETED" -> itemTitle?.let {
-                PushNotificationText(R.string.push_assigned_todo_completed_single_body, listOf(it))
+            "ASSIGNED_TODO_COMPLETED" -> {
+                if (itemTitle != null && actorNickname != null) {
+                    PushNotificationText(
+                        R.string.push_assigned_todo_completed_by_friend_body,
+                        listOf(actorNickname, itemTitle)
+                    )
+                } else {
+                    itemTitle?.let {
+                        PushNotificationText(R.string.push_assigned_todo_completed_single_body, listOf(it))
+                    }
+                }
             }
             "ASSIGNED_TODO_REOPENED" -> itemTitle?.let {
                 PushNotificationText(R.string.push_assigned_todo_reopened_single_body, listOf(it))

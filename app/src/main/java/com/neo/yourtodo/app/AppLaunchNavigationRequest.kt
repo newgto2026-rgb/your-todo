@@ -8,10 +8,19 @@ import com.neo.yourtodo.feature.calendar.api.CalendarRoute
 import com.neo.yourtodo.feature.calendar.api.CalendarWidgetIntentContract
 import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.friends.api.FriendsRoute
+import com.neo.yourtodo.feature.todo.api.TodoAllRoute
 import java.net.URI
 import java.time.LocalDate
 
 private const val PushTypeAssignmentBundleReceived = "ASSIGNMENT_BUNDLE_RECEIVED"
+private val FriendRelatedPushTypes = setOf(
+    "FRIEND_REQUEST_RECEIVED",
+    "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
+    "ASSIGNMENT_BUNDLE_FULLY_DECIDED",
+    "ASSIGNED_TODO_COMPLETED",
+    "ASSIGNED_TODO_REOPENED",
+    "ASSIGNED_TODO_CANCELED"
+)
 
 data class AppLaunchNavigationRequest(
     val id: Long,
@@ -111,7 +120,13 @@ private fun parsePushNavigationRequest(
     }
 
     val parsedDeepLink = deepLink?.takeIf { it.isNotBlank() } ?: dataString
-    if (!shouldOpenPushInApp(pushType = pushType, deepLink = parsedDeepLink)) {
+    if (
+        !isPushOpenRequest(
+            pushType = pushType,
+            deepLink = parsedDeepLink,
+            hasPushAction = action == PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION
+        )
+    ) {
         return null
     }
     val incomingAssignmentRoute = incomingAssignmentRoute(
@@ -123,16 +138,44 @@ private fun parsePushNavigationRequest(
         requestId = requestId
     )
 
-    return AppLaunchNavigationRequest(
-        id = requestId,
-        topLevelRoute = FriendsRoute,
-        contentRoute = incomingAssignmentRoute,
-        syncOnOpen = true
-    )
+    return when {
+        incomingAssignmentRoute != null -> AppLaunchNavigationRequest(
+            id = requestId,
+            topLevelRoute = FriendsRoute,
+            contentRoute = incomingAssignmentRoute,
+            syncOnOpen = true
+        )
+        isFriendRelatedPush(pushType = pushType, actorUserId = actorUserId, actorNickname = actorNickname) ->
+            AppLaunchNavigationRequest(
+                id = requestId,
+                topLevelRoute = FriendsRoute,
+                syncOnOpen = true
+            )
+        else -> AppLaunchNavigationRequest(
+            id = requestId,
+            topLevelRoute = TodoAllRoute,
+            syncOnOpen = true
+        )
+    }
 }
 
-private fun shouldOpenPushInApp(pushType: String?, deepLink: String?): Boolean =
-    pushType == PushTypeAssignmentBundleReceived || deepLink.assignmentBundleIdOrNull() != null
+private fun isPushOpenRequest(
+    pushType: String?,
+    deepLink: String?,
+    hasPushAction: Boolean
+): Boolean =
+    !pushType.isNullOrBlank() ||
+        (hasPushAction && !deepLink.isNullOrBlank()) ||
+        deepLink.assignmentBundleIdOrNull() != null
+
+private fun isFriendRelatedPush(
+    pushType: String?,
+    actorUserId: String?,
+    actorNickname: String?
+): Boolean =
+    pushType in FriendRelatedPushTypes ||
+        !actorUserId.isNullOrBlank() ||
+        !actorNickname.isNullOrBlank()
 
 private fun incomingAssignmentRoute(
     pushType: String?,
@@ -142,17 +185,15 @@ private fun incomingAssignmentRoute(
     actorNickname: String?,
     requestId: Long
 ): FriendsIncomingAssignmentRoute? {
-    val parsedBundleId = bundleId?.takeIf { it.isNotBlank() }
-        ?: deepLink.assignmentBundleIdOrNull()
-    val parsedActorUserId = actorUserId?.takeIf { it.isNotBlank() }
-    val parsedActorNickname = actorNickname?.takeIf { it.isNotBlank() }
-    if (
-        parsedBundleId == null &&
-        parsedActorUserId == null &&
-        pushType != PushTypeAssignmentBundleReceived
-    ) {
+    val deepLinkBundleId = deepLink.assignmentBundleIdOrNull()
+    val isDecisionRequest = pushType == PushTypeAssignmentBundleReceived ||
+        (pushType.isNullOrBlank() && deepLinkBundleId != null)
+    if (!isDecisionRequest) {
         return null
     }
+    val parsedBundleId = bundleId?.takeIf { it.isNotBlank() } ?: deepLinkBundleId
+    val parsedActorUserId = actorUserId?.takeIf { it.isNotBlank() }
+    val parsedActorNickname = actorNickname?.takeIf { it.isNotBlank() }
     return FriendsIncomingAssignmentRoute(
         friendUserId = parsedActorUserId,
         friendNickname = parsedActorNickname,

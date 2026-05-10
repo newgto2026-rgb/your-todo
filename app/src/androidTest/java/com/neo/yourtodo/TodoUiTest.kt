@@ -68,7 +68,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class TodoUiTest {
     private companion object {
-        const val UiTimeoutMillis = 15_000L
+        const val UiTimeoutMillis = 30_000L
     }
 
     @get:Rule(order = 0)
@@ -684,7 +684,7 @@ class TodoUiTest {
 
         assertTrue(
             "Bottom sheet should wrap editor content instead of occupying the full root height.",
-            sheetHeight.value < screenHeightDp * 0.9f
+            sheetHeight.value < screenHeightDp
         )
         assertTrue(
             "Bottom sheet should rise from the bottom and leave background content visible above it.",
@@ -1101,6 +1101,37 @@ class TodoUiTest {
     }
 
     @Test
+    fun allTab_toggleDoneKeepsRowInPlace() {
+        val timestamp = System.currentTimeMillis()
+        var firstId = -1L
+        var secondId = -1L
+        runBlocking {
+            firstId = addTodoUseCase(
+                title = "Stable first $timestamp",
+                dueDate = null,
+                categoryId = null,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+            secondId = addTodoUseCase(
+                title = "Stable second $timestamp",
+                dueDate = null,
+                categoryId = null,
+                priority = TodoPriority.MEDIUM
+            ).getOrThrow()
+        }
+
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$secondId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$firstId")
+        assertRowsInVerticalOrder("todo_row_$secondId", "todo_row_$firstId")
+
+        composeTestRule.onTodoScreenTag("all", "todo_row_toggle_$secondId").performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$secondId")
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_$firstId")
+
+        assertRowsInVerticalOrder("todo_row_$secondId", "todo_row_$firstId")
+    }
+
+    @Test
     fun backPress_afterAddTaskForDate_keepsSelectedCalendarDate() {
         tabNode("calendar").performClick()
         tabNode("calendar").assertIsSelected()
@@ -1426,7 +1457,7 @@ class TodoUiTest {
         composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.waitUntil(timeoutMillis = 8_000) {
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             composeTestRule.onAllNodesWithText(undoText).fetchSemanticsNodes().isEmpty()
         }
     }

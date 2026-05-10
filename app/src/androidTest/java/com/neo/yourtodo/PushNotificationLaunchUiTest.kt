@@ -3,6 +3,7 @@ package com.neo.yourtodo
 import android.content.Context
 import android.content.Intent
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -85,12 +86,58 @@ class PushNotificationLaunchUiTest {
         assertFriendsRouteIdentityRetained()
     }
 
+    @Test
+    fun foregroundFriendStatusPushClick_opensFriendsTabWithoutDecisionDialog() {
+        sendForegroundStatusPushClick(
+            type = "ASSIGNED_TODO_COMPLETED",
+            actorUserId = FRIEND_USER_ID,
+            actorNickname = FRIEND_NICKNAME
+        )
+
+        composeTestRule.onNodeWithTag("app_tab_friends").assertIsSelected()
+        composeTestRule.assertNodeDoesNotExist("friends_assignment_monitor_dialog")
+    }
+
+    @Test
+    fun foregroundNonFriendStatusPushClick_opensFirstTab() {
+        sendForegroundStatusPushClick(
+            type = "TODO_REMINDER",
+            actorUserId = null,
+            actorNickname = null
+        )
+
+        composeTestRule.onNodeWithTag("app_tab_all").assertIsSelected()
+        composeTestRule.assertNodeDoesNotExist("friends_assignment_monitor_dialog")
+    }
+
     private fun sendForegroundAssignmentBundlePushClick() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val intent = assignmentBundlePushClickIntent(context)
         activityScenario.onActivity { activity ->
             activity.handleNavigationIntent(intent)
         }
+    }
+
+    private fun sendForegroundStatusPushClick(
+        type: String,
+        actorUserId: String?,
+        actorNickname: String?
+    ) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(PushNotificationContract.EXTRA_TYPE, type)
+            putExtra(PushNotificationContract.EXTRA_NOTIFICATION_EVENT_ID, "event-$type")
+            putExtra(PushNotificationContract.EXTRA_BUNDLE_ID, BUNDLE_ID)
+            putExtra(PushNotificationContract.EXTRA_ASSIGNED_TODO_ID, ASSIGNED_TODO_ID)
+            actorUserId?.let { putExtra(PushNotificationContract.EXTRA_ACTOR_USER_ID, it) }
+            actorNickname?.let { putExtra(PushNotificationContract.EXTRA_ACTOR_NICKNAME, it) }
+        }
+        activityScenario.onActivity { activity ->
+            activity.handleNavigationIntent(intent)
+        }
+        composeTestRule.waitForIdle()
     }
 
     private fun assignmentBundlePushClickIntent(context: Context): Intent {
@@ -145,6 +192,14 @@ class PushNotificationLaunchUiTest {
             onAllNodes(hasTestTag(testTag))
                 .fetchSemanticsNodes(atLeastOneRootRequired = false)
                 .isNotEmpty()
+        }
+    }
+
+    private fun ComposeTestRule.assertNodeDoesNotExist(testTag: String) {
+        waitUntil(5_000L) {
+            onAllNodes(hasTestTag(testTag))
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
+                .isEmpty()
         }
     }
 

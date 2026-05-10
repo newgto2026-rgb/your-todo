@@ -35,6 +35,7 @@
     <string name="push_assigned_todo_completed_title">Shared todo completed</string>
     <string name="push_assigned_todo_completed_body">Your friend completed the shared todo.</string>
     <string name="push_assigned_todo_completed_single_body">%1$s was completed.</string>
+    <string name="push_assigned_todo_completed_by_friend_body">%1$s completed %2$s shared by you.</string>
     <string name="push_assigned_todo_reopened_title">Shared todo moved back to todo</string>
     <string name="push_assigned_todo_reopened_body">Your friend moved the completed todo back to todo.</string>
     <string name="push_assigned_todo_reopened_single_body">%1$s was moved back to todo.</string>

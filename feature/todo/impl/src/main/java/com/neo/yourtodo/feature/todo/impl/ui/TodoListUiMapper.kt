@@ -84,8 +84,7 @@ private fun TodoSortOption.comparatorFor(filter: TodoFilter): Comparator<TodoIte
     }
 
 private fun defaultTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.isDone }
-        .thenByDescending { it.id }
+    compareByDescending { it.id }
 
 private fun contextualTodoComparator(): Comparator<TodoItemUiModel> =
     compareBy<TodoItemUiModel> { it.isDone }
@@ -93,8 +92,7 @@ private fun contextualTodoComparator(): Comparator<TodoItemUiModel> =
         .thenBy { it.id }
 
 private fun dueDateTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.isDone }
-        .thenBy { it.dueDate == null }
+    compareBy<TodoItemUiModel> { it.dueDate == null }
         .thenBy { it.dueDate ?: LocalDate.MAX }
         .thenBy { it.dueTimeText == null }
         .thenBy { it.dueTimeText.orEmpty() }
@@ -102,8 +100,7 @@ private fun dueDateTodoComparator(): Comparator<TodoItemUiModel> =
         .thenBy { it.id }
 
 private fun priorityTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.isDone }
-        .thenByDescending { it.priority.sortRank() }
+    compareByDescending<TodoItemUiModel> { it.priority.sortRank() }
         .thenBy { it.dueDate == null }
         .thenBy { it.dueDate ?: LocalDate.MAX }
         .thenBy { it.dueTimeText == null }
