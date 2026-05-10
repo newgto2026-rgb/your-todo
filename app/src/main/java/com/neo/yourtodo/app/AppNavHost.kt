@@ -148,6 +148,7 @@ fun AppNavHost(
         ImmediateNavDisplay(
             entries = navEntries,
             activeContentKey = activeContentKey,
+            fallbackContentKey = currentTopLevelRoute,
             onBack = {
                 if (!navigator.goBack()) {
                     (context as? android.app.Activity)?.finish()

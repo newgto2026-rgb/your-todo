@@ -16,6 +16,11 @@ class AppLaunchNavigationRequestTest {
         val request = parseAppLaunchNavigationRequest(
             action = CalendarWidgetIntentContract.ACTION_OPEN_CALENDAR_DATE,
             selectedDate = "2026-05-07",
+            pushType = null,
+            deepLink = null,
+            actorNickname = null,
+            dataScheme = "yourtodo",
+            dataString = "yourtodo://calendar/date/2026-05-07",
             requestId = 7L
         )
 
@@ -79,6 +84,30 @@ class AppLaunchNavigationRequestTest {
                     friendNickname = "monday",
                     bundleId = "bundle-id"
                 ),
+                syncOnOpen = true
+            )
+        )
+    }
+
+    @Test
+    fun parseAssignmentReceivedPushWithoutIdentifiersStillRoutesToIncomingAssignments() {
+        val request = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = "ASSIGNMENT_BUNDLE_RECEIVED",
+            deepLink = null,
+            bundleId = null,
+            actorUserId = null,
+            actorNickname = null,
+            dataScheme = null,
+            requestId = 13L
+        )
+
+        assertThat(request).isEqualTo(
+            AppLaunchNavigationRequest(
+                id = 13L,
+                topLevelRoute = FriendsRoute,
+                contentRoute = FriendsIncomingAssignmentRoute(),
                 syncOnOpen = true
             )
         )

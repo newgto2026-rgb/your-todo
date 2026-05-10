@@ -304,23 +304,23 @@ class FriendsViewModel @Inject constructor(
     }
 
     private fun resolvePendingIncomingAssignmentByBundle(target: IncomingAssignmentTarget) {
-        val bundleId = target.bundleId ?: return
         if (pendingIncomingAssignmentResolutionJob?.isActive == true) return
         pendingIncomingAssignmentResolutionJob = viewModelScope.launch {
+            val bundleId = target.bundleId
             val pendingItem = getAssignedTodos.observeReceived(AssignmentFeedStatus.PENDING)
                 .first()
-                .firstOrNull { item -> item.bundleId == bundleId }
+                .firstPendingIncomingAssignment(bundleId)
                 ?: getAssignedTodos.received(AssignmentFeedStatus.PENDING)
                     .getOrDefault(emptyList())
-                    .firstOrNull { item -> item.bundleId == bundleId }
+                    .firstPendingIncomingAssignment(bundleId)
             val sender = pendingItem?.sender
             val currentTarget = pendingIncomingAssignmentTarget
-            if (sender == null || currentTarget?.bundleId != bundleId) return@launch
+            if (sender == null || currentTarget?.matches(target) != true) return@launch
             pendingIncomingAssignmentTarget = null
             openFriendDetail(
                 friend = uiState.value.friends.firstOrNull { it.userId == sender.id }
                     ?: sender.toIncomingAssignmentFriend(),
-                initialBundleId = bundleId
+                initialBundleId = pendingItem.bundleId
             )
         }
     }
@@ -731,6 +731,18 @@ internal data class IncomingAssignmentTarget(
     val friendNickname: String?,
     val bundleId: String?
 )
+
+internal fun IncomingAssignmentTarget.matches(other: IncomingAssignmentTarget): Boolean =
+    friendUserId == other.friendUserId &&
+        friendNickname == other.friendNickname &&
+        bundleId == other.bundleId
+
+internal fun List<AssignedTodo>.firstPendingIncomingAssignment(bundleId: String?): AssignedTodo? =
+    firstOrNull { item ->
+        item.status == AssignedTodoStatus.PENDING_ACCEPTANCE &&
+            item.bundleId != null &&
+            (bundleId == null || item.bundleId == bundleId)
+    }
 
 internal fun IncomingAssignmentTarget.toIncomingAssignmentFriendOrNull(): Friend? {
     val userId = friendUserId ?: return null

@@ -2,6 +2,7 @@ package com.neo.yourtodo
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.net.toUri
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
@@ -125,6 +126,7 @@ class CalendarWidgetLaunchUiTest {
         return Intent(context, MainActivity::class.java).apply {
             action = CalendarWidgetIntentContract.ACTION_OPEN_CALENDAR_DATE
             putExtra(CalendarWidgetIntentContract.EXTRA_SELECTED_DATE, date.toString())
+            data = "yourtodo://calendar/date/$date".toUri()
         }
     }
 

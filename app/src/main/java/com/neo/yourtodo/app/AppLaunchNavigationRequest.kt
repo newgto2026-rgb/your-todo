@@ -11,6 +11,8 @@ import com.neo.yourtodo.feature.friends.api.FriendsRoute
 import java.net.URI
 import java.time.LocalDate
 
+private const val PushTypeAssignmentBundleReceived = "ASSIGNMENT_BUNDLE_RECEIVED"
+
 data class AppLaunchNavigationRequest(
     val id: Long,
     val topLevelRoute: NavKey,
@@ -22,6 +24,13 @@ fun parseAppLaunchNavigationRequest(
     intent: Intent?,
     requestId: Long
 ): AppLaunchNavigationRequest? {
+    val calendarRequest = parseAppLaunchNavigationRequest(
+        action = intent?.action,
+        selectedDate = intent?.getStringExtra(CalendarWidgetIntentContract.EXTRA_SELECTED_DATE),
+        requestId = requestId
+    )
+    if (calendarRequest != null) return calendarRequest
+
     val pushRequest = parsePushNavigationRequest(
         action = intent?.action,
         pushType = intent?.getStringExtra(PushNotificationContract.EXTRA_TYPE),
@@ -33,13 +42,7 @@ fun parseAppLaunchNavigationRequest(
         dataString = intent?.dataString,
         requestId = requestId
     )
-    if (pushRequest != null) return pushRequest
-
-    return parseAppLaunchNavigationRequest(
-        action = intent?.action,
-        selectedDate = intent?.getStringExtra(CalendarWidgetIntentContract.EXTRA_SELECTED_DATE),
-        requestId = requestId
-    )
+    return pushRequest
 }
 
 fun parseAppLaunchNavigationRequest(
@@ -70,7 +73,11 @@ fun parseAppLaunchNavigationRequest(
     dataString: String? = null,
     requestId: Long
 ): AppLaunchNavigationRequest? =
-    parsePushNavigationRequest(
+    parseAppLaunchNavigationRequest(
+        action = action,
+        selectedDate = selectedDate,
+        requestId = requestId
+    ) ?: parsePushNavigationRequest(
         action = action,
         pushType = pushType,
         deepLink = deepLink,
@@ -79,10 +86,6 @@ fun parseAppLaunchNavigationRequest(
         actorNickname = actorNickname,
         dataScheme = dataScheme,
         dataString = dataString,
-        requestId = requestId
-    ) ?: parseAppLaunchNavigationRequest(
-        action = action,
-        selectedDate = selectedDate,
         requestId = requestId
     )
 
@@ -97,6 +100,7 @@ private fun parsePushNavigationRequest(
     dataString: String?,
     requestId: Long
 ): AppLaunchNavigationRequest? {
+    if (action == CalendarWidgetIntentContract.ACTION_OPEN_CALENDAR_DATE) return null
     if (
         action != PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION &&
         dataScheme != "yourtodo" &&
@@ -108,6 +112,7 @@ private fun parsePushNavigationRequest(
 
     val parsedDeepLink = deepLink?.takeIf { it.isNotBlank() } ?: dataString
     val incomingAssignmentRoute = incomingAssignmentRoute(
+        pushType = pushType,
         deepLink = parsedDeepLink,
         bundleId = bundleId,
         actorUserId = actorUserId,
@@ -123,6 +128,7 @@ private fun parsePushNavigationRequest(
 }
 
 private fun incomingAssignmentRoute(
+    pushType: String?,
     deepLink: String?,
     bundleId: String?,
     actorUserId: String?,
@@ -132,7 +138,13 @@ private fun incomingAssignmentRoute(
         ?: deepLink.assignmentBundleIdOrNull()
     val parsedActorUserId = actorUserId?.takeIf { it.isNotBlank() }
     val parsedActorNickname = actorNickname?.takeIf { it.isNotBlank() }
-    if (parsedBundleId == null && parsedActorUserId == null) return null
+    if (
+        parsedBundleId == null &&
+        parsedActorUserId == null &&
+        pushType != PushTypeAssignmentBundleReceived
+    ) {
+        return null
+    }
     return FriendsIncomingAssignmentRoute(
         friendUserId = parsedActorUserId,
         friendNickname = parsedActorNickname,

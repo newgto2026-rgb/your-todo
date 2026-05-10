@@ -25,7 +25,8 @@ fun <T : Any> ImmediateNavDisplay(
     entries: List<NavEntry<T>>,
     activeContentKey: Any,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fallbackContentKey: Any? = null
 ) {
     require(entries.isNotEmpty()) { "ImmediateNavDisplay entries cannot be empty" }
 
@@ -37,6 +38,12 @@ fun <T : Any> ImmediateNavDisplay(
             entry.contentKey == activeContentKey ||
                 entry.contentKey.toString() == activeContentKey.toString()
         }
+            ?: fallbackContentKey?.let { fallbackKey ->
+                baseEntries.lastOrNull { entry ->
+                    entry.contentKey == fallbackKey ||
+                        entry.contentKey.toString() == fallbackKey.toString()
+                }
+            }
             ?: baseEntries.last()
 
         baseEntries.forEach { entry ->

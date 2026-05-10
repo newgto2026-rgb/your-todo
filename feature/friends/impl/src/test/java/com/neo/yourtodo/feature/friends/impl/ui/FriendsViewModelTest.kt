@@ -564,6 +564,41 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun incomingAssignmentRouteWithoutIdentifiersOpensFirstPendingAssignment() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            receivedPendingItems = listOf(
+                assignedTodo(
+                    id = "latest-pending",
+                    title = "Pending from push",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-target"
+                )
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = emptyList()
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(
+                FriendsAction.OnOpenIncomingAssignment(
+                    friendUserId = null,
+                    bundleId = null
+                )
+            )
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+
+            val loaded = awaitItem()
+            assertThat(loaded.selectedFriend?.userId).isEqualTo("friend-1")
+            assertThat(loaded.selectedFriend?.nickname).isEqualTo("monday")
+            assertThat(loaded.selectedPendingAssignmentIds).containsExactly("latest-pending")
+        }
+    }
+
+    @Test
     fun incomingAssignmentRouteOpensFromBundleSenderWhenFriendsAreNotLoadedYet() = runTest {
         val assignmentRepository = FakeAssignmentRepository().apply {
             receivedPendingItems = listOf(
