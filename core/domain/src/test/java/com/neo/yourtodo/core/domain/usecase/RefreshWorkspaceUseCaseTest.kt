@@ -75,6 +75,7 @@ class RefreshWorkspaceUseCaseTest {
             "friend.getFriends",
             "friend.getIncoming",
             "friend.getOutgoing",
+            "assignment.getReceived.pending",
             "assignment.getReceived.active",
             "assignment.getReceived.history"
         )
@@ -234,6 +235,9 @@ class RefreshWorkspaceUseCaseTest {
             Result.failure(UnsupportedOperationException())
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
             Result.failure(UnsupportedOperationException())
 
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =

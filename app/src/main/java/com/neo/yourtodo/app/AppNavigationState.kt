@@ -1,18 +1,20 @@
 package com.neo.yourtodo.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
-import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import com.neo.yourtodo.app.navigation.AppNavigationIdentityProbe
+import com.neo.yourtodo.app.navigation.RetainedSaveableStateHolderNavEntryDecorator
+import com.neo.yourtodo.app.navigation.RetainedViewModelStoreNavEntryDecorator
+import com.neo.yourtodo.app.navigation.rememberRetainedSaveableStateHolderNavEntryDecorator
+import com.neo.yourtodo.app.navigation.rememberRetainedViewModelStoreNavEntryDecorator
 
 @Composable
 fun rememberAppNavigationState(
@@ -54,24 +56,51 @@ fun rememberAppNavigationState(
 
 class AppNavEntryStackState(
     val entryCache: LinkedHashMap<NavKey, NavEntry<NavKey>>,
-    val decorators: List<NavEntryDecorator<NavKey>>
-)
+    private val saveableStateDecorator: RetainedSaveableStateHolderNavEntryDecorator<NavKey>,
+    private val viewModelStoreDecorator: RetainedViewModelStoreNavEntryDecorator<NavKey>
+) {
+    private val retainedContentKeys = mutableSetOf<Any>()
+    private val decoratedEntryCache = linkedMapOf<Any, NavEntry<NavKey>>()
+
+    fun retainContentKeys(contentKeys: Set<Any>) {
+        val removedKeys = retainedContentKeys - contentKeys
+        removedKeys.forEach { key ->
+            decoratedEntryCache.remove(key)
+            saveableStateDecorator.clearKey(key)
+            viewModelStoreDecorator.clearKey(key)
+        }
+        retainedContentKeys.clear()
+        retainedContentKeys.addAll(contentKeys)
+    }
+
+    fun decoratedEntries(entries: List<NavEntry<NavKey>>): List<NavEntry<NavKey>> {
+        val contentKeys = entries.map { it.contentKey }.toSet()
+        decoratedEntryCache.keys.retainAll(contentKeys)
+        return entries.map { entry ->
+            val cached = decoratedEntryCache[entry.contentKey]
+            cached ?: NavEntry(navEntry = entry) {
+                saveableStateDecorator.Decorate(entry.contentKey) {
+                    viewModelStoreDecorator.Decorate(entry.contentKey) {
+                        entry.Content()
+                    }
+                }
+            }.also { decoratedEntry ->
+                decoratedEntryCache[entry.contentKey] = decoratedEntry
+            }
+        }
+    }
+}
 
 @Composable
 private fun rememberAppNavEntryStackState(scopeName: String): AppNavEntryStackState {
     val entryCache = remember { linkedMapOf<NavKey, NavEntry<NavKey>>() }
-    val saveableStateDecorator = rememberSaveableStateHolderNavEntryDecorator<NavKey>()
-    val viewModelStoreDecorator = rememberViewModelStoreNavEntryDecorator<NavKey>()
-    val decorators = remember(saveableStateDecorator, viewModelStoreDecorator) {
-        listOf(
-            saveableStateDecorator,
-            viewModelStoreDecorator
-        )
-    }
-    return remember(scopeName, entryCache, decorators) {
+    val saveableStateDecorator = rememberRetainedSaveableStateHolderNavEntryDecorator<NavKey>()
+    val viewModelStoreDecorator = rememberRetainedViewModelStoreNavEntryDecorator<NavKey>()
+    return remember(scopeName, entryCache, saveableStateDecorator, viewModelStoreDecorator) {
         AppNavEntryStackState(
             entryCache = entryCache,
-            decorators = decorators
+            saveableStateDecorator = saveableStateDecorator,
+            viewModelStoreDecorator = viewModelStoreDecorator
         )
     }
 }
@@ -144,6 +173,13 @@ fun AppNavigationState.toEntries(
     )
     val topLevelEntriesInUse = orderedTopLevelRoutes
         .flatMap { route -> decoratedTopLevelEntries.getValue(route) }
+    SideEffect {
+        decoratedTopLevelEntries.forEach { (route, entries) ->
+            entryStates.getValue(route).retainContentKeys(entries.map { it.contentKey }.toSet())
+        }
+        transientEntryState.retainContentKeys(transientEntries.map { it.contentKey }.toSet())
+        AppNavigationIdentityProbe.publishEntries(topLevelEntriesInUse + transientEntries)
+    }
     return topLevelEntriesInUse + transientEntries
 }
 
@@ -153,11 +189,12 @@ private fun rememberTopLevelEntries(
     entryState: AppNavEntryStackState,
     entryProvider: (NavKey) -> NavEntry<NavKey>
 ): List<NavEntry<NavKey>> {
-    return rememberDecoratedNavEntries(
+    val entries = rememberStableNavEntries(
+        entryState = entryState,
         backStack = backStack,
-        entryDecorators = entryState.decorators,
-        entryProvider = entryProvider,
+        entryProvider = entryProvider
     )
+    return entryState.decoratedEntries(entries)
 }
 
 @Composable
@@ -171,10 +208,7 @@ private fun rememberTransientEntries(
         backStack = backStack,
         entryProvider = entryProvider
     )
-    return rememberDecoratedNavEntries(
-        entries = entries,
-        entryDecorators = entryState.decorators,
-    )
+    return entryState.decoratedEntries(entries)
 }
 
 @Composable

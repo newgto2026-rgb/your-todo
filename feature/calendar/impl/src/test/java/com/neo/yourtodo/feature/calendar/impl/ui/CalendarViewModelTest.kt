@@ -13,6 +13,7 @@ import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshSnapshot
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import androidx.lifecycle.SavedStateHandle
 import com.neo.yourtodo.core.model.DateTodoSummary
@@ -144,6 +145,29 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun selectRouteDate_showsLocalTodosWithoutManualRefresh() = runTest {
+        val repository = FakeTodoRepository()
+        val viewModel = createViewModel(repository)
+        val targetDate = LocalDate.of(2026, 5, 10)
+        repository.addTodo(
+            title = "Route date cached todo",
+            dueDate = targetDate,
+            categoryId = null,
+            reminderAtEpochMillis = null,
+            isReminderEnabled = false,
+            reminderRepeatType = ReminderRepeatType.NONE,
+            reminderRepeatDaysMask = 0
+        )
+
+        viewModel.selectRouteDate(targetDate.toString())
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedDate).isEqualTo(targetDate)
+        assertThat(viewModel.uiState.value.selectedDateTodos.map { it.title })
+            .contains("Route date cached todo")
+    }
+
+    @Test
     fun selectRouteDate_withInvalidDateFallsBackToToday() = runTest {
         val viewModel = createViewModel(FakeTodoRepository())
         val today = LocalDate.now()
@@ -213,7 +237,11 @@ class CalendarViewModelTest {
     @Test
     fun toggleTodoDoneAction_marksSelectedDateTodoDone() = runTest {
         val repository = FakeTodoRepository()
-        val viewModel = createViewModel(repository)
+        val calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
+        val viewModel = createViewModel(
+            repository = repository,
+            calendarWidgetUpdater = calendarWidgetUpdater
+        )
         val targetDate = viewModel.uiState.value.currentMonth.atDay(13)
         val todoId = repository.addTodo(
             title = "Toggle from calendar",
@@ -234,36 +262,38 @@ class CalendarViewModelTest {
 
         assertThat(repository.getTodo(todoId)?.isDone).isTrue()
         assertThat(viewModel.uiState.value.selectedDateTodos.single().isDone).isTrue()
+        assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
     }
 
     @Test
-    fun workspaceSyncSnapshotUpdatesAssignedTodos() = runTest {
+    fun workspaceSyncSnapshotImmediatelyUpdatesAssignedTodos() = runTest {
         val repository = FakeTodoRepository()
         val workspaceSyncNotifier = WorkspaceSyncNotifier()
-        val assignmentRepository = FakeAssignmentRepository(
-            receivedItems = listOf(
-                assignedTodo(
-                    id = "assigned-sync",
-                    title = "Synced shared",
-                    dueDate = LocalDate.now()
+        val assignmentRepository = FakeAssignmentRepository()
+        val viewModel = createViewModel(
+            repository = repository,
+            assignmentRepository = assignmentRepository,
+            workspaceSyncNotifier = workspaceSyncNotifier
+        )
+        advanceUntilIdle()
+
+        workspaceSyncNotifier.publish(
+            WorkspaceRefreshSnapshot(
+                isFullySynced = true,
+                friends = emptyList(),
+                incomingRequests = emptyList(),
+                outgoingRequests = emptyList(),
+                visibleReceivedAssignedTodos = listOf(
+                    assignedTodo(
+                        id = "assigned-sync",
+                        title = "Synced shared",
+                        dueDate = LocalDate.now()
+                    )
                 )
             )
         )
-        val viewModel = createViewModel(
-            repository = repository,
-            assignmentRepository = assignmentRepository
-        )
-
-        RefreshWorkspaceUseCase(
-            todoRepository = repository,
-            friendRepository = FakeFriendRepository(),
-            assignmentRepository = assignmentRepository,
-            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
-            syncNotifier = workspaceSyncNotifier
-        )()
         advanceUntilIdle()
 
-        assertThat(repository.syncCount).isEqualTo(1)
         assertThat(viewModel.uiState.value.selectedDateTodos.map { it.assignedTodoId })
             .contains("assigned-sync")
     }
@@ -303,6 +333,32 @@ class CalendarViewModelTest {
         val todos = viewModel.uiState.value.selectedDateTodos
         assertThat(todos).hasSize(1)
         assertThat(todos.first().title).isEqualTo("Selected date todo")
+    }
+
+    @Test
+    fun selectedDateTodos_updateWhenRepositoryEmitsWithoutDateInteraction() = runTest {
+        val repository = FakeTodoRepository()
+        val viewModel = createViewModel(repository)
+        val selectedDate = viewModel.uiState.value.currentMonth.atDay(10)
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.selectedDateTodos).isEmpty()
+
+        repository.addTodo(
+            title = "Arrived from DB",
+            dueDate = selectedDate,
+            categoryId = null,
+            reminderAtEpochMillis = null,
+            isReminderEnabled = false,
+            reminderRepeatType = ReminderRepeatType.NONE,
+            reminderRepeatDaysMask = 0
+        )
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedDate).isEqualTo(selectedDate)
+        assertThat(viewModel.uiState.value.selectedDateTodos.map { it.title })
+            .containsExactly("Arrived from DB")
     }
 
     @Test
@@ -474,7 +530,9 @@ class CalendarViewModelTest {
     private fun createViewModel(
         repository: FakeTodoRepository,
         authRepository: FakeAuthRepository = FakeAuthRepository(),
-        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
+        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository(),
+        calendarWidgetUpdater: RecordingCalendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
+        workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
     ): CalendarViewModel {
         val viewModel = CalendarViewModel(
             savedStateHandle = SavedStateHandle(),
@@ -491,9 +549,11 @@ class CalendarViewModelTest {
                     todoRepository = repository,
                     friendRepository = FakeFriendRepository(),
                     assignmentRepository = assignmentRepository,
-                    calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
+                    calendarWidgetUpdater = calendarWidgetUpdater
                 )
-            )
+            ),
+            calendarWidgetUpdater = calendarWidgetUpdater,
+            workspaceSyncNotifier = workspaceSyncNotifier
         )
         uiStateCollectionJobs += CoroutineScope(mainDispatcherRule.testDispatcher).launch {
             viewModel.uiState.collect()
@@ -617,6 +677,9 @@ class CalendarViewModelTest {
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 
+        override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 
@@ -631,7 +694,13 @@ class CalendarViewModelTest {
     }
 
     private class RecordingCalendarWidgetUpdater : CalendarWidgetUpdater {
-        override suspend fun updateCalendarWidgets(): Result<Unit> = Result.success(Unit)
+        var updateCount: Int = 0
+            private set
+
+        override suspend fun updateCalendarWidgets(): Result<Unit> {
+            updateCount += 1
+            return Result.success(Unit)
+        }
     }
 }
 

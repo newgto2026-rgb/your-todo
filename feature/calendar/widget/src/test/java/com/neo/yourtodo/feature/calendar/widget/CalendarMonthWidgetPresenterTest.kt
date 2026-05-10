@@ -235,6 +235,30 @@ class CalendarMonthWidgetPresenterTest {
         assertThat(day.todoChips.map { it.label }).containsExactly("From friend")
     }
 
+    @Test
+    fun present_includesCompletedReceivedAssignedTodosFromHistoryFeed() = runTest {
+        val targetDate = LocalDate.of(2026, 5, 8)
+        val presenter = presenter(
+            summarySource = FakeCalendarMonthSummarySource(),
+            assignedTodos = listOf(
+                assignedTodo(
+                    id = "assigned-done",
+                    title = "Done from friend",
+                    dueDate = targetDate,
+                    status = AssignedTodoStatus.DONE
+                )
+            ),
+            clock = fixedClock("2026-05-07T00:00:00Z")
+        )
+
+        val state = presenter.present(Locale.US)
+        val day = state.weeks.flatten().single { it.date == targetDate }
+
+        assertThat(day.taskCountLabel).isEqualTo("1")
+        assertThat(day.todoChips.map { it.label }).containsExactly("Done from friend")
+        assertThat(day.todoChips.single().isDone).isTrue()
+    }
+
     private fun presenter(
         summarySource: CalendarMonthSummarySource,
         assignedTodos: List<AssignedTodo> = emptyList(),
@@ -363,6 +387,9 @@ class CalendarMonthWidgetPresenterTest {
             error("unused")
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            error("unused")
+
+        override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
             error("unused")
 
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =

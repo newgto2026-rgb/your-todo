@@ -12,6 +12,7 @@ import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoTerminalReason
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundleStatus
@@ -122,15 +123,18 @@ class AssignmentUseCasesTest {
         val complete = useCase.complete("assigned-complete")
         val reopen = useCase.reopen("assigned-reopen")
         val delete = useCase.deleteReceived("assigned-delete")
+        val hide = useCase.hideReceivedFromTaskSurface("assigned-hide")
         val cancel = useCase.cancel("assigned-cancel")
 
         assertThat(complete.getOrNull()).isEqualTo(todo)
         assertThat(reopen.getOrNull()).isEqualTo(todo)
         assertThat(delete.getOrNull()).isEqualTo(todo)
+        assertThat(hide.isSuccess).isTrue()
         assertThat(cancel.getOrNull()).isEqualTo(todo)
         assertThat(repository.completedTodoIds).containsExactly("assigned-complete")
         assertThat(repository.reopenedTodoIds).containsExactly("assigned-reopen")
         assertThat(repository.deletedTodoIds).containsExactly("assigned-delete")
+        assertThat(repository.hiddenFromTaskSurfaceTodoIds).containsExactly("assigned-hide")
         assertThat(repository.canceledTodoIds).containsExactly("assigned-cancel")
     }
 
@@ -245,7 +249,7 @@ class AssignmentUseCasesTest {
     }
 
     @Test
-    fun visibleByFriendFetchesPendingActiveAndHistoryFeeds() = runTest {
+    fun visibleByFriendFetchesPendingActiveAndHistoryFeedsButShowsOnlyCurrentItems() = runTest {
         val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
         val active = testTodo(status = AssignedTodoStatus.IN_PROGRESS).copy(id = "active")
         val done = testTodo(
@@ -263,7 +267,7 @@ class AssignmentUseCasesTest {
 
         val result = useCase.visibleByFriend("friend-1", AssignmentDirection.RECEIVED)
 
-        assertThat(result.getOrThrow()).containsExactly(pending, active, done).inOrder()
+        assertThat(result.getOrThrow()).containsExactly(pending, active).inOrder()
         assertThat(repository.friendFeedRequests).containsExactly(
             FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.PENDING),
             FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.ACTIVE),
@@ -287,7 +291,7 @@ class AssignmentUseCasesTest {
     }
 
     @Test
-    fun observeVisibleByFriendCombinesPendingActiveAndHistoryFeeds() = runTest {
+    fun observeVisibleByFriendCombinesPendingActiveAndHistoryFeedsButShowsOnlyCurrentItems() = runTest {
         val pending = testTodo(status = AssignedTodoStatus.PENDING_ACCEPTANCE).copy(id = "pending")
         val active = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "active")
         val done = testTodo(
@@ -305,7 +309,7 @@ class AssignmentUseCasesTest {
 
         val result = useCase.observeVisibleByFriend("friend-1", AssignmentDirection.RECEIVED).first()
 
-        assertThat(result).containsExactly(pending, active, done).inOrder()
+        assertThat(result).containsExactly(pending, active).inOrder()
         assertThat(repository.observedFriendFeedRequests).containsExactly(
             FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.PENDING),
             FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.ACTIVE),
@@ -314,7 +318,7 @@ class AssignmentUseCasesTest {
     }
 
     @Test
-    fun observeCompletedHistoryByFriendKeepsAllDoneItemsNewestFirst() = runTest {
+    fun observeCompletedHistoryByFriendKeepsTerminalItemsNewestFirst() = runTest {
         val recentDone = testTodo(
             status = AssignedTodoStatus.DONE,
             completedAt = Instant.parse("2026-05-03T00:00:00Z")
@@ -323,17 +327,28 @@ class AssignmentUseCasesTest {
             status = AssignedTodoStatus.DONE,
             completedAt = Instant.parse("2026-04-30T00:00:00Z")
         ).copy(id = "old-done")
-        val rejected = testTodo(status = AssignedTodoStatus.REJECTED).copy(id = "rejected")
+        val rejected = testTodo(
+            status = AssignedTodoStatus.REJECTED,
+            terminalReason = AssignedTodoTerminalReason.REJECTED_BY_RECEIVER,
+            createdAt = Instant.parse("2026-05-02T00:00:00Z")
+        ).copy(id = "rejected")
+        val canceled = testTodo(
+            status = AssignedTodoStatus.CANCELED,
+            terminalReason = AssignedTodoTerminalReason.CANCELED_BY_SENDER,
+            createdAt = Instant.parse("2026-05-01T00:00:00Z")
+        ).copy(id = "canceled")
         val repository = FakeAssignmentRepository(
             friendTodosResults = mapOf(
-                AssignmentFeedStatus.HISTORY to Result.success(listOf(oldDone, rejected, recentDone))
+                AssignmentFeedStatus.HISTORY to Result.success(listOf(oldDone, rejected, canceled, recentDone))
             )
         )
         val useCase = GetAssignedTodosUseCase(repository)
 
         val result = useCase.observeCompletedHistoryByFriend("friend-1", AssignmentDirection.SENT).first()
 
-        assertThat(result.map { it.id }).containsExactly("recent-done", "old-done").inOrder()
+        assertThat(result.map { it.id })
+            .containsExactly("recent-done", "rejected", "canceled", "old-done")
+            .inOrder()
         assertThat(repository.observedFriendFeedRequests)
             .containsExactly(FriendFeedRequest("friend-1", AssignmentDirection.SENT, AssignmentFeedStatus.HISTORY))
     }
@@ -350,7 +365,7 @@ class AssignmentUseCasesTest {
     }
 
     @Test
-    fun friendDetailVisibilityIncludesPendingDecisionItems() {
+    fun friendDetailVisibilityIncludesOnlyCurrentItems() {
         val pending = testTodo(
             status = AssignedTodoStatus.PENDING_ACCEPTANCE,
             createdAt = Instant.parse("2026-05-02T00:00:00Z")
@@ -364,10 +379,20 @@ class AssignmentUseCasesTest {
             createdAt = Instant.parse("2026-05-04T00:00:00Z"),
             completedAt = Instant.now()
         ).copy(id = "done")
+        val rejected = testTodo(
+            status = AssignedTodoStatus.REJECTED,
+            terminalReason = AssignedTodoTerminalReason.REJECTED_BY_RECEIVER,
+            createdAt = Instant.parse("2026-05-05T00:00:00Z")
+        ).copy(id = "rejected")
+        val canceled = testTodo(
+            status = AssignedTodoStatus.CANCELED,
+            terminalReason = AssignedTodoTerminalReason.CANCELED_BY_SENDER,
+            createdAt = Instant.parse("2026-05-06T00:00:00Z")
+        ).copy(id = "canceled")
 
-        val result = visibleFriendDetailAssignedTodos(listOf(accepted, pending, done))
+        val result = visibleFriendDetailAssignedTodos(listOf(accepted, pending, done, rejected, canceled))
 
-        assertThat(result).containsExactly(pending, accepted, done).inOrder()
+        assertThat(result).containsExactly(pending, accepted).inOrder()
     }
 
     @Test
@@ -395,8 +420,7 @@ class AssignmentUseCasesTest {
     }
 
     @Test
-    fun friendDetailVisibilityKeepsOnlyRecentCompletedItemsInDefaultMonitoring() {
-        val now = Instant.parse("2026-05-09T00:00:00Z")
+    fun friendDetailVisibilityExcludesCompletedItemsFromDefaultMonitoring() {
         val active = testTodo(status = AssignedTodoStatus.ACCEPTED).copy(id = "active")
         val recentDone = testTodo(
             status = AssignedTodoStatus.DONE,
@@ -407,29 +431,25 @@ class AssignmentUseCasesTest {
             completedAt = Instant.parse("2026-04-30T00:00:00Z")
         ).copy(id = "old-done")
 
-        val result = visibleFriendDetailAssignedTodos(
-            listOf(active, recentDone, oldDone),
-            now = now
-        )
+        val result = visibleFriendDetailAssignedTodos(listOf(active, recentDone, oldDone))
 
-        assertThat(result.map { it.id }).containsExactly("active", "recent-done").inOrder()
+        assertThat(result.map { it.id }).containsExactly("active")
     }
 
     @Test
-    fun friendDetailVisibilityIncludesCompletedItemsAtSevenDayBoundary() {
-        val now = Instant.parse("2026-05-09T00:00:00Z")
+    fun friendDetailVisibilityExcludesCompletedItemsAtSevenDayBoundary() {
         val boundaryDone = testTodo(
             status = AssignedTodoStatus.DONE,
             completedAt = Instant.parse("2026-05-02T00:00:00Z")
         ).copy(id = "boundary-done")
 
-        val result = visibleFriendDetailAssignedTodos(listOf(boundaryDone), now = now)
+        val result = visibleFriendDetailAssignedTodos(listOf(boundaryDone))
 
-        assertThat(result.map { it.id }).containsExactly("boundary-done")
+        assertThat(result).isEmpty()
     }
 
     @Test
-    fun completedFriendDetailHistoryContainsAllDoneItemsNewestFirst() {
+    fun completedFriendDetailHistoryContainsTerminalItemsNewestFirst() {
         val recentDone = testTodo(
             status = AssignedTodoStatus.DONE,
             completedAt = Instant.parse("2026-05-03T00:00:00Z")
@@ -438,11 +458,51 @@ class AssignmentUseCasesTest {
             status = AssignedTodoStatus.DONE,
             completedAt = Instant.parse("2026-04-30T00:00:00Z")
         ).copy(id = "old-done")
-        val rejected = testTodo(status = AssignedTodoStatus.REJECTED).copy(id = "rejected")
+        val rejected = testTodo(
+            status = AssignedTodoStatus.REJECTED,
+            terminalReason = AssignedTodoTerminalReason.REJECTED_BY_RECEIVER,
+            createdAt = Instant.parse("2026-05-02T00:00:00Z")
+        ).copy(id = "rejected")
+        val canceled = testTodo(
+            status = AssignedTodoStatus.CANCELED,
+            terminalReason = AssignedTodoTerminalReason.CANCELED_BY_SENDER,
+            createdAt = Instant.parse("2026-05-01T00:00:00Z")
+        ).copy(id = "canceled")
+        val rejectedWithoutTerminalReason = testTodo(
+            status = AssignedTodoStatus.REJECTED,
+            createdAt = Instant.parse("2026-05-04T00:00:00Z")
+        ).copy(id = "rejected-without-terminal-reason")
 
-        val result = completedFriendDetailHistoryAssignedTodos(listOf(oldDone, rejected, recentDone))
+        val result = completedFriendDetailHistoryAssignedTodos(
+            listOf(oldDone, rejected, canceled, recentDone, rejectedWithoutTerminalReason)
+        )
 
-        assertThat(result.map { it.id }).containsExactly("recent-done", "old-done").inOrder()
+        assertThat(result.map { it.id })
+            .containsExactly("recent-done", "rejected", "canceled", "old-done")
+            .inOrder()
+    }
+
+    @Test
+    fun completedFriendDetailHistoryRestoresCompletedItemsDeletedByReceiver() {
+        val deletedAfterCompletion = testTodo(
+            status = AssignedTodoStatus.REJECTED,
+            terminalReason = AssignedTodoTerminalReason.DELETED_BY_RECEIVER,
+            completedAt = Instant.parse("2026-05-03T00:00:00Z")
+        ).copy(id = "deleted-after-completion")
+        val rejectedWithoutCompletion = testTodo(
+            status = AssignedTodoStatus.REJECTED,
+            terminalReason = AssignedTodoTerminalReason.DELETED_BY_RECEIVER,
+            completedAt = null
+        ).copy(id = "deleted-before-completion")
+
+        val result = completedFriendDetailHistoryAssignedTodos(
+            listOf(deletedAfterCompletion, rejectedWithoutCompletion)
+        )
+
+        assertThat(result.map { it.id }).containsExactly("deleted-after-completion")
+        assertThat(result.single().status).isEqualTo(AssignedTodoStatus.DONE)
+        assertThat(result.single().progressPercent).isEqualTo(100)
+        assertThat(result.single().terminalReason).isNull()
     }
 
     private data class FriendFeedRequest(
@@ -576,6 +636,7 @@ class AssignmentUseCasesTest {
         val completedTodoIds = mutableListOf<String>()
         val reopenedTodoIds = mutableListOf<String>()
         val deletedTodoIds = mutableListOf<String>()
+        val hiddenFromTaskSurfaceTodoIds = mutableListOf<String>()
         val canceledTodoIds = mutableListOf<String>()
         val upsertedReminders = mutableListOf<Triple<String, String, Boolean>>()
         val deletedReminderTodoIds = mutableListOf<String>()
@@ -660,6 +721,11 @@ class AssignmentUseCasesTest {
             return deleteResult
         }
 
+        override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
+            Result.success(Unit).also {
+                hiddenFromTaskSurfaceTodoIds += assignedTodoId
+            }
+
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> {
             canceledTodoIds += assignedTodoId
             return cancelResult
@@ -700,6 +766,7 @@ class AssignmentUseCasesTest {
 
     private fun testTodo(
         status: AssignedTodoStatus = AssignedTodoStatus.PENDING_ACCEPTANCE,
+        terminalReason: AssignedTodoTerminalReason? = null,
         createdAt: Instant? = null,
         completedAt: Instant? = null
     ) = AssignedTodo(
@@ -712,7 +779,7 @@ class AssignmentUseCasesTest {
         priority = TodoPriority.MEDIUM,
         category = null,
         status = status,
-        terminalReason = null,
+        terminalReason = terminalReason,
         progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
         sender = AssignedTodoUser(id = "user-1", nickname = "neo"),
         receiver = AssignedTodoUser(id = "friend-1", nickname = "monday"),

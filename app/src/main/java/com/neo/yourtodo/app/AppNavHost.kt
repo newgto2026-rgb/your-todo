@@ -21,21 +21,28 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.neo.yourtodo.app.push.PushTokenRegistrationViewModel
 import com.neo.yourtodo.app.navigation.ImmediateNavDisplay
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
 import com.neo.yourtodo.core.ui.navigation.AppRouteActions
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
+import com.neo.yourtodo.feature.calendar.api.CalendarDateRoute
+import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.todo.api.TodoEditorRoute
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun AppNavHost(
     entries: Set<@JvmSuppressWildcards AppFeatureEntry>,
     launchNavigationRequest: AppLaunchNavigationRequest? = null,
-    syncViewModel: AppSyncViewModel = hiltViewModel()
+    syncViewModel: AppSyncViewModel = hiltViewModel(),
+    pushTokenRegistrationViewModel: PushTokenRegistrationViewModel = hiltViewModel()
 ) {
+    pushTokenRegistrationViewModel.keepActive()
     val context = LocalContext.current
     val resources = LocalResources.current
     val backPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
@@ -46,10 +53,13 @@ fun AppNavHost(
     val initialStartRoute = remember(navigationGraph.startRoute, initialLaunchNavigationRequest) {
         initialLaunchNavigationRequest?.topLevelRoute ?: navigationGraph.startRoute
     }
+    val launchContentRouteState = remember {
+        MutableStateFlow(initialLaunchNavigationRequest?.contentRoute)
+    }
     val navigationState = rememberAppNavigationState(
         startRoute = initialStartRoute,
         topLevelRoutes = orderedTopLevelRoutes,
-        initialTopLevelContentRoute = initialLaunchNavigationRequest?.contentRoute
+        initialTopLevelContentRoute = initialLaunchNavigationRequest?.stackedContentRouteOrNull()
     )
     val navigator = remember(navigationState, navigationGraph.transientRouteTypes) {
         AppNavigator(
@@ -60,6 +70,7 @@ fun AppNavHost(
     val routeActions = remember(navigator, syncViewModel) {
         object : AppRouteActions {
             override val workspaceSyncState: StateFlow<WorkspaceSyncUiState> = syncViewModel.uiState
+            override val topLevelLaunchRouteState: StateFlow<NavKey?> = launchContentRouteState
 
             override fun openTodoEdit(todoId: Long) {
                 navigator.navigate(TodoEditorRoute(todoId = todoId, editOnly = true))
@@ -100,11 +111,22 @@ fun AppNavHost(
     )
     LaunchedEffect(launchNavigationRequest?.id) {
         val request = launchNavigationRequest ?: return@LaunchedEffect
+        if (request.syncOnOpen) {
+            syncViewModel.syncWorkspace(notifyUser = false)
+        }
         if (request.id == initialLaunchNavigationRequest?.id) return@LaunchedEffect
         navigator.navigate(request.topLevelRoute)
-        request.contentRoute?.let { route ->
+        launchContentRouteState.value = request.contentRoute
+        request.stackedContentRouteOrNull()?.let { route ->
             navigator.replaceTopLevelContent(route)
         }
+    }
+    LaunchedEffect(initialLaunchNavigationRequest?.id) {
+        val request = initialLaunchNavigationRequest ?: return@LaunchedEffect
+        if (request.syncOnOpen) {
+            syncViewModel.syncWorkspace(notifyUser = false)
+        }
+        launchContentRouteState.value = request.contentRoute
     }
     LaunchedEffect(Unit) {
         syncViewModel.sideEffect.collect { sideEffect ->
@@ -125,9 +147,17 @@ fun AppNavHost(
             )
         }
     ) { innerPadding ->
+        val activeRoute = navigationState.currentStack.last()
+        val activeContentKey = navEntries
+            .lastOrNull { entry ->
+                entry.contentKey == activeRoute ||
+                    entry.contentKey.toString() == activeRoute.toString()
+            }
+            ?.contentKey
+            ?: activeRoute
         ImmediateNavDisplay(
             entries = navEntries,
-            activeContentKey = navigationState.currentStack.last().toString(),
+            activeContentKey = activeContentKey,
             onBack = {
                 if (!navigator.goBack()) {
                     (context as? android.app.Activity)?.finish()
@@ -140,6 +170,13 @@ fun AppNavHost(
         )
     }
 }
+
+private fun AppLaunchNavigationRequest.stackedContentRouteOrNull() =
+    when (contentRoute) {
+        is CalendarDateRoute -> null
+        is FriendsIncomingAssignmentRoute -> null
+        else -> contentRoute
+    }
 
 @Composable
 private fun AppBottomBar(

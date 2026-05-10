@@ -1267,6 +1267,8 @@ class TodoUiTest {
 
         composeTestRule.onNodeWithTag("calendar_day_$targetDate").performClick()
         composeTestRule.onNodeWithText(agendaDateLabel(targetDate)).assertIsDisplayed()
+        tabNode("calendar").assertIsSelected()
+        tabNode("friends").assertIsNotSelected()
     }
 
     @Test

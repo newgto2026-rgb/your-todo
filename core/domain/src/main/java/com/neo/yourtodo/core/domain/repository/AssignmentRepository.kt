@@ -46,6 +46,8 @@ interface AssignmentRepository {
 
     suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo>
 
+    suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit>
+
     suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo>
 
     suspend fun upsertAssignedTodoReminder(

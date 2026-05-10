@@ -191,6 +191,28 @@ class AssignmentRepositoryImplTest {
     }
 
     @Test
+    fun hideReceivedAssignedTodoFromTaskSurfaceKeepsFriendHistoryCache() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val repository = repository(prefs = prefs, assignedTodoDao = assignedTodoDao)
+
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.PENDING).getOrThrow()
+        assertThat(repository.observeReceivedAssignedTodos(AssignmentFeedStatus.PENDING).first().map { it.id })
+            .containsExactly("assigned-1")
+
+        repository.hideReceivedAssignedTodoFromTaskSurface("assigned-1").getOrThrow()
+
+        assertThat(repository.observeReceivedAssignedTodos(AssignmentFeedStatus.PENDING).first()).isEmpty()
+        assertThat(
+            repository.observeFriendAssignedTodos(
+                friendUserId = "friend-1",
+                direction = AssignmentDirection.RECEIVED,
+                status = AssignmentFeedStatus.PENDING
+            ).first().map { it.id }
+        ).containsExactly("assigned-1")
+    }
+
+    @Test
     fun assignedTodoObserversAreScopedToCurrentUser() = runTest {
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
         val assignedTodoDao = FakeAssignedTodoDao()
@@ -290,7 +312,12 @@ class AssignmentRepositoryImplTest {
         ): Flow<List<AssignedTodoWithChecklist>> =
             state.map { cache ->
                 cache.items.values
-                    .filter { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses }
+                    .filter {
+                        it.ownerUserId == ownerUserId &&
+                            it.receivedCached &&
+                            !it.receivedTaskHidden &&
+                            it.status in statuses
+                    }
                     .toWithChecklist(cache)
             }
 
@@ -363,12 +390,24 @@ class AssignmentRepositoryImplTest {
             deleteWhere { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses }
         }
 
+        override suspend fun hideReceivedByStatuses(ownerUserId: String, statuses: List<String>) {
+            hideWhere { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses }
+        }
+
+        override suspend fun hideReceivedFromTaskSurface(ownerUserId: String, id: String) {
+            hideWhere { it.ownerUserId == ownerUserId && it.id == id && it.receivedCached }
+        }
+
         override suspend fun deleteReceivedByStatusesExcept(
             ownerUserId: String,
             statuses: List<String>,
             ids: List<String>
         ) {
             deleteWhere { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses && it.id !in ids }
+        }
+
+        override suspend fun hideReceivedByStatusesExcept(ownerUserId: String, statuses: List<String>, ids: List<String>) {
+            hideWhere { it.ownerUserId == ownerUserId && it.receivedCached && it.status in statuses && it.id !in ids }
         }
 
         override suspend fun deleteSentByStatuses(ownerUserId: String, statuses: List<String>) {
@@ -443,6 +482,14 @@ class AssignmentRepositoryImplTest {
             state.value = state.value.copy(
                 items = state.value.items.filterKeys { it !in removedCacheKeys },
                 checklist = state.value.checklist.filterKeys { it !in removedCacheKeys }
+            )
+        }
+
+        private fun hideWhere(predicate: (AssignedTodoEntity) -> Boolean) {
+            state.value = state.value.copy(
+                items = state.value.items.mapValues { (_, item) ->
+                    if (predicate(item)) item.copy(receivedTaskHidden = true) else item
+                }
             )
         }
 

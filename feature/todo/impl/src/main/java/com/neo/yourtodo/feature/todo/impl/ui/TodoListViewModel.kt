@@ -485,7 +485,7 @@ class TodoListViewModel @Inject constructor(
                     }
             }
             assignedTodoIds.forEach { assignedTodoId ->
-                manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
+                manageAssignedTodoUseCase.hideReceivedFromTaskSurface(assignedTodoId)
                     .onSuccess {
                         deletedAssignedIds += assignedTodoId
                     }
@@ -500,7 +500,7 @@ class TodoListViewModel @Inject constructor(
                 clearedState.copy(
                     deleteConfirmation = null,
                     optimisticCompletedAssignedTodoIds = optimisticCompletedAssignedTodoIds - deletedAssignedIds,
-                    optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - deletedAssignedIds - failedAssignedIds
+                    optimisticDeletedAssignedTodoIds = optimisticDeletedAssignedTodoIds - failedAssignedIds
                 )
             }
 
@@ -508,10 +508,6 @@ class TodoListViewModel @Inject constructor(
                 notifyCalendarWidgetChanged()
                 syncTodosQuietly()
             }
-            if (deletedAssignedIds.isNotEmpty()) {
-                refreshAssignedTodosQuietly()
-            }
-
             if (hasFailure) {
                 sideEffectMutable.emit(
                     TodoListSideEffect.ShowSnackbar(R.string.todo_error_delete_failed)
@@ -532,6 +528,7 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun confirmAssignedDelete(assignedTodoId: String) {
+        val shouldHideFromTaskSurface = uiState.value.completedAssignedTodoIds.contains(assignedTodoId)
         updateLocalState {
             copy(
                 pendingAssignedDeleteId = null,
@@ -541,7 +538,12 @@ class TodoListViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
+            val result = if (shouldHideFromTaskSurface) {
+                manageAssignedTodoUseCase.hideReceivedFromTaskSurface(assignedTodoId)
+            } else {
+                manageAssignedTodoUseCase.deleteReceived(assignedTodoId).map { Unit }
+            }
+            result
                 .onSuccess {
                     updateLocalState {
                         copy(
@@ -549,7 +551,9 @@ class TodoListViewModel @Inject constructor(
                         )
                     }
                     notifyCalendarWidgetChanged()
-                    refreshAssignedTodosQuietly()
+                    if (!shouldHideFromTaskSurface) {
+                        refreshAssignedTodosQuietly()
+                    }
                 }
                 .onFailure {
                     updateLocalState {

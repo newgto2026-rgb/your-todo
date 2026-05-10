@@ -8,4 +8,34 @@
     <string name="tab_friends">친구</string>
     <string name="app_sync_success">동기화가 완료되었습니다.</string>
     <string name="app_sync_failed">일부 동기화가 완료되지 않았습니다.</string>
+    <string name="push_notification_channel_name">친구 업데이트</string>
+    <string name="push_notification_channel_description">친구 요청과 공유 할 일 업데이트</string>
+    <string name="push_default_title">YourTodo 업데이트</string>
+    <string name="push_default_body">최신 내용을 확인해 보세요.</string>
+    <string name="push_friend_request_title">친구 요청이 도착했어요</string>
+    <string name="push_friend_request_body">친구 탭에서 요청을 확인해 보세요.</string>
+    <string name="push_assignment_received_title">공유 할 일이 도착했어요</string>
+    <string name="push_assignment_received_body">친구 탭에서 요청받은 일을 확인해 보세요.</string>
+    <string name="push_assignment_decided_title">공유 할 일 응답이 도착했어요</string>
+    <string name="push_assignment_decided_body">요청한 공유 할 일의 수락/거절 결과가 반영되었습니다.</string>
+    <string name="push_assignment_accepted_single_body">%1$s 수락하였습니다.</string>
+    <string name="push_assignment_rejected_single_body">%1$s 거절하였습니다.</string>
+    <plurals name="push_assignment_accepted_multi_body">
+        <item quantity="other">%1$d건 수락하였습니다.</item>
+    </plurals>
+    <plurals name="push_assignment_rejected_multi_body">
+        <item quantity="other">%1$d건 거절하였습니다.</item>
+    </plurals>
+    <plurals name="push_assignment_mixed_multi_body">
+        <item quantity="other">%1$d건 처리되었습니다.</item>
+    </plurals>
+    <string name="push_assigned_todo_completed_title">공유한 할 일이 완료됐어요</string>
+    <string name="push_assigned_todo_completed_body">친구가 공유 할 일을 완료했습니다.</string>
+    <string name="push_assigned_todo_completed_single_body">%1$s 완료하였습니다.</string>
+    <string name="push_assigned_todo_reopened_title">공유한 할 일이 다시 할 일이 됐어요</string>
+    <string name="push_assigned_todo_reopened_body">친구가 완료 상태를 다시 할 일로 되돌렸습니다.</string>
+    <string name="push_assigned_todo_reopened_single_body">%1$s 완료에서 할 일로 되돌렸습니다.</string>
+    <string name="push_assigned_todo_canceled_title">공유한 할 일이 취소됐어요</string>
+    <string name="push_assigned_todo_canceled_body">공유 할 일이 취소되었습니다.</string>
+    <string name="push_assigned_todo_canceled_single_body">%1$s 취소되었습니다.</string>
 </resources>

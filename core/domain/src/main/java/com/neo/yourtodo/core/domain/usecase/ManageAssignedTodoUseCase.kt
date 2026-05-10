@@ -19,6 +19,9 @@ class ManageAssignedTodoUseCase @Inject constructor(
         repository.deleteReceivedAssignedTodo(assignedTodoId)
             .alsoRefreshWorkspaceOnSuccess()
 
+    suspend fun hideReceivedFromTaskSurface(assignedTodoId: String) =
+        repository.hideReceivedAssignedTodoFromTaskSurface(assignedTodoId)
+
     suspend fun cancel(assignedTodoId: String) =
         repository.cancelAssignedTodo(assignedTodoId)
             .alsoRefreshWorkspaceOnSuccess()

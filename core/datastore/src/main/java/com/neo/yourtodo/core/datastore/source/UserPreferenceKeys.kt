@@ -17,4 +17,6 @@ internal object UserPreferenceKeys {
     val SELECTED_TODO_PRIORITY_FILTER = stringPreferencesKey("selected_todo_priority_filter")
     val TODO_SYNC_CURSOR = stringPreferencesKey("todo_sync_cursor")
     val TODO_SYNC_HALT_REASON = stringPreferencesKey("todo_sync_halt_reason")
+    val PUSH_CURRENT_TOKEN = stringPreferencesKey("push_current_token")
+    val PUSH_REGISTERED_TOKEN = stringPreferencesKey("push_registered_token")
 }

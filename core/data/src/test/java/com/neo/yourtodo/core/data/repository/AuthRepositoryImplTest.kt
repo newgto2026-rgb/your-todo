@@ -406,11 +406,15 @@ class AuthRepositoryImplTest {
         override suspend fun upsertChecklistItems(items: List<AssignedTodoChecklistItemEntity>) = Unit
         override suspend fun deleteChecklistItems(assignedTodoCacheKeys: List<String>) = Unit
         override suspend fun deleteReceivedByStatuses(ownerUserId: String, statuses: List<String>) = Unit
+        override suspend fun hideReceivedByStatuses(ownerUserId: String, statuses: List<String>) = Unit
+        override suspend fun hideReceivedFromTaskSurface(ownerUserId: String, id: String) = Unit
         override suspend fun deleteReceivedByStatusesExcept(
             ownerUserId: String,
             statuses: List<String>,
             ids: List<String>
         ) = Unit
+        override suspend fun hideReceivedByStatusesExcept(ownerUserId: String, statuses: List<String>, ids: List<String>) =
+            Unit
         override suspend fun deleteSentByStatuses(ownerUserId: String, statuses: List<String>) = Unit
         override suspend fun deleteSentByStatusesExcept(ownerUserId: String, statuses: List<String>, ids: List<String>) =
             Unit

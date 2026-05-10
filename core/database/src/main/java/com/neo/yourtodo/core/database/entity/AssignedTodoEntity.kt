@@ -9,6 +9,7 @@ import androidx.room.Index
     primaryKeys = ["ownerUserId", "id"],
     indices = [
         Index(value = ["ownerUserId", "receivedCached", "status"]),
+        Index(value = ["ownerUserId", "receivedTaskHidden", "status"]),
         Index(value = ["ownerUserId", "sentCached", "status"]),
         Index(value = ["ownerUserId", "senderUserId", "status"]),
         Index(value = ["ownerUserId", "receiverUserId", "status"]),
@@ -38,6 +39,7 @@ data class AssignedTodoEntity(
     val createdAtEpochMillis: Long?,
     val completedAtEpochMillis: Long?,
     val receivedCached: Boolean,
+    val receivedTaskHidden: Boolean,
     val sentCached: Boolean,
     val cacheUpdatedAt: Long
 )

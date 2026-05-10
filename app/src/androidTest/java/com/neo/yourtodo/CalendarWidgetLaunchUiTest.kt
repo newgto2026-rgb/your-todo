@@ -2,6 +2,7 @@ package com.neo.yourtodo
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.net.toUri
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
@@ -17,7 +18,9 @@ import androidx.test.espresso.Espresso.pressBackUnconditionally
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.neo.yourtodo.app.MainActivity
+import com.neo.yourtodo.app.navigation.AppNavigationIdentityProbe
 import com.neo.yourtodo.core.database.AppDatabase
+import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
@@ -31,6 +34,7 @@ import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -64,6 +68,7 @@ class CalendarWidgetLaunchUiTest {
             userPreferencesDataSource.setSelectedTodoCategoryFilter(null)
             userPreferencesDataSource.setSelectedTodoPriorityFilter(TodoPriorityFilter.ALL)
         }
+        AppNavigationIdentityProbe.start()
     }
 
     @After
@@ -71,6 +76,7 @@ class CalendarWidgetLaunchUiTest {
         if (::activityScenario.isInitialized) {
             activityScenario.close()
         }
+        AppNavigationIdentityProbe.stop()
     }
 
     @Test
@@ -112,6 +118,7 @@ class CalendarWidgetLaunchUiTest {
             .assertIsDisplayed()
         composeTestRule.onNodeWithTag("calendar_day_$changedDate")
             .assertIsDisplayed()
+        assertCalendarRouteIdentityRetained(selectedDate)
 
         pressBackUnconditionally()
         assertTrue(
@@ -120,11 +127,40 @@ class CalendarWidgetLaunchUiTest {
         )
     }
 
+    @Test
+    fun widgetDateIntent_showsCachedTodoWithoutManualRefresh() {
+        val selectedDate = LocalDate.of(2026, 7, 12)
+        val title = "Widget cached todo"
+        runBlocking {
+            appDatabase.todoDao().insert(
+                TodoEntity(
+                    title = title,
+                    isDone = false,
+                    dueDateEpochDay = selectedDate.toEpochDay(),
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null
+                )
+            )
+        }
+
+        activityScenario = ActivityScenario.launch(widgetDateIntent(selectedDate))
+        composeTestRule.waitForIdle()
+        waitUntilNodeExists("app_tab_calendar")
+
+        composeTestRule.onNodeWithTag("app_tab_calendar", useUnmergedTree = true)
+            .assertIsSelected()
+        composeTestRule.onNodeWithText(title)
+            .assertIsDisplayed()
+        assertCalendarRouteIdentityRetained(selectedDate)
+    }
+
     private fun widgetDateIntent(date: LocalDate): Intent {
         val context = ApplicationProvider.getApplicationContext<Context>()
         return Intent(context, MainActivity::class.java).apply {
             action = CalendarWidgetIntentContract.ACTION_OPEN_CALENDAR_DATE
             putExtra(CalendarWidgetIntentContract.EXTRA_SELECTED_DATE, date.toString())
+            data = "yourtodo://calendar/date/$date".toUri()
         }
     }
 
@@ -150,4 +186,50 @@ class CalendarWidgetLaunchUiTest {
                 .isNotEmpty()
         }
     }
+
+    private fun assertCalendarRouteIdentityRetained(selectedDate: LocalDate) {
+        composeTestRule.waitUntil(5_000L) {
+            calendarRouteEntryHashes().isNotEmpty() && calendarRouteViewModelHashSets().isNotEmpty()
+        }
+
+        val entryHashes = calendarRouteEntryHashes().distinct()
+        assertEquals(
+            "Calendar widget launch must keep one NavEntry instance for CalendarRoute: $entryHashes",
+            1,
+            entryHashes.size
+        )
+
+        val viewModelHashSets = calendarRouteViewModelHashSets().distinct()
+        assertEquals(
+            "Calendar widget launch must keep one ViewModel identity set for CalendarRoute: $viewModelHashSets",
+            1,
+            viewModelHashSets.size
+        )
+        assertTrue(
+            "CalendarRoute did not create an entry-scoped ViewModel",
+            viewModelHashSets.single().isNotEmpty()
+        )
+        assertTrue(
+            "Calendar widget date launch must not create a second Calendar screen entry",
+            calendarDateEntryHashes(selectedDate).isEmpty()
+        )
+    }
+
+    private fun calendarRouteEntryHashes(): List<Int> =
+        AppNavigationIdentityProbe.snapshotEntryEvents()
+            .filter { event -> event.contentKey == "CalendarRoute" }
+            .map { event -> event.identityHash }
+
+    private fun calendarRouteViewModelHashSets(): List<List<Int>> =
+        AppNavigationIdentityProbe.snapshotViewModelEvents()
+            .filter { event -> event.contentKey == "CalendarRoute" }
+            .map { event -> event.viewModelIdentityHashes }
+
+    private fun calendarDateEntryHashes(selectedDate: LocalDate): List<Int> =
+        AppNavigationIdentityProbe.snapshotEntryEvents()
+            .filter { event ->
+                event.contentKey.contains("CalendarDateRoute(") &&
+                    event.contentKey.contains("selectedDate=$selectedDate")
+            }
+            .map { event -> event.identityHash }
 }

@@ -8,15 +8,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.designsystem.theme.YourTodoTheme
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
 import com.neo.yourtodo.feature.auth.api.AuthGateEntry
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -28,21 +28,22 @@ class MainActivity : ComponentActivity() {
     lateinit var authGateEntry: AuthGateEntry
 
     private var navigationRequestId = 0L
-    private var launchNavigationRequest by mutableStateOf<AppLaunchNavigationRequest?>(null)
+    private val launchNavigationRequest = MutableStateFlow<AppLaunchNavigationRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        launchNavigationRequest = parseNavigationRequest(intent)
+        launchNavigationRequest.value = parseNavigationRequest(intent)
         if (!isRunningInstrumentationTest()) {
             ensureNotificationPermission()
         }
 
         setContent {
+            val navigationRequest by launchNavigationRequest.collectAsStateWithLifecycle()
             YourTodoTheme {
                 authGateEntry.Content {
                     AppNavHost(
                         entries = featureEntries,
-                        launchNavigationRequest = launchNavigationRequest
+                        launchNavigationRequest = navigationRequest
                     )
                 }
             }
@@ -52,7 +53,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        launchNavigationRequest = parseNavigationRequest(intent)
+        handleNavigationIntent(intent)
+    }
+
+    fun handleNavigationIntent(intent: Intent?) {
+        val request = parseNavigationRequest(intent)
+        launchNavigationRequest.value = request
     }
 
     private fun ensureNotificationPermission() {

@@ -39,6 +39,7 @@ class NetworkAssignmentModelsTest {
               "items": [
                 {
                   "id": "assigned-1",
+                  "bundleId": "bundle-1",
                   "title": "Buy milk",
                   "dueDate": "2026-05-10",
                   "dueTimeMinutes": 870,
@@ -52,6 +53,7 @@ class NetworkAssignmentModelsTest {
             """.trimIndent()
         )
 
+        assertThat(response.items.single().bundleId).isEqualTo("bundle-1")
         assertThat(response.items.single().dueTimeMinutes).isEqualTo(14 * 60 + 30)
         assertThat(response.items.single().completedAt).isEqualTo("2026-05-09T00:00:00Z")
     }

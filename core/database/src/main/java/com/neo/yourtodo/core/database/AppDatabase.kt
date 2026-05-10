@@ -23,7 +23,7 @@ import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
         AssignedTodoEntity::class,
         AssignedTodoChecklistItemEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
