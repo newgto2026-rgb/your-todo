@@ -6,6 +6,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_7_8
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_8_9
+import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_9_10
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
@@ -189,6 +190,42 @@ class AppDatabaseMigrationTest {
             assertThat(cursor.moveToFirst()).isTrue()
             assertThat(cursor.getString(0)).isEqualTo("mutation-1")
             assertThat(cursor.getString(1)).isEqualTo("user-1")
+        }
+        testDb.close()
+    }
+
+    @Test
+    fun migration9To10_addsReceivedTaskHiddenDefaultAndIndex() {
+        val testDb = createVersion8Database("${TEST_DB}_received_task_hidden")
+        testDb.database.apply {
+            MIGRATION_8_9.migrate(this)
+            execSQL(
+                """
+                INSERT INTO assigned_todo (
+                    ownerUserId, id, cacheKey, bundleId, title, description, dueDateEpochDay,
+                    dueTimeMinutes, priority, category, status, terminalReason, progressPercent,
+                    senderUserId, senderNickname, receiverUserId, receiverNickname, reminderAt,
+                    reminderEnabled, createdAtEpochMillis, completedAtEpochMillis, receivedCached,
+                    sentCached, cacheUpdatedAt
+                ) VALUES (
+                    'user-1', 'assigned-1', 'cache-1', NULL, 'done shared', NULL, NULL,
+                    NULL, 'MEDIUM', NULL, 'DONE', NULL, 100,
+                    'friend-1', 'tee', 'user-1', 'neo', NULL,
+                    NULL, 100, 200, 1,
+                    0, 300
+                )
+                """.trimIndent()
+            )
+        }
+
+        val migrated = testDb.database.apply { MIGRATION_9_10.migrate(this) }
+
+        assertThat(migrated.columnNames("assigned_todo")).contains("receivedTaskHidden")
+        assertThat(migrated.indexNames("assigned_todo"))
+            .contains("index_assigned_todo_ownerUserId_receivedTaskHidden_status")
+        migrated.query("SELECT receivedTaskHidden FROM assigned_todo WHERE id = 'assigned-1'").use { cursor ->
+            assertThat(cursor.moveToFirst()).isTrue()
+            assertThat(cursor.getInt(0)).isEqualTo(0)
         }
         testDb.close()
     }

@@ -3,12 +3,14 @@ package com.neo.yourtodo.feature.calendar.impl.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
@@ -24,7 +26,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -50,11 +55,18 @@ class CalendarViewModel @Inject constructor(
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
-    private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase
+    private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
+    private val calendarWidgetUpdater: CalendarWidgetUpdater,
+    private val workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
 ) : ViewModel() {
     private val monthState = MutableStateFlow(savedStateHandle.initialMonth())
     private val selectedDateState = MutableStateFlow(savedStateHandle.initialSelectedDate())
-    private val receivedAssignedTodos = getAssignedTodosUseCase.observeVisibleReceived()
+    private val receivedAssignedTodos = merge(
+        getAssignedTodosUseCase.observeVisibleReceived(),
+        workspaceSyncNotifier.snapshots
+            .filterNotNull()
+            .map { snapshot -> snapshot.visibleReceivedAssignedTodos }
+    )
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -249,6 +261,7 @@ class CalendarViewModel @Inject constructor(
                 }
             } else {
                 toggleTodoDoneUseCase(todoId)
+                    .onSuccess { calendarWidgetUpdater.updateCalendarWidgets() }
             }
         }
     }

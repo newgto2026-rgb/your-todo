@@ -272,6 +272,12 @@ class AssignmentRepositoryImpl @Inject constructor(
             }
         }
 
+    override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
+        runCatching {
+            val ownerUserId = currentSession()?.userId ?: throw AuthRequiredException()
+            assignedTodoDao.hideReceivedFromTaskSurface(ownerUserId, assignedTodoId)
+        }
+
     override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
         mutateAssignedTodoOptimistically(
             assignedTodoId = assignedTodoId,
@@ -555,6 +561,7 @@ class AssignmentRepositoryImpl @Inject constructor(
             createdAtEpochMillis = createdAt?.toEpochMilli(),
             completedAtEpochMillis = completedAt?.toEpochMilli(),
             receivedCached = existing?.receivedCached == true || direction == AssignmentDirection.RECEIVED,
+            receivedTaskHidden = existing?.receivedTaskHidden == true,
             sentCached = existing?.sentCached == true || direction == AssignmentDirection.SENT,
             cacheUpdatedAt = cacheUpdatedAt
         )

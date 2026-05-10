@@ -191,9 +191,10 @@ class TodoEditorViewModelTest {
 
     @Test
     fun saveEditUpdatesTodoAndSchedulesReminder() = runTest {
+        val futureDate = LocalDate.now().plusDays(1)
         val id = repository.addTodo(
             title = "Old",
-            dueDate = LocalDate.of(2026, 5, 10),
+            dueDate = futureDate,
             categoryId = null,
             dueTimeMinutes = 8 * 60,
             reminderAtEpochMillis = null,
@@ -356,6 +357,9 @@ class TodoEditorViewModelTest {
             Result.failure(UnsupportedOperationException())
 
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
+            Result.failure(UnsupportedOperationException())
+
+        override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
             Result.failure(UnsupportedOperationException())
 
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =

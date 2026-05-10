@@ -53,7 +53,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        launchNavigationRequest.value = parseNavigationRequest(intent)
+        handleNavigationIntent(intent)
+    }
+
+    fun handleNavigationIntent(intent: Intent?) {
+        val request = parseNavigationRequest(intent)
+        launchNavigationRequest.value = request
     }
 
     private fun ensureNotificationPermission() {

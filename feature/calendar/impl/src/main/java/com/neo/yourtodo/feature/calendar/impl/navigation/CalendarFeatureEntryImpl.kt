@@ -1,7 +1,6 @@
 package com.neo.yourtodo.feature.calendar.impl.navigation
 
 import com.neo.yourtodo.core.ui.navigation.AppRouteActions
-import com.neo.yourtodo.feature.calendar.api.CalendarDateRoute
 import com.neo.yourtodo.feature.calendar.api.CalendarFeatureEntry
 import com.neo.yourtodo.feature.calendar.api.CalendarRoute
 import com.neo.yourtodo.feature.calendar.impl.ui.screen.CalendarRouteScreen
@@ -19,22 +18,7 @@ class CalendarFeatureEntryImpl @Inject constructor() : CalendarFeatureEntry {
         entryProviderScope.entry<CalendarRoute> {
             CalendarRouteScreen(
                 initialSelectedDate = null,
-                onNavigateToTodoEdit = { todoId ->
-                    routeActions.openTodoEdit(todoId)
-                },
-                onNavigateToAssignedTodoEdit = { assignedTodoId ->
-                    routeActions.openAssignedTodoEdit(assignedTodoId)
-                },
-                onNavigateToTodoAdd = { dueDate ->
-                    routeActions.openTodoAdd(dueDate.toString())
-                },
-                workspaceSyncState = routeActions.workspaceSyncState,
-                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
-            )
-        }
-        entryProviderScope.entry<CalendarDateRoute> { route ->
-            CalendarRouteScreen(
-                initialSelectedDate = route.selectedDate,
+                launchRouteState = routeActions.topLevelLaunchRouteState,
                 onNavigateToTodoEdit = { todoId ->
                     routeActions.openTodoEdit(todoId)
                 },

@@ -29,6 +29,8 @@ interface AppNavigator {
 interface AppRouteActions {
     val workspaceSyncState: StateFlow<WorkspaceSyncUiState>
         get() = MutableStateFlow(WorkspaceSyncUiState())
+    val topLevelLaunchRouteState: StateFlow<NavKey?>
+        get() = MutableStateFlow(null)
 
     fun openTodoEdit(todoId: Long)
     fun openAssignedTodoEdit(assignedTodoId: String)

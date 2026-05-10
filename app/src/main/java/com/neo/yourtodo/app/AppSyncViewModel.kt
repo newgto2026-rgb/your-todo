@@ -25,12 +25,13 @@ class AppSyncViewModel @Inject constructor(
     private val mutableSideEffect = MutableSharedFlow<AppSyncSideEffect>()
     val sideEffect = mutableSideEffect.asSharedFlow()
 
-    fun syncWorkspace() {
+    fun syncWorkspace(notifyUser: Boolean = true) {
         if (uiState.value.isSyncing) return
         viewModelScope.launch {
             mutableUiState.update { it.copy(isSyncing = true) }
             val result = refreshWorkspaceUseCase()
             mutableUiState.update { it.copy(isSyncing = false) }
+            if (!notifyUser) return@launch
             val isFullySynced = result.getOrNull()?.isFullySynced == true
             mutableSideEffect.emit(
                 AppSyncSideEffect.ShowSnackbar(

@@ -237,6 +237,9 @@ class RefreshWorkspaceUseCaseTest {
         override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 
+        override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
+            Result.failure(UnsupportedOperationException())
+
         override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
             Result.failure(UnsupportedOperationException())
 

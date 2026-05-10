@@ -198,4 +198,13 @@ object AppDatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_assigned_todo_checklist_item_assignedTodoCacheKey` ON `assigned_todo_checklist_item` (`assignedTodoCacheKey`)")
         }
     }
+
+    val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `assigned_todo` ADD COLUMN `receivedTaskHidden` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_assigned_todo_ownerUserId_receivedTaskHidden_status` ON `assigned_todo` (`ownerUserId`, `receivedTaskHidden`, `status`)"
+            )
+        }
+    }
 }

@@ -16,7 +16,10 @@ interface AssignedTodoDao {
     @Query(
         """
         SELECT * FROM assigned_todo
-        WHERE ownerUserId = :ownerUserId AND receivedCached = 1 AND status IN (:statuses)
+        WHERE ownerUserId = :ownerUserId
+            AND receivedCached = 1
+            AND receivedTaskHidden = 0
+            AND status IN (:statuses)
         ORDER BY createdAtEpochMillis DESC, id ASC
         """
     )
@@ -86,13 +89,25 @@ interface AssignedTodoDao {
         items: List<AssignedTodoEntity>,
         checklistItems: List<AssignedTodoChecklistItemEntity>
     ) {
+        val shouldPreserveFriendHistoryRows = statuses.any { it.isReceivedHistoryStatus() }
         if (retainedIds.isEmpty()) {
-            deleteReceivedByStatuses(ownerUserId, statuses)
+            if (shouldPreserveFriendHistoryRows) {
+                hideReceivedByStatuses(ownerUserId, statuses)
+            } else {
+                deleteReceivedByStatuses(ownerUserId, statuses)
+            }
         } else {
-            deleteReceivedByStatusesExcept(ownerUserId, statuses, retainedIds)
+            if (shouldPreserveFriendHistoryRows) {
+                hideReceivedByStatusesExcept(ownerUserId, statuses, retainedIds)
+            } else {
+                deleteReceivedByStatusesExcept(ownerUserId, statuses, retainedIds)
+            }
         }
         upsertAssignedTodoGraph(items, checklistItems)
     }
+
+    private fun String.isReceivedHistoryStatus(): Boolean =
+        this == "DONE" || this == "REJECTED" || this == "CANCELED"
 
     @Transaction
     suspend fun replaceSentCache(
@@ -172,11 +187,38 @@ interface AssignedTodoDao {
 
     @Query(
         """
+        UPDATE assigned_todo
+        SET receivedTaskHidden = 1
+        WHERE ownerUserId = :ownerUserId AND receivedCached = 1 AND status IN (:statuses)
+        """
+    )
+    suspend fun hideReceivedByStatuses(ownerUserId: String, statuses: List<String>)
+
+    @Query(
+        """
+        UPDATE assigned_todo
+        SET receivedTaskHidden = 1
+        WHERE ownerUserId = :ownerUserId AND id = :id AND receivedCached = 1
+        """
+    )
+    suspend fun hideReceivedFromTaskSurface(ownerUserId: String, id: String)
+
+    @Query(
+        """
         DELETE FROM assigned_todo
         WHERE ownerUserId = :ownerUserId AND receivedCached = 1 AND status IN (:statuses) AND id NOT IN (:ids)
         """
     )
     suspend fun deleteReceivedByStatusesExcept(ownerUserId: String, statuses: List<String>, ids: List<String>)
+
+    @Query(
+        """
+        UPDATE assigned_todo
+        SET receivedTaskHidden = 1
+        WHERE ownerUserId = :ownerUserId AND receivedCached = 1 AND status IN (:statuses) AND id NOT IN (:ids)
+        """
+    )
+    suspend fun hideReceivedByStatusesExcept(ownerUserId: String, statuses: List<String>, ids: List<String>)
 
     @Query("DELETE FROM assigned_todo WHERE ownerUserId = :ownerUserId AND sentCached = 1 AND status IN (:statuses)")
     suspend fun deleteSentByStatuses(ownerUserId: String, statuses: List<String>)

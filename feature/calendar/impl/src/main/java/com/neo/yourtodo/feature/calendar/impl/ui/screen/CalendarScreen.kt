@@ -26,9 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation3.runtime.NavKey
 import com.neo.yourtodo.core.ui.YourTodoAppHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
+import com.neo.yourtodo.feature.calendar.api.CalendarDateRoute
 import com.neo.yourtodo.feature.calendar.impl.R
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarAction
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarSideEffect
@@ -50,11 +52,14 @@ fun CalendarRouteScreen(
     onNavigateToAssignedTodoEdit: (String) -> Unit,
     onNavigateToTodoAdd: (LocalDate) -> Unit,
     workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
+    launchRouteState: StateFlow<NavKey?> = MutableStateFlow(null),
     onWorkspaceSyncClick: () -> Unit = {},
     viewModel: CalendarViewModel = hiltViewModel()
 ) {
-    val routeDate = remember(initialSelectedDate) {
-        initialSelectedDate?.let { rawDate ->
+    val launchRoute by launchRouteState.collectAsStateWithLifecycle()
+    val launchSelectedDate = (launchRoute as? CalendarDateRoute)?.selectedDate
+    val routeDate = remember(initialSelectedDate, launchSelectedDate) {
+        (launchSelectedDate ?: initialSelectedDate)?.let { rawDate ->
             runCatching { LocalDate.parse(rawDate) }.getOrNull()
         }
     }

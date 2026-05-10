@@ -16,12 +16,29 @@
     <string name="push_friend_request_body">Open Friends to accept or decline the request.</string>
     <string name="push_assignment_received_title">Shared todos received</string>
     <string name="push_assignment_received_body">Open Friends to review the request.</string>
-    <string name="push_assignment_decided_title">Shared todo response updated</string>
-    <string name="push_assignment_decided_body">Open Friends to check the response.</string>
+    <string name="push_assignment_decided_title">Shared todo response received</string>
+    <string name="push_assignment_decided_body">The accept or decline result was applied.</string>
+    <string name="push_assignment_accepted_single_body">%1$s was accepted.</string>
+    <string name="push_assignment_rejected_single_body">%1$s was declined.</string>
+    <plurals name="push_assignment_accepted_multi_body">
+        <item quantity="one">%1$d request was accepted.</item>
+        <item quantity="other">%1$d requests were accepted.</item>
+    </plurals>
+    <plurals name="push_assignment_rejected_multi_body">
+        <item quantity="one">%1$d request was declined.</item>
+        <item quantity="other">%1$d requests were declined.</item>
+    </plurals>
+    <plurals name="push_assignment_mixed_multi_body">
+        <item quantity="one">%1$d request was processed.</item>
+        <item quantity="other">%1$d requests were processed.</item>
+    </plurals>
     <string name="push_assigned_todo_completed_title">Shared todo completed</string>
-    <string name="push_assigned_todo_completed_body">Open Friends to check the completed todo.</string>
-    <string name="push_assigned_todo_reopened_title">Shared todo reopened</string>
-    <string name="push_assigned_todo_reopened_body">Open Friends to check the reopened todo.</string>
+    <string name="push_assigned_todo_completed_body">Your friend completed the shared todo.</string>
+    <string name="push_assigned_todo_completed_single_body">%1$s was completed.</string>
+    <string name="push_assigned_todo_reopened_title">Shared todo moved back to todo</string>
+    <string name="push_assigned_todo_reopened_body">Your friend moved the completed todo back to todo.</string>
+    <string name="push_assigned_todo_reopened_single_body">%1$s was moved back to todo.</string>
     <string name="push_assigned_todo_canceled_title">Shared todo canceled</string>
-    <string name="push_assigned_todo_canceled_body">Open Friends to check the canceled todo.</string>
+    <string name="push_assigned_todo_canceled_body">The shared todo was canceled.</string>
+    <string name="push_assigned_todo_canceled_single_body">%1$s was canceled.</string>
 </resources>

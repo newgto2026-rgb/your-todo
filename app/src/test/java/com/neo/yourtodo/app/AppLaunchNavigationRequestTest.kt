@@ -115,7 +115,7 @@ class AppLaunchNavigationRequestTest {
     }
 
     @Test
-    fun parseYourTodoDeepLink_returnsFriendsRouteAndRequestsSync() {
+    fun parseUnknownYourTodoDeepLink_returnsNull() {
         val request = parseAppLaunchNavigationRequest(
             action = "android.intent.action.VIEW",
             selectedDate = null,
@@ -126,8 +126,7 @@ class AppLaunchNavigationRequestTest {
             requestId = 11L
         )
 
-        assertThat(request?.topLevelRoute).isEqualTo(FriendsRoute)
-        assertThat(request?.syncOnOpen).isTrue()
+        assertThat(request).isNull()
     }
 
     @Test
@@ -183,5 +182,30 @@ class AppLaunchNavigationRequestTest {
         )
 
         assertThat(first?.contentRoute).isNotEqualTo(second?.contentRoute)
+    }
+
+    @Test
+    fun parseStatusOnlyAssignmentPush_returnsNull() {
+        listOf(
+            "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
+            "ASSIGNMENT_BUNDLE_FULLY_DECIDED",
+            "ASSIGNED_TODO_COMPLETED",
+            "ASSIGNED_TODO_REOPENED",
+            "ASSIGNED_TODO_CANCELED"
+        ).forEachIndexed { index, pushType ->
+            val request = parseAppLaunchNavigationRequest(
+                action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+                selectedDate = null,
+                pushType = pushType,
+                deepLink = "yourtodo://assigned-todos/sent/assigned-id-$index",
+                bundleId = null,
+                actorUserId = "friend-user-id",
+                actorNickname = "monday",
+                dataScheme = null,
+                requestId = 20L + index
+            )
+
+            assertThat(request).isNull()
+        }
     }
 }

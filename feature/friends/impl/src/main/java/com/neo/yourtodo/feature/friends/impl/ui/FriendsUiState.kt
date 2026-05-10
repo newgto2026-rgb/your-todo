@@ -53,19 +53,19 @@ data class FriendsUiState(
                 }
             return FriendAssignmentDetailUiModel(
                 sentItems = friendSentAssignedTodos.map {
-                    it.toAssignmentTodoUiModel()
+                    it.toAssignmentTodoUiModel(AssignmentTodoPerspective.SENT)
                 },
                 pendingReceivedItems = pending,
                 activeReceivedItems = friendReceivedAssignedTodos
                     .filterNot { it.status == AssignedTodoStatus.PENDING_ACCEPTANCE }
                     .map {
-                        it.toAssignmentTodoUiModel()
+                        it.toAssignmentTodoUiModel(AssignmentTodoPerspective.RECEIVED)
                     },
                 sentHistoryItems = friendSentCompletedHistoryTodos.map {
-                    it.toAssignmentTodoUiModel()
+                    it.toAssignmentTodoUiModel(AssignmentTodoPerspective.SENT)
                 },
                 receivedHistoryItems = friendReceivedCompletedHistoryTodos.map {
-                    it.toAssignmentTodoUiModel()
+                    it.toAssignmentTodoUiModel(AssignmentTodoPerspective.RECEIVED)
                 },
                 showHistory = showFriendAssignmentHistory,
                 pendingSelectedCount = pending.count { it.selected },
@@ -118,25 +118,45 @@ enum class AssignmentTodoStatusStyle {
 }
 
 internal fun AssignedTodo.toAssignmentTodoUiModel(
+    perspective: AssignmentTodoPerspective = AssignmentTodoPerspective.SENT,
     selected: Boolean = false
 ): AssignmentTodoUiModel = AssignmentTodoUiModel(
     id = id,
     title = title,
     progressPercent = progressPercent.coerceIn(0, 100),
     showProgress = checklist.isNotEmpty(),
-    statusLabelRes = status.statusLabelRes(),
+    statusLabelRes = status.statusLabelRes(perspective),
     statusStyle = status.statusStyle(),
     selected = selected
 )
 
+internal enum class AssignmentTodoPerspective {
+    SENT,
+    RECEIVED
+}
+
 @StringRes
-internal fun AssignedTodoStatus.statusLabelRes(): Int = when (this) {
+internal fun AssignedTodoStatus.statusLabelRes(
+    perspective: AssignmentTodoPerspective = AssignmentTodoPerspective.SENT
+): Int = when (this) {
     AssignedTodoStatus.PENDING_ACCEPTANCE -> R.string.friends_assignment_status_pending
-    AssignedTodoStatus.ACCEPTED -> R.string.friends_assignment_status_accepted
+    AssignedTodoStatus.ACCEPTED -> when (perspective) {
+        AssignmentTodoPerspective.SENT -> R.string.friends_assignment_status_accepted
+        AssignmentTodoPerspective.RECEIVED -> R.string.friends_assignment_status_accepted_by_me
+    }
     AssignedTodoStatus.IN_PROGRESS -> R.string.friends_assignment_status_in_progress
-    AssignedTodoStatus.DONE -> R.string.friends_assignment_status_done
-    AssignedTodoStatus.REJECTED -> R.string.friends_assignment_status_rejected
-    AssignedTodoStatus.CANCELED -> R.string.friends_assignment_status_canceled
+    AssignedTodoStatus.DONE -> when (perspective) {
+        AssignmentTodoPerspective.SENT -> R.string.friends_assignment_status_done
+        AssignmentTodoPerspective.RECEIVED -> R.string.friends_assignment_status_done_by_me
+    }
+    AssignedTodoStatus.REJECTED -> when (perspective) {
+        AssignmentTodoPerspective.SENT -> R.string.friends_assignment_status_rejected
+        AssignmentTodoPerspective.RECEIVED -> R.string.friends_assignment_status_rejected_by_me
+    }
+    AssignedTodoStatus.CANCELED -> when (perspective) {
+        AssignmentTodoPerspective.SENT -> R.string.friends_assignment_status_canceled_by_me
+        AssignmentTodoPerspective.RECEIVED -> R.string.friends_assignment_status_canceled
+    }
 }
 
 internal fun AssignedTodoStatus.statusStyle(): AssignmentTodoStatusStyle = when (this) {

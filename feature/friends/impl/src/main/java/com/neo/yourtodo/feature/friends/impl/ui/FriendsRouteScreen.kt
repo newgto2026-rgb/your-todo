@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation3.runtime.NavKey
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.TodoPriority
@@ -90,6 +91,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.ui.YourTodoAppHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
+import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
 import java.time.LocalDate
@@ -102,6 +104,7 @@ import kotlinx.coroutines.flow.StateFlow
 @Composable
 fun FriendsRouteScreen(
     workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
+    launchRouteState: StateFlow<NavKey?> = MutableStateFlow(null),
     onWorkspaceSyncClick: () -> Unit = {},
     initialFriendsRouteKey: Any = Unit,
     initialIncomingAssignmentFriendUserId: String? = null,
@@ -111,6 +114,7 @@ fun FriendsRouteScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val syncUiState by workspaceSyncState.collectAsStateWithLifecycle()
+    val launchRoute by launchRouteState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -138,6 +142,16 @@ fun FriendsRouteScreen(
                 )
             )
         }
+    }
+    LaunchedEffect(launchRoute) {
+        val route = launchRoute as? FriendsIncomingAssignmentRoute ?: return@LaunchedEffect
+        viewModel.onAction(
+            FriendsAction.OnOpenIncomingAssignment(
+                friendUserId = route.friendUserId,
+                friendNickname = route.friendNickname,
+                bundleId = route.bundleId
+            )
+        )
     }
 
     FriendsScreen(

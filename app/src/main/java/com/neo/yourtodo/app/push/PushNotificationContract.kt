@@ -9,6 +9,10 @@ object PushNotificationContract {
     const val EXTRA_ASSIGNED_TODO_ID = "assignedTodoId"
     const val EXTRA_ACTOR_USER_ID = "actorUserId"
     const val EXTRA_ACTOR_NICKNAME = "actorNickname"
+    const val EXTRA_ITEM_TITLE = "itemTitle"
+    const val EXTRA_ITEM_COUNT = "itemCount"
+    const val EXTRA_COUNT = "count"
+    const val EXTRA_ACTION_RESULT = "actionResult"
 
     const val CHANNEL_ID = "friend_updates"
 }

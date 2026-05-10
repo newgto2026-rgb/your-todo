@@ -485,7 +485,13 @@ class TodoListViewModel @Inject constructor(
                     }
             }
             assignedTodoIds.forEach { assignedTodoId ->
-                deletedAssignedIds += assignedTodoId
+                manageAssignedTodoUseCase.hideReceivedFromTaskSurface(assignedTodoId)
+                    .onSuccess {
+                        deletedAssignedIds += assignedTodoId
+                    }
+                    .onFailure {
+                        hasFailure = true
+                    }
             }
             updateLocalState {
                 val shouldDismissEditor = editingItem?.id?.let { it in deletedIds } == true
@@ -522,6 +528,7 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun confirmAssignedDelete(assignedTodoId: String) {
+        val shouldHideFromTaskSurface = uiState.value.completedAssignedTodoIds.contains(assignedTodoId)
         updateLocalState {
             copy(
                 pendingAssignedDeleteId = null,
@@ -531,7 +538,12 @@ class TodoListViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            manageAssignedTodoUseCase.deleteReceived(assignedTodoId)
+            val result = if (shouldHideFromTaskSurface) {
+                manageAssignedTodoUseCase.hideReceivedFromTaskSurface(assignedTodoId)
+            } else {
+                manageAssignedTodoUseCase.deleteReceived(assignedTodoId).map { Unit }
+            }
+            result
                 .onSuccess {
                     updateLocalState {
                         copy(
@@ -539,7 +551,9 @@ class TodoListViewModel @Inject constructor(
                         )
                     }
                     notifyCalendarWidgetChanged()
-                    refreshAssignedTodosQuietly()
+                    if (!shouldHideFromTaskSurface) {
+                        refreshAssignedTodosQuietly()
+                    }
                 }
                 .onFailure {
                     updateLocalState {

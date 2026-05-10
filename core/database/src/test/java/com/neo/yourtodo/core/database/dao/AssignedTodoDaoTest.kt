@@ -81,6 +81,27 @@ class AssignedTodoDaoTest {
     }
 
     @Test
+    fun hideReceivedFromTaskSurfaceExcludesOnlyTaskSurfaceObserver() = runTest {
+        dao.upsertAssignedTodoGraph(
+            items = listOf(
+                assignedTodo(ownerUserId = "owner-a", id = "assigned-1", status = "DONE")
+            ),
+            checklistItems = emptyList()
+        )
+
+        dao.hideReceivedFromTaskSurface(ownerUserId = "owner-a", id = "assigned-1")
+
+        assertThat(dao.observeReceivedAssignedTodos("owner-a", listOf("DONE")).first()).isEmpty()
+        assertThat(
+            dao.observeReceivedAssignedTodosByFriend(
+                ownerUserId = "owner-a",
+                friendUserId = "sender",
+                statuses = listOf("DONE")
+            ).first().map { it.assignedTodo.id }
+        ).containsExactly("assigned-1")
+    }
+
+    @Test
     fun replaceReceivedCache_removesStaleRowsOnlyWithinOwnerAndStatusScope() = runTest {
         dao.upsertAssignedTodoGraph(
             items = listOf(
@@ -111,6 +132,35 @@ class AssignedTodoDaoTest {
         assertThat(ownerAActive.single().checklist.map { it.id }).containsExactly("fresh-check")
         assertThat(ownerAPending.map { it.assignedTodo.id }).containsExactly("pending")
         assertThat(ownerBActive.map { it.assignedTodo.title }).containsExactly("other owner")
+    }
+
+    @Test
+    fun replaceReceivedCache_hidesStaleTaskSurfaceRowsButKeepsFriendHistoryRows() = runTest {
+        dao.upsertAssignedTodoGraph(
+            items = listOf(
+                assignedTodo(ownerUserId = "owner-a", id = "visible-done", status = "DONE"),
+                assignedTodo(ownerUserId = "owner-a", id = "friend-history-done", status = "DONE")
+            ),
+            checklistItems = emptyList()
+        )
+
+        dao.replaceReceivedCache(
+            ownerUserId = "owner-a",
+            statuses = listOf("DONE"),
+            retainedIds = listOf("visible-done"),
+            items = listOf(assignedTodo(ownerUserId = "owner-a", id = "visible-done", status = "DONE")),
+            checklistItems = emptyList()
+        )
+
+        assertThat(dao.observeReceivedAssignedTodos("owner-a", listOf("DONE")).first().map { it.assignedTodo.id })
+            .containsExactly("visible-done")
+        assertThat(
+            dao.observeReceivedAssignedTodosByFriend(
+                ownerUserId = "owner-a",
+                friendUserId = "sender",
+                statuses = listOf("DONE")
+            ).first().map { it.assignedTodo.id }
+        ).containsExactly("visible-done", "friend-history-done")
     }
 
     @Test
@@ -166,6 +216,7 @@ class AssignedTodoDaoTest {
         createdAtEpochMillis = createdAtEpochMillis,
         completedAtEpochMillis = null,
         receivedCached = receivedCached,
+        receivedTaskHidden = false,
         sentCached = sentCached,
         cacheUpdatedAt = 200L
     )

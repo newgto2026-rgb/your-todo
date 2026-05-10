@@ -111,6 +111,9 @@ private fun parsePushNavigationRequest(
     }
 
     val parsedDeepLink = deepLink?.takeIf { it.isNotBlank() } ?: dataString
+    if (!shouldOpenPushInApp(pushType = pushType, deepLink = parsedDeepLink)) {
+        return null
+    }
     val incomingAssignmentRoute = incomingAssignmentRoute(
         pushType = pushType,
         deepLink = parsedDeepLink,
@@ -127,6 +130,9 @@ private fun parsePushNavigationRequest(
         syncOnOpen = true
     )
 }
+
+private fun shouldOpenPushInApp(pushType: String?, deepLink: String?): Boolean =
+    pushType == PushTypeAssignmentBundleReceived || deepLink.assignmentBundleIdOrNull() != null
 
 private fun incomingAssignmentRoute(
     pushType: String?,

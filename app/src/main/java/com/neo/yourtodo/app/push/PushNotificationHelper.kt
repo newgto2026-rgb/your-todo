@@ -47,7 +47,29 @@ object PushNotificationHelper {
         val requestCode = data[PushNotificationContract.EXTRA_NOTIFICATION_EVENT_ID]
             ?.hashCode()
             ?: System.currentTimeMillis().toInt()
-        val contentIntent = Intent(context, MainActivity::class.java).apply {
+        val notification = NotificationCompat.Builder(context, PushNotificationContract.CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .apply {
+                if (shouldOpenPushNotificationInApp(data)) {
+                    setContentIntent(contentIntent(context, requestCode, data))
+                }
+            }
+            .build()
+
+        NotificationManagerCompat.from(context).notify(requestCode, notification)
+    }
+
+    private fun contentIntent(
+        context: Context,
+        requestCode: Int,
+        data: Map<String, String>
+    ): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
             action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             data[PushNotificationContract.EXTRA_DEEP_LINK]
@@ -55,22 +77,11 @@ object PushNotificationHelper {
                 ?.let { deepLink -> setData(deepLink.toUri()) }
             data.forEach { (key, value) -> putExtra(key, value) }
         }
-        val pendingIntent = PendingIntent.getActivity(
+        return PendingIntent.getActivity(
             context,
             requestCode,
-            contentIntent,
+            intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(context, PushNotificationContract.CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
-
-        NotificationManagerCompat.from(context).notify(requestCode, notification)
     }
 }

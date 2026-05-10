@@ -32,8 +32,12 @@ class YourTodoFirebaseMessagingService : FirebaseMessagingService() {
         serviceScope.launch {
             refreshWorkspace()
         }
-        val title = message.notification?.title ?: getString(PushNotificationMessage.defaultTitle(message.data))
-        val body = message.notification?.body ?: getString(PushNotificationMessage.defaultBody(message.data))
+        val fallbackTitle = PushNotificationMessage.title(message.data)
+        val fallbackBody = PushNotificationMessage.body(message.data)
+        val title = message.notification?.title
+            ?: resolvePushText(fallbackTitle)
+        val body = message.notification?.body
+            ?: resolvePushText(fallbackBody)
         PushNotificationHelper.show(
             context = this,
             title = title,
@@ -47,4 +51,8 @@ class YourTodoFirebaseMessagingService : FirebaseMessagingService() {
         super.onDestroy()
     }
 
+    private fun resolvePushText(text: PushNotificationText): String =
+        text.pluralsResId?.let { pluralsResId ->
+            resources.getQuantityString(pluralsResId, text.quantity, *text.args.toTypedArray())
+        } ?: getString(text.resId, *text.args.toTypedArray())
 }
