@@ -12,6 +12,19 @@ data class PushNotificationText(
 )
 
 object PushNotificationMessage {
+    private val locallyFormattedTypes = setOf(
+        "FRIEND_REQUEST_RECEIVED",
+        "ASSIGNMENT_BUNDLE_RECEIVED",
+        "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
+        "ASSIGNMENT_BUNDLE_FULLY_DECIDED",
+        "ASSIGNED_TODO_COMPLETED",
+        "ASSIGNED_TODO_REOPENED",
+        "ASSIGNED_TODO_CANCELED"
+    )
+
+    fun supportsLocalFormatting(data: Map<String, String>): Boolean =
+        data[PushNotificationContract.EXTRA_TYPE] in locallyFormattedTypes
+
     fun title(data: Map<String, String>): PushNotificationText =
         PushNotificationText(defaultTitle(data))
 

@@ -46,7 +46,7 @@ class YourTodoFirebaseMessagingService : FirebaseMessagingService() {
 
     private suspend fun showNotification(message: RemoteMessage) {
         val data = message.data.withLocalItemTitle()
-        val shouldUseLocalMessage = data[PushNotificationContract.EXTRA_TYPE].isNullOrBlank().not()
+        val shouldUseLocalMessage = PushNotificationMessage.supportsLocalFormatting(data)
         val fallbackTitle = PushNotificationMessage.title(data)
         val fallbackBody = PushNotificationMessage.body(data)
         val title = if (shouldUseLocalMessage) {

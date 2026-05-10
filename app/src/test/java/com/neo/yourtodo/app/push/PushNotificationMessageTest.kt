@@ -141,4 +141,18 @@ class PushNotificationMessageTest {
         assertThat(PushNotificationMessage.defaultBody(data))
             .isEqualTo(R.string.push_default_body)
     }
+
+    @Test
+    fun supportsLocalFormatting_returnsFalseForUnmappedPushType() {
+        val data = mapOf(PushNotificationContract.EXTRA_TYPE to "TODO_REMINDER")
+
+        assertThat(PushNotificationMessage.supportsLocalFormatting(data)).isFalse()
+    }
+
+    @Test
+    fun supportsLocalFormatting_returnsTrueForMappedPushType() {
+        val data = mapOf(PushNotificationContract.EXTRA_TYPE to "ASSIGNED_TODO_COMPLETED")
+
+        assertThat(PushNotificationMessage.supportsLocalFormatting(data)).isTrue()
+    }
 }
