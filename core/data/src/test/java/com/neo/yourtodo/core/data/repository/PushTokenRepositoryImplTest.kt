@@ -54,6 +54,23 @@ class PushTokenRepositoryImplTest {
     }
 
     @Test
+    fun registerCurrentToken_reupsertsAlreadyRegisteredToken() = runTest {
+        val prefs = FakePreferencesDataSource().apply {
+            saveAuthSession(authSession())
+            setPushCurrentToken("token-a")
+            setPushRegisteredToken("token-a")
+        }
+        val network = FakePushNetworkDataSource()
+        val repository = repository(prefs = prefs, network = network)
+
+        val result = repository.registerCurrentToken()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(network.upsertedTokens).containsExactly("token-a")
+        assertThat(prefs.registeredToken.value).isEqualTo("token-a")
+    }
+
+    @Test
     fun registerCurrentToken_refreshesSessionOnUnauthorized() = runTest {
         val prefs = FakePreferencesDataSource().apply {
             saveAuthSession(authSession(accessToken = "expired-access", refreshToken = "refresh-a"))

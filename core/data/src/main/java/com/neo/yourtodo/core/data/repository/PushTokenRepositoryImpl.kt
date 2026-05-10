@@ -30,9 +30,6 @@ class PushTokenRepositoryImpl @Inject constructor(
                 ?.takeIf { it.isNotBlank() }
                 ?: return@runCatching
             val session = currentSession() ?: return@runCatching
-            val registered = userPreferencesDataSource.pushRegisteredToken.first()
-
-            if (registered == token) return@runCatching
 
             authenticatedRequest(session) { accessToken ->
                 pushNetworkDataSource.upsertPushToken(
