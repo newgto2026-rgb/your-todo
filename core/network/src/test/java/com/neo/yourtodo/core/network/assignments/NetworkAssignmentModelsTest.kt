@@ -57,4 +57,37 @@ class NetworkAssignmentModelsTest {
         assertThat(response.items.single().dueTimeMinutes).isEqualTo(14 * 60 + 30)
         assertThat(response.items.single().completedAt).isEqualTo("2026-05-09T00:00:00Z")
     }
+
+    @Test
+    fun `assigned todo mutation response parses partial item and bundle`() {
+        val response = json.decodeFromString<NetworkAssignedTodoMutationResponse>(
+            """
+            {
+              "item": {
+                "id": "assigned-1",
+                "status": "DONE",
+                "progressPercent": 100,
+                "completedAt": "2026-05-09T00:00:00Z"
+              },
+              "bundle": {
+                "id": "bundle-1",
+                "status": "ACCEPTED",
+                "summary": {
+                  "totalCount": 1,
+                  "pendingCount": 0,
+                  "acceptedCount": 0,
+                  "doneCount": 1,
+                  "rejectedCount": 0,
+                  "canceledCount": 0
+                }
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertThat(response.item.id).isEqualTo("assigned-1")
+        assertThat(response.item.status).isEqualTo("DONE")
+        assertThat(response.item.title).isNull()
+        assertThat(response.bundle?.summary?.doneCount).isEqualTo(1)
+    }
 }

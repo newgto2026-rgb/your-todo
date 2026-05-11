@@ -1,6 +1,7 @@
 package com.neo.yourtodo.core.domain.usecase
 
 import app.cash.turbine.test
+import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.google.common.truth.Truth.assertThat
@@ -112,5 +113,43 @@ class TodoUseCasesTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `sync use case updates calendar widgets after successful sync`() = runTest {
+        val repository = FakeTodoRepository()
+        val calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
+        val useCase = SyncTodosUseCase(repository, calendarWidgetUpdater)
+
+        val result = useCase()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(repository.syncCount).isEqualTo(1)
+        assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `sync use case keeps sync result successful when calendar widget update fails`() = runTest {
+        val repository = FakeTodoRepository()
+        val useCase = SyncTodosUseCase(repository, ThrowingCalendarWidgetUpdater)
+
+        val result = useCase()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(repository.syncCount).isEqualTo(1)
+    }
+
+    private class RecordingCalendarWidgetUpdater : CalendarWidgetUpdater {
+        var updateCount: Int = 0
+            private set
+
+        override suspend fun updateCalendarWidgets(): Result<Unit> {
+            updateCount += 1
+            return Result.success(Unit)
+        }
+    }
+
+    private object ThrowingCalendarWidgetUpdater : CalendarWidgetUpdater {
+        override suspend fun updateCalendarWidgets(): Result<Unit> = error("Widget update failed")
     }
 }

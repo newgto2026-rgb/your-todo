@@ -648,6 +648,24 @@ class TodoUiTest {
     }
 
     @Test
+    fun backPress_whenAiSheetOpen_closesAiSheetFirst() {
+        openAiAddFromFab()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+        composeTestRule.waitForIdle()
+
+        pressBack()
+        composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
+            composeTestRule.onAllNodesWithTag("ai_todo_sheet", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isEmpty()
+        }
+
+        tabNode("all").assertIsSelected()
+        composeTestRule.onNodeWithTag("quick_add_open").performClick()
+        composeTestRule.waitUntilNodeExists("quick_add_title_input")
+    }
+
+    @Test
     fun closeButton_whenBottomSheetOpen_closesBottomSheet() {
         openDetailAddFromFab()
         composeTestRule.onNodeWithText(newTaskTitle).assertIsDisplayed()
@@ -1502,6 +1520,16 @@ class TodoUiTest {
         val fabIndex = composeTestRule.displayedNodeIndex("add_fab")
         composeTestRule.onAllNodesWithTag("add_fab", useUnmergedTree = true)[fabIndex].performClick()
         composeTestRule.waitUntilNodeExists("task_edit_close")
+    }
+
+    private fun openAiAddFromFab() {
+        composeTestRule.waitUntilNodeDisplayed("add_fab")
+        val fabIndex = composeTestRule.displayedNodeIndex("add_fab")
+        composeTestRule.onAllNodesWithTag("add_fab", useUnmergedTree = true)[fabIndex].performClick()
+        composeTestRule.waitUntilNodeDisplayed("add_ai_action")
+        val aiIndex = composeTestRule.displayedNodeIndex("add_ai_action")
+        composeTestRule.onAllNodesWithTag("add_ai_action", useUnmergedTree = true)[aiIndex].performClick()
+        composeTestRule.waitUntilNodeExists("ai_todo_sheet")
     }
 
     private fun waitUntilPendingCreateMutation(todoLocalId: Long) =

@@ -147,8 +147,6 @@ class AiTodoDraftViewModel @Inject constructor(
             val selfResult = saveSelfDrafts(validated.filter { it.assigneeId == SELF_ASSIGNEE_ID })
             val friendResult = saveFriendDrafts(validated.filter { it.assigneeId != SELF_ASSIGNEE_ID })
             if (selfResult && friendResult) {
-                calendarWidgetUpdater.updateCalendarWidgets()
-                syncTodosUseCase()
                 _uiState.update {
                     it.copy(
                         prompt = "",
@@ -158,6 +156,7 @@ class AiTodoDraftViewModel @Inject constructor(
                         errorMessageRes = null
                     )
                 }
+                refreshCalendarWidgetAndSync()
                 _sideEffects.emit(AiTodoDraftSideEffect.Saved)
             } else {
                 _uiState.update {
@@ -202,6 +201,13 @@ class AiTodoDraftViewModel @Inject constructor(
             if (result.isFailure) return false
         }
         return true
+    }
+
+    private fun refreshCalendarWidgetAndSync() {
+        viewModelScope.launch {
+            runCatching { calendarWidgetUpdater.updateCalendarWidgets() }
+            syncTodosUseCase()
+        }
     }
 
     private fun refreshPeople() {

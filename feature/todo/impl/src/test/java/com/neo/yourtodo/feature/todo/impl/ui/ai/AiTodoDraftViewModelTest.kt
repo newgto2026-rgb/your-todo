@@ -7,6 +7,7 @@ import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
+import com.neo.yourtodo.core.domain.repository.TodoItemRepository
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.CreateAssignmentBundleUseCase
@@ -33,6 +34,7 @@ import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,12 +116,45 @@ class AiTodoDraftViewModelTest {
         assertThat(viewModel.uiState.value.isSaving).isFalse()
     }
 
+    @Test
+    fun saveSuccessClearsSavingStateBeforePostSaveSyncCompletes() = runTest {
+        val aiRepository = RecordingAiTodoDraftRepository(
+            result = AiTodoDraftResult(
+                items = listOf(testDraft(title = "분리수거")),
+                model = "test-model",
+                fallbackUsed = false
+            )
+        )
+        val todoRepository = DelayingSyncTodoRepository()
+        val viewModel = createViewModel(
+            aiRepository = aiRepository,
+            authRepository = FakeAuthRepository(testAuthSession(userId = "user-tee", nickname = "tee")),
+            friendRepository = FakeFriendRepository(emptyList()),
+            todoRepository = todoRepository
+        )
+
+        viewModel.onPromptChange("tee 오늘 분리수거해")
+        viewModel.onAnalyze()
+        advanceUntilIdle()
+
+        viewModel.onSave()
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.uiState.value.prompt).isEmpty()
+        assertThat(viewModel.uiState.value.draftItems).isEmpty()
+        assertThat(viewModel.uiState.value.isSaving).isFalse()
+        assertThat(todoRepository.syncStarted).isTrue()
+
+        todoRepository.completeSync()
+        advanceUntilIdle()
+    }
+
     private fun createViewModel(
         aiRepository: RecordingAiTodoDraftRepository,
         authRepository: FakeAuthRepository,
-        friendRepository: FakeFriendRepository
+        friendRepository: FakeFriendRepository,
+        todoRepository: TodoItemRepository = FakeTodoRepository()
     ): AiTodoDraftViewModel {
-        val todoRepository = FakeTodoRepository()
         return AiTodoDraftViewModel(
             parseAiTodoDraftsUseCase = ParseAiTodoDraftsUseCase(aiRepository),
             addTodoUseCase = AddTodoUseCase(todoRepository),
@@ -149,6 +184,24 @@ class AiTodoDraftViewModelTest {
         ): Result<AiTodoDraftResult> {
             this.people = people
             return Result.success(result)
+        }
+    }
+
+    private class DelayingSyncTodoRepository(
+        private val delegate: FakeTodoRepository = FakeTodoRepository()
+    ) : TodoItemRepository by delegate {
+        private val syncAllowed = CompletableDeferred<Unit>()
+        var syncStarted: Boolean = false
+            private set
+
+        override suspend fun syncTodos(): Result<Unit> {
+            syncStarted = true
+            syncAllowed.await()
+            return Result.success(Unit)
+        }
+
+        fun completeSync() {
+            syncAllowed.complete(Unit)
         }
     }
 
