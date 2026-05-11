@@ -19,6 +19,7 @@ import com.neo.yourtodo.core.network.assignments.AssignmentAuthRequiredException
 import com.neo.yourtodo.core.network.assignments.AssignmentNetworkDataSource
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodo
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoChecklistItem
+import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoMutationItem
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoMutationResponse
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoReminder
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoReminderResponse
@@ -188,6 +189,32 @@ class AssignmentRepositoryImplTest {
         assertThat(observed.map { it.id }).containsExactly("assigned-1")
         assertThat(observed.single().checklist.single().title).isEqualTo("Step")
         assertThat(observed.single().sender?.nickname).isEqualTo("monday")
+    }
+
+    @Test
+    fun completeAssignedTodoMergesPartialMutationResponseWithCachedItem() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val network = FakeAssignmentNetworkDataSource().apply {
+            mutationItem = NetworkAssignedTodoMutationItem(
+                id = "assigned-1",
+                status = "DONE",
+                progressPercent = 100,
+                completedAt = "2026-05-09T00:00:00Z"
+            )
+        }
+        val repository = repository(prefs = prefs, network = network, assignedTodoDao = assignedTodoDao)
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.PENDING).getOrThrow()
+
+        val completed = repository.completeAssignedTodo("assigned-1").getOrThrow()
+
+        assertThat(completed.title).isEqualTo("Shared todo")
+        assertThat(completed.sender?.nickname).isEqualTo("monday")
+        assertThat(completed.status.name).isEqualTo("DONE")
+        val observed = repository.observeReceivedAssignedTodos(AssignmentFeedStatus.HISTORY).first().single()
+        assertThat(observed.title).isEqualTo("Shared todo")
+        assertThat(observed.checklist.single().title).isEqualTo("Step")
+        assertThat(observed.status.name).isEqualTo("DONE")
     }
 
     @Test
@@ -555,6 +582,7 @@ class AssignmentRepositoryImplTest {
         var lastDecisionRequest: NetworkDecideAssignmentItemsRequest? = null
         var lastReminderRequest: NetworkUpsertAssignedTodoReminderRequest? = null
         var deletedReminderTodoId: String? = null
+        var mutationItem: NetworkAssignedTodoMutationItem? = null
 
         override suspend fun createBundle(
             accessToken: String,
@@ -626,7 +654,7 @@ class AssignmentRepositoryImplTest {
             assignedTodoId: String
         ): NetworkAssignedTodoMutationResponse {
             failAuthIfNeeded()
-            return mutationResponse(assignedTodoId)
+            return mutationResponse(assignedTodoId, mutationItem)
         }
 
         override suspend fun reopenAssignedTodo(
@@ -634,7 +662,7 @@ class AssignmentRepositoryImplTest {
             assignedTodoId: String
         ): NetworkAssignedTodoMutationResponse {
             failAuthIfNeeded()
-            return mutationResponse(assignedTodoId)
+            return mutationResponse(assignedTodoId, mutationItem)
         }
 
         override suspend fun deleteReceivedAssignedTodo(
@@ -643,7 +671,7 @@ class AssignmentRepositoryImplTest {
             assignedTodoId: String
         ): NetworkAssignedTodoMutationResponse {
             failAuthIfNeeded()
-            return mutationResponse(assignedTodoId)
+            return mutationResponse(assignedTodoId, mutationItem)
         }
 
         override suspend fun cancelAssignedTodo(
@@ -652,7 +680,7 @@ class AssignmentRepositoryImplTest {
             assignedTodoId: String
         ): NetworkAssignedTodoMutationResponse {
             failAuthIfNeeded()
-            return mutationResponse(assignedTodoId)
+            return mutationResponse(assignedTodoId, mutationItem)
         }
 
         override suspend fun upsertAssignedTodoReminder(
@@ -693,9 +721,11 @@ private fun bundleResponse() = NetworkAssignmentBundleResponse(
     items = listOf(networkTodo(bundleId = null))
 )
 
-private fun mutationResponse(assignedTodoId: String) = NetworkAssignedTodoMutationResponse(
-    item = networkTodo(id = assignedTodoId),
-    bundle = networkBundle()
+private fun mutationResponse(
+    assignedTodoId: String,
+    item: NetworkAssignedTodoMutationItem? = null
+) = NetworkAssignedTodoMutationResponse(
+    item = item ?: networkMutationTodo(id = assignedTodoId)
 )
 
 private fun networkBundle() = NetworkAssignmentBundle(
@@ -712,6 +742,33 @@ private fun networkTodo(
 ) = NetworkAssignedTodo(
     id = id,
     bundleId = bundleId,
+    sender = NetworkAssignmentUser(id = "friend-1", nickname = "monday"),
+    receiver = NetworkAssignmentUser(id = "user-id", nickname = "neo"),
+    title = "Shared todo",
+    description = null,
+    dueDate = "2026-05-10",
+    dueTimeMinutes = 14 * 60 + 30,
+    priority = "MEDIUM",
+    category = null,
+    status = "PENDING_ACCEPTANCE",
+    progressPercent = 20,
+    checklist = listOf(
+        NetworkAssignedTodoChecklistItem(
+            id = "check-1",
+            title = "Step",
+            completed = false
+        )
+    ),
+    reminder = NetworkAssignedTodoReminder(
+        reminderAt = "2026-05-10T14:00:00Z",
+        enabled = true
+    ),
+    completedAt = "2026-05-09T00:00:00Z"
+)
+
+private fun networkMutationTodo(id: String = "assigned-1") = NetworkAssignedTodoMutationItem(
+    id = id,
+    bundleId = "bundle-1",
     sender = NetworkAssignmentUser(id = "friend-1", nickname = "monday"),
     receiver = NetworkAssignmentUser(id = "user-id", nickname = "neo"),
     title = "Shared todo",

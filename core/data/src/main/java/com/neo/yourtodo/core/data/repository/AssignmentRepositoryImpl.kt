@@ -27,6 +27,7 @@ import com.neo.yourtodo.core.network.assignments.AssignmentAuthRequiredException
 import com.neo.yourtodo.core.network.assignments.AssignmentNetworkDataSource
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodo
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoChecklistItem
+import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoMutationItem
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoReminder
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentBundleResponse
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentDecision
@@ -229,8 +230,8 @@ class AssignmentRepositoryImpl @Inject constructor(
         ) {
             authenticatedRequest { accessToken ->
                 assignmentNetworkDataSource.completeAssignedTodo(accessToken, assignedTodoId)
-                    .item.toDomain()
-                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
+                    .item
+                    .let { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
             }
         }
 
@@ -247,8 +248,8 @@ class AssignmentRepositoryImpl @Inject constructor(
         ) {
             authenticatedRequest { accessToken ->
                 assignmentNetworkDataSource.reopenAssignedTodo(accessToken, assignedTodoId)
-                    .item.toDomain()
-                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
+                    .item
+                    .let { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
             }
         }
 
@@ -267,8 +268,8 @@ class AssignmentRepositoryImpl @Inject constructor(
                     accessToken = accessToken,
                     idempotencyKey = UUID.randomUUID().toString(),
                     assignedTodoId = assignedTodoId
-                ).item.toDomain()
-                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
+                ).item
+                    .let { cacheAssignedTodoMutation(it, AssignmentDirection.RECEIVED) }
             }
         }
 
@@ -293,8 +294,8 @@ class AssignmentRepositoryImpl @Inject constructor(
                     accessToken = accessToken,
                     idempotencyKey = UUID.randomUUID().toString(),
                     assignedTodoId = assignedTodoId
-                ).item.toDomain()
-                    .also { cacheAssignedTodoMutation(it, AssignmentDirection.SENT) }
+                ).item
+                    .let { cacheAssignedTodoMutation(it, AssignmentDirection.SENT) }
             }
         }
 
@@ -334,6 +335,42 @@ class AssignmentRepositoryImpl @Inject constructor(
             status = item.feedStatus(),
             replaceStale = false
         )
+    }
+
+    private suspend fun cacheAssignedTodoMutation(
+        item: NetworkAssignedTodoMutationItem,
+        direction: AssignmentDirection
+    ): AssignedTodo {
+        val ownerUserId = currentSession()?.userId
+        val existing = ownerUserId?.let { assignedTodoDao.getAssignedTodoById(it, item.id) }
+        val merged = item.toDomain(existing)
+        if (ownerUserId != null) {
+            val entity = merged.toEntity(
+                ownerUserId = ownerUserId,
+                existing = existing,
+                direction = direction,
+                cacheUpdatedAt = System.currentTimeMillis()
+            )
+            assignedTodoDao.upsertAssignedTodos(listOf(entity))
+            item.checklist?.let { checklist ->
+                val cacheKey = assignedTodoCacheKey(ownerUserId, item.id)
+                assignedTodoDao.deleteChecklistItems(listOf(cacheKey))
+                assignedTodoDao.upsertChecklistItems(
+                    checklist.mapIndexed { index, checklistItem ->
+                        AssignedTodoChecklistItemEntity(
+                            ownerUserId = ownerUserId,
+                            assignedTodoId = item.id,
+                            assignedTodoCacheKey = cacheKey,
+                            id = checklistItem.id,
+                            title = checklistItem.title,
+                            completed = checklistItem.completed,
+                            sortOrder = index
+                        )
+                    }
+                )
+            }
+        }
+        return merged
     }
 
     private suspend fun cacheAssignedTodos(
@@ -492,6 +529,42 @@ class AssignmentRepositoryImpl @Inject constructor(
             checklist = checklist.map { it.toDomain() },
             createdAt = createdAt.toInstantOrNull(),
             completedAt = completedAt.toInstantOrNull()
+        )
+
+    private fun NetworkAssignedTodoMutationItem.toDomain(existing: AssignedTodoEntity?): AssignedTodo =
+        AssignedTodo(
+            id = id,
+            bundleId = bundleId ?: existing?.bundleId,
+            title = title ?: existing?.title.orEmpty(),
+            description = description ?: existing?.description,
+            dueDate = dueDate.toLocalDateOrNull() ?: existing?.dueDateEpochDay?.let(LocalDate::ofEpochDay),
+            dueTimeMinutes = dueTimeMinutes ?: existing?.dueTimeMinutes,
+            priority = priority?.let { enumValueOrDefault(it, TodoPriority.MEDIUM) }
+                ?: existing?.priority?.let { enumValueOrDefault(it, TodoPriority.MEDIUM) }
+                ?: TodoPriority.MEDIUM,
+            category = category ?: existing?.category,
+            status = status?.let { enumValueOf<AssignedTodoStatus>(it) }
+                ?: existing?.status?.let { enumValueOf<AssignedTodoStatus>(it) }
+                ?: AssignedTodoStatus.ACCEPTED,
+            terminalReason = terminalReason?.let {
+                enumValueOf<AssignedTodoTerminalReason>(it)
+            } ?: existing?.terminalReason?.let {
+                enumValueOf<AssignedTodoTerminalReason>(it)
+            },
+            progressPercent = progressPercent ?: existing?.progressPercent ?: 0,
+            sender = sender?.toDomain() ?: userOrNull(existing?.senderUserId, existing?.senderNickname),
+            receiver = receiver?.toDomain() ?: userOrNull(existing?.receiverUserId, existing?.receiverNickname),
+            reminder = reminder?.toDomain() ?: existing?.reminderAt?.let {
+                AssignedTodoReminder(
+                    reminderAt = it,
+                    enabled = existing.reminderEnabled ?: true
+                )
+            },
+            checklist = checklist?.map { it.toDomain() }.orEmpty(),
+            createdAt = createdAt.toInstantOrNull()
+                ?: existing?.createdAtEpochMillis?.let(Instant::ofEpochMilli),
+            completedAt = completedAt.toInstantOrNull()
+                ?: existing?.completedAtEpochMillis?.let(Instant::ofEpochMilli)
         )
 
     private fun AssignedTodoWithChecklist.toDomain(): AssignedTodo =

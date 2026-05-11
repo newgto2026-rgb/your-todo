@@ -54,8 +54,38 @@ data class NetworkAssignedTodosResponse(
 
 @Serializable
 data class NetworkAssignedTodoMutationResponse(
-    val item: NetworkAssignedTodo,
-    val bundle: NetworkAssignmentBundle
+    val item: NetworkAssignedTodoMutationItem,
+    val bundle: NetworkAssignedTodoMutationBundle? = null
+)
+
+@Serializable
+data class NetworkAssignedTodoMutationBundle(
+    val id: String? = null,
+    val status: String? = null,
+    val summary: NetworkAssignmentSummary? = null
+)
+
+@Serializable
+data class NetworkAssignedTodoMutationItem(
+    val id: String,
+    val bundleId: String? = null,
+    val source: String? = null,
+    val sender: NetworkAssignmentUser? = null,
+    val receiver: NetworkAssignmentUser? = null,
+    val title: String? = null,
+    val description: String? = null,
+    val dueDate: String? = null,
+    val dueTimeMinutes: Int? = null,
+    val priority: String? = null,
+    val category: String? = null,
+    val status: String? = null,
+    val terminalReason: String? = null,
+    val progressPercent: Int? = null,
+    val checklist: List<NetworkAssignedTodoChecklistItem>? = null,
+    val reminder: NetworkAssignedTodoReminder? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val completedAt: String? = null
 )
 
 @Serializable
