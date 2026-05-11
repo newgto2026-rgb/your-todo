@@ -44,7 +44,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -227,10 +226,7 @@ private fun TodoListScreen(
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
     val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val aiSheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { it != SheetValue.Hidden }
-    )
+    val aiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isAddMenuExpanded by remember { mutableStateOf(false) }
     var isAiSheetVisible by remember { mutableStateOf(false) }
 
@@ -436,9 +432,6 @@ private fun TodoListScreen(
     BackHandler(enabled = uiState.isQuickAddVisible && shouldShowQuickAdd) {
         onAction(TodoListAction.OnQuickAddDismiss)
     }
-    BackHandler(enabled = isAiSheetVisible) {
-        Unit
-    }
 
     uiState.deleteConfirmation?.let { confirmation ->
         DeleteConfirmationDialog(
@@ -495,7 +488,7 @@ private fun TodoListScreen(
 
     if (isAiSheetVisible) {
         ModalBottomSheet(
-            onDismissRequest = {},
+            onDismissRequest = { isAiSheetVisible = false },
             sheetState = aiSheetState,
             containerColor = Color.Transparent,
             dragHandle = null
