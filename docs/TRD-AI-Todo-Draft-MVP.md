@@ -32,7 +32,7 @@ The app never calls Ollama directly. Prompting, schema, retry, and output normal
   - FAB menu
   - `AiTodoDraftViewModel`
   - editable AI draft review sheet
-- `tools/ai-todo-proxy`
+- YourTodo server repo `tools/ai-todo-proxy`
   - local Node proxy for Ollama
 
 ## Proxy Contract
@@ -108,6 +108,7 @@ yourtodo.aiServerBaseUrl=http://10.0.2.2:8787/
 Run proxy:
 
 ```bash
+# in the yourtodo-server repo
 node tools/ai-todo-proxy/server.mjs
 ```
 
