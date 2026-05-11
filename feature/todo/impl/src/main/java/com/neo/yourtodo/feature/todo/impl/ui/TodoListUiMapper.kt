@@ -32,11 +32,20 @@ internal fun buildTodoListUiState(
     val filteredItems = uiItems
         .filterBy(selectedFilter)
         .filterByPriority(selectedPriorityFilter)
-        .sortedWith(localState.selectedSortOption.comparatorFor(selectedFilter))
+    val sections = filteredItems.sectionsFor(
+        filter = selectedFilter,
+        sortOption = localState.selectedSortOption
+    )
+    val sortedItems = if (sections.isEmpty()) {
+        filteredItems.sortedWith(localState.selectedSortOption.comparatorFor(selectedFilter))
+    } else {
+        sections.flatMap { it.items }
+    }
 
     return localState.copy(
         profileInitial = profileInitial,
-        items = filteredItems,
+        items = sortedItems,
+        sections = sections,
         completedTodoIds = items.filter { it.isDone }.map { it.id },
         completedAssignedTodoIds = assignedItems
             .filter {
@@ -75,14 +84,69 @@ private fun List<TodoItemUiModel>.filterByPriority(filter: TodoPriorityFilter): 
 private fun TodoSortOption.comparatorFor(filter: TodoFilter): Comparator<TodoItemUiModel> =
     if (filter == TodoFilter.ALL) {
         completionLastComparator(
-            when (this) {
-                TodoSortOption.DEFAULT -> defaultTodoComparator()
-                TodoSortOption.DUE_DATE -> dueDateTodoComparator()
-                TodoSortOption.PRIORITY -> priorityTodoComparator()
-            }
+            itemComparator()
         )
     } else {
         contextualTodoComparator()
+    }
+
+private fun List<TodoItemUiModel>.sectionsFor(
+    filter: TodoFilter,
+    sortOption: TodoSortOption
+): List<TodoListSection> {
+    if (filter != TodoFilter.ALL) return emptyList()
+
+    val itemComparator = sortOption.itemComparator()
+    val activeItems = filterNot { it.isDone }.sortedWith(itemComparator)
+    val completedItems = filter { it.isDone }.sortedWith(itemComparator)
+    val activeSections = when (sortOption) {
+        TodoSortOption.DEFAULT -> if (completedItems.isEmpty()) {
+            emptyList()
+        } else {
+            listOfNotNull(
+                activeItems.takeIf { it.isNotEmpty() }?.let { TodoListSection(TodoListSectionKey.Open, it) }
+            )
+        }
+        TodoSortOption.DUE_DATE -> activeItems.groupByInOrder(
+            keySelector = { TodoListSectionKey.DueDate(it.dueDate) }
+        )
+        TodoSortOption.PRIORITY -> listOf(
+            TodoPriority.HIGH,
+            TodoPriority.MEDIUM,
+            TodoPriority.LOW
+        ).mapNotNull { priority ->
+            activeItems
+                .filter { it.priority == priority }
+                .takeIf { it.isNotEmpty() }
+                ?.let { TodoListSection(TodoListSectionKey.Priority(priority), it) }
+        }
+        TodoSortOption.FRIEND -> activeItems.groupByInOrder(
+            keySelector = { it.friendSectionKey() }
+        )
+    }
+    val completedSection = completedItems
+        .takeIf { it.isNotEmpty() }
+        ?.let { TodoListSection(TodoListSectionKey.Completed, it) }
+
+    return activeSections + listOfNotNull(completedSection)
+}
+
+private fun List<TodoItemUiModel>.groupByInOrder(
+    keySelector: (TodoItemUiModel) -> TodoListSectionKey
+): List<TodoListSection> {
+    val sections = linkedMapOf<TodoListSectionKey, MutableList<TodoItemUiModel>>()
+    forEach { item ->
+        sections.getOrPut(keySelector(item)) { mutableListOf() }.add(item)
+    }
+    return sections.map { (key, items) -> TodoListSection(key, items) }
+}
+
+private fun TodoSortOption.itemComparator(): Comparator<TodoItemUiModel> =
+    when (this) {
+        TodoSortOption.DEFAULT -> defaultTodoComparator()
+        TodoSortOption.DUE_DATE -> dueDateTodoComparator()
+        TodoSortOption.PRIORITY -> priorityTodoComparator()
+        TodoSortOption.FRIEND -> friendTodoComparator()
     }
 
 private fun completionLastComparator(
@@ -114,6 +178,23 @@ private fun priorityTodoComparator(): Comparator<TodoItemUiModel> =
         .thenBy { it.dueTimeText == null }
         .thenBy { it.dueTimeText.orEmpty() }
         .thenBy { it.id }
+
+private fun friendTodoComparator(): Comparator<TodoItemUiModel> =
+    compareBy<TodoItemUiModel> { if (it.isAssigned) 0 else 1 }
+        .thenBy { it.senderNickname?.trim()?.lowercase().orEmpty() }
+        .thenBy { it.dueDate == null }
+        .thenBy { it.dueDate ?: LocalDate.MAX }
+        .thenBy { it.dueTimeText == null }
+        .thenBy { it.dueTimeText.orEmpty() }
+        .thenByDescending { it.priority.sortRank() }
+        .thenBy { it.id }
+
+private fun TodoItemUiModel.friendSectionKey(): TodoListSectionKey =
+    if (isAssigned) {
+        TodoListSectionKey.Friend(senderNickname?.trim()?.takeIf { it.isNotEmpty() })
+    } else {
+        TodoListSectionKey.Self
+    }
 
 private fun TodoPriority.sortRank(): Int = when (this) {
     TodoPriority.HIGH -> 3

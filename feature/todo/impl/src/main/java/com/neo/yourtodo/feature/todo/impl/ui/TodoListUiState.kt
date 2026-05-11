@@ -14,6 +14,7 @@ import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
 data class TodoListUiState(
     val profileInitial: String? = null,
     val items: List<TodoItemUiModel> = emptyList(),
+    val sections: List<TodoListSection> = emptyList(),
     val completedTodoIds: List<Long> = emptyList(),
     val completedAssignedTodoIds: List<String> = emptyList(),
     val selectedFilter: TodoFilter = TodoFilter.ALL,
@@ -65,5 +66,22 @@ sealed interface TodoDeleteConfirmation {
 enum class TodoSortOption {
     DEFAULT,
     DUE_DATE,
-    PRIORITY
+    PRIORITY,
+    FRIEND
+}
+
+@Immutable
+data class TodoListSection(
+    val key: TodoListSectionKey,
+    val items: List<TodoItemUiModel>
+)
+
+@Immutable
+sealed interface TodoListSectionKey {
+    data object Open : TodoListSectionKey
+    data object Completed : TodoListSectionKey
+    data class Priority(val priority: TodoPriority) : TodoListSectionKey
+    data class DueDate(val date: java.time.LocalDate?) : TodoListSectionKey
+    data class Friend(val nickname: String?) : TodoListSectionKey
+    data object Self : TodoListSectionKey
 }
