@@ -10,7 +10,7 @@ const baseRequest = {
   timezone: 'Asia/Seoul',
   locale: 'ko-KR',
   people: [
-    { id: 'self', name: '나', aliases: ['나', '내', '본인', '저', '제'], isSelf: true },
+    { id: 'self', name: '나', aliases: ['나', '내', '본인', '저', '제', 'tee'], isSelf: true },
     { id: 'user_neo', name: 'Neo', aliases: ['neo', '네오'], isSelf: false }
   ]
 };
@@ -37,6 +37,19 @@ if (passed !== cases.length) process.exitCode = 1;
 
 function evaluate(testCase, body) {
   if (!Array.isArray(body?.items)) return { ok: false, reason: 'items missing' };
+  if (Number.isInteger(testCase.expectMinItems) && body.items.length < testCase.expectMinItems) {
+    return { ok: false, reason: `expected at least ${testCase.expectMinItems} items` };
+  }
+  if (testCase.expectAllPriority) {
+    if (body.items.length === 0) return { ok: false, reason: 'expected at least one item' };
+    const mismatched = body.items.find((item) => item.priority !== testCase.expectAllPriority);
+    if (mismatched) {
+      return {
+        ok: false,
+        reason: `expected all priority ${testCase.expectAllPriority}, found ${mismatched.priority ?? 'null'} in "${mismatched.title ?? ''}"`
+      };
+    }
+  }
   if (testCase.expectAnyReview) {
     return body.items.some((item) => item.needsReview)
       ? { ok: true }
@@ -47,12 +60,19 @@ function evaluate(testCase, body) {
     return { ok: false, reason: `expected at least ${expectations.length} items` };
   }
   for (const expected of expectations) {
-    const found = body.items.some((item) =>
-      Object.entries(expected).every(([key, value]) => item[key] === value)
-    );
+    const found = body.items.some((item) => matchesExpectation(item, expected));
     if (!found) {
       return { ok: false, reason: `missing expected ${JSON.stringify(expected)}` };
     }
   }
   return { ok: true };
+}
+
+function matchesExpectation(item, expected) {
+  return Object.entries(expected).every(([key, value]) => {
+    if (key === 'titleIncludes') {
+      return typeof item.title === 'string' && item.title.includes(value);
+    }
+    return item[key] === value;
+  });
 }

@@ -67,6 +67,7 @@ const systemPrompt = [
   'Few-shot for now=2026-05-10 Sunday: "네오한테 다음주 월요일까지 발표자료 정리 부탁하고, 나는 금요일 밤 11시에 결제 확인" => 발표자료 정리 due 2026-05-11 time null, 결제 확인 due 2026-05-15 time 1380.',
   'Few-shot: "neo는 내일 아침 8시에 아이 등원하고 내일까지해야할일이 빨래돌리기, 청소기돌리기, 식기세척기돌리기, 화요일날 10시에는 부모참관수업있고 나는 내일 아침 8시에 수영가야해" => 아이 등원 assignee neo due tomorrow time 480; 빨래돌리기/청소기돌리기/식기세척기돌리기 assignee null due tomorrow time null review; 부모참관수업 assignee neo due Tuesday time 600; 수영가기 assignee self due tomorrow time 480.',
   'Use priority MEDIUM unless the user clearly says urgent/important/high or low priority.',
+  'If the user applies a global priority such as "중요도는 다 높아", "전부 높아", "모두 중요해", "다 낮게", or "전체 보통", apply it to every extracted item.',
   'If needsReview is false, reviewReason must be null.'
 ].join(' ');
 
@@ -233,30 +234,34 @@ function normalizeResponse(response, requestBody) {
   const knownIds = new Set(requestBody.people.map((person) => person.id));
   const selfId = requestBody.people.find((person) => person.isSelf)?.id ?? null;
   const items = Array.isArray(response?.items) ? response.items : [];
+  const globalPriority = inferGlobalPriority(requestBody.text);
   return {
     items: items
-      .map((item) => normalizeItem(item, knownIds, selfId, requestBody))
+      .map((item) => normalizeItem(item, knownIds, selfId, requestBody, globalPriority))
       .filter((item) => item.title.length > 0),
     model: MODEL,
     fallbackUsed: false
   };
 }
 
-function normalizeItem(item, knownIds, selfId, requestBody) {
+function normalizeItem(item, knownIds, selfId, requestBody, globalPriority) {
   const rawAssignee = typeof item.assigneeId === 'string' ? item.assigneeId : null;
   const reviewReason = typeof item.reviewReason === 'string' ? item.reviewReason : null;
-  const assigneeId = normalizeAssignee(rawAssignee, knownIds, selfId, item.needsReview, reviewReason);
+  let assigneeId = normalizeAssignee(rawAssignee, knownIds, selfId, item.needsReview, reviewReason);
   const rawTime = Number.isInteger(item.dueTimeMinutes) ? item.dueTimeMinutes : null;
-  const dueTimeMinutes = rawTime !== null && rawTime >= 0 && rawTime <= 1439 ? rawTime : null;
+  const boundedTime = rawTime !== null && rawTime >= 0 && rawTime <= 1439 ? rawTime : null;
   const rawDate = typeof item.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate)
     ? item.dueDate
     : null;
   const title = typeof item.title === 'string' ? item.title.trim() : '';
   const dueDate = normalizeDueDate(rawDate, requestBody, title);
-  const priority = ['LOW', 'MEDIUM', 'HIGH'].includes(item.priority) ? item.priority : 'MEDIUM';
+  const dueTimeMinutes = normalizeDueTimeMinutes(boundedTime, requestBody, title);
+  const priority = normalizePriority(item.priority, requestBody, title, globalPriority);
+  const unclearListOwner = shouldReviewUnclearListOwner(requestBody.text, title);
+  if (unclearListOwner) assigneeId = null;
   const unknownExplicitAssignee = rawAssignee !== null && assigneeId === null;
   const assigneeReview = assigneeId === null && shouldReviewMissingAssignee(item.needsReview, reviewReason);
-  const needsReview = Boolean(item.needsReview && assigneeReview) || assigneeReview || unknownExplicitAssignee;
+  const needsReview = Boolean(item.needsReview && assigneeReview) || assigneeReview || unknownExplicitAssignee || unclearListOwner;
 
   return {
     title,
@@ -265,7 +270,7 @@ function normalizeItem(item, knownIds, selfId, requestBody) {
     dueTimeMinutes,
     priority,
     needsReview,
-    reviewReason: needsReview ? reviewReason ?? '확인이 필요합니다.' : null
+    reviewReason: needsReview ? reviewReason ?? (unclearListOwner ? '담당자 확인이 필요합니다.' : '확인이 필요합니다.') : null
   };
 }
 
@@ -308,6 +313,37 @@ function normalizeDueDate(rawDate, requestBody, title) {
   return rawDate;
 }
 
+function normalizeDueTimeMinutes(rawTime, requestBody, title) {
+  if (rawTime === null) return null;
+  if (rawTime >= 12 * 60) return rawTime;
+
+  const hour = Math.floor(rawTime / 60);
+  const shouldShiftToAfternoon =
+    /하원|픽업|데리러/u.test(title) ||
+    (/숙제/u.test(title) && hour >= 6);
+
+  if (!shouldShiftToAfternoon) return rawTime;
+  if (hasMorningMarkerNearTask(requestBody.text, title)) return rawTime;
+  return rawTime + 12 * 60;
+}
+
+function hasMorningMarkerNearTask(text, title) {
+  const compactText = compactKorean(text);
+  const titleTokens = compactKorean(title).match(/[가-힣a-z0-9]{2,}/giu) ?? [];
+  const taskTokens = [...titleTokens, '하원', '숙제', '픽업', '데리러']
+    .filter((token, index, tokens) => tokens.indexOf(token) === index);
+
+  for (const token of taskTokens) {
+    const index = compactText.indexOf(token);
+    if (index < 0) continue;
+    const windowStart = Math.max(0, index - 8);
+    const windowEnd = Math.min(compactText.length, index + token.length + 8);
+    const context = compactText.slice(windowStart, windowEnd);
+    if (/오전|아침|새벽/u.test(context)) return true;
+  }
+  return false;
+}
+
 function inferDateFromLocalContext(title, requestBody) {
   const keyword = titleKeyword(title);
   if (!keyword) return null;
@@ -331,6 +367,89 @@ function titleKeyword(title) {
 
 function compactKorean(value) {
   return String(value ?? '').replace(/\s+/g, '').toLowerCase();
+}
+
+function normalizePriority(rawPriority, requestBody, title, globalPriority) {
+  if (globalPriority) return globalPriority;
+
+  const priority = ['LOW', 'MEDIUM', 'HIGH'].includes(rawPriority) ? rawPriority : 'MEDIUM';
+  const context = findTaskContext(requestBody.text, title);
+  if (/급함|급해|긴급|중요|꼭|높|high|urgent/i.test(context)) return 'HIGH';
+  if (/낮|천천히|나중에|low/i.test(context)) return 'LOW';
+  if (/보통|중간|medium/i.test(context)) return 'MEDIUM';
+  return priority;
+}
+
+function inferGlobalPriority(text) {
+  const compactText = compactKorean(text);
+  const globalPrefix = '(?:중요도(?:는|를|가)?|우선순위(?:는|를|가)?)';
+  const allQuantifier = '(?:다|전부|전체|모두|몽땅)';
+
+  if (new RegExp(`${globalPrefix}${allQuantifier}?(?:높|상|high|하이)|${allQuantifier}(?:높|중요|급함|급해|urgent)`, 'i').test(compactText)) {
+    return 'HIGH';
+  }
+  if (new RegExp(`${globalPrefix}${allQuantifier}?(?:낮|하|low|로우)|${allQuantifier}(?:낮)`, 'i').test(compactText)) {
+    return 'LOW';
+  }
+  if (new RegExp(`${globalPrefix}${allQuantifier}?(?:중간|보통|medium|미디엄)|${allQuantifier}(?:중간|보통)`, 'i').test(compactText)) {
+    return 'MEDIUM';
+  }
+  return null;
+}
+
+function findTaskContext(text, title) {
+  const compactText = compactKorean(text);
+  const tokens = taskTokensForTitle(title);
+  const windows = [];
+  for (const token of tokens) {
+    let startIndex = 0;
+    while (startIndex < compactText.length) {
+      const index = compactText.indexOf(token, startIndex);
+      if (index < 0) break;
+      const windowStart = Math.max(0, index - 10);
+      const windowEnd = Math.min(compactText.length, index + token.length + 14);
+      windows.push(compactText.slice(windowStart, windowEnd));
+      startIndex = index + token.length;
+    }
+  }
+  return windows.join(' ');
+}
+
+function taskTokensForTitle(title) {
+  const compactTitle = compactKorean(title)
+    .replace(/(하기|가기|돌리기|준비하기|시키기|갈아주기)$/u, '')
+    .trim();
+  const tokens = [];
+  if (compactTitle.length >= 2) tokens.push(compactTitle);
+  if (compactTitle.length >= 4) tokens.push(compactTitle.slice(0, 4));
+  if (/(하원|픽업|데리러)/u.test(title)) tokens.push('하원', '픽업', '데리러');
+  if (/숙제/u.test(title)) tokens.push('숙제');
+  return tokens.filter((token, index) => token.length >= 2 && tokens.indexOf(token) === index);
+}
+
+function shouldReviewUnclearListOwner(text, title) {
+  const compactText = compactKorean(text);
+  const itemIndex = findTaskIndex(compactText, title);
+  if (itemIndex < 0) return false;
+
+  const listMarkers = ['내일까지해야할일이', '내일까지해야할일은', '해야할일이', '해야할일은', '할일이', '할일은'];
+  const marker = listMarkers
+    .map((token) => ({ token, index: compactText.lastIndexOf(token, itemIndex) }))
+    .filter((candidate) => candidate.index >= 0)
+    .sort((left, right) => right.index - left.index)[0];
+  if (!marker) return false;
+
+  const afterMarker = compactText.slice(marker.index + marker.token.length, itemIndex);
+  if (/나는|내가|저는|제가|본인은|본인이|tee는|tee가|neo는|neo가|네오는|네오가/u.test(afterMarker)) return false;
+  if (/오늘|내일|모레|월요일|화요일|수요일|목요일|금요일|토요일|일요일/u.test(afterMarker)) return false;
+  return true;
+}
+
+function findTaskIndex(compactText, title) {
+  const tokens = taskTokensForTitle(title);
+  const indexes = tokens.map((token) => compactText.indexOf(token)).filter((index) => index >= 0);
+  if (indexes.length === 0) return -1;
+  return Math.min(...indexes);
 }
 
 function findDateMarkers(compactText, requestBody) {

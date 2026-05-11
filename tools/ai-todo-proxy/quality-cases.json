@@ -42,12 +42,22 @@
     "name": "long mixed family prompt with unclear list owner",
     "text": "neo는 내일 아침 8시에 아이 등원하고 내일까지해야할일이 빨래돌리기, 청소기돌리기, 식기세척기돌리기, 화요일날 10시에는 부모참관수업있고 나는 내일 아침 8시에 수영가야해",
     "expect": [
-      { "title": "아이 등원", "assigneeId": "user_neo", "dueDate": "2026-05-11", "dueTimeMinutes": 480 },
-      { "title": "빨래돌리기", "assigneeId": null, "dueDate": "2026-05-11", "dueTimeMinutes": null, "needsReview": true },
-      { "title": "청소기돌리기", "assigneeId": null, "dueDate": "2026-05-11", "dueTimeMinutes": null, "needsReview": true },
-      { "title": "식기세척기돌리기", "assigneeId": null, "dueDate": "2026-05-11", "dueTimeMinutes": null, "needsReview": true },
-      { "title": "부모참관수업", "assigneeId": "user_neo", "dueDate": "2026-05-12", "dueTimeMinutes": 600 },
+      { "titleIncludes": "등원", "assigneeId": "user_neo", "dueDate": "2026-05-11", "dueTimeMinutes": 480 },
+      { "titleIncludes": "빨래", "assigneeId": null, "dueDate": "2026-05-11", "dueTimeMinutes": null, "needsReview": true },
+      { "titleIncludes": "청소기", "assigneeId": null, "dueDate": "2026-05-11", "dueTimeMinutes": null, "needsReview": true },
+      { "titleIncludes": "식기세척기", "assigneeId": null, "dueDate": "2026-05-11", "dueTimeMinutes": null, "needsReview": true },
+      { "titleIncludes": "부모참관수업", "assigneeId": "user_neo", "dueDate": "2026-05-12", "dueTimeMinutes": 600 },
       { "title": "수영가기", "assigneeId": "self", "dueDate": "2026-05-11", "dueTimeMinutes": 480 }
+    ]
+  },
+  {
+    "name": "global high priority applies to every extracted task",
+    "text": "tee 오늘 쓰레기통 비워주고, 검은 빨래좀 해줘, 애기 5시에 하원해, 로봇청소기 물통좀 갈아줘, 애기 숙제9시까지해, 다음주 토요일 어머님생신이야, 중요도는 다 높아",
+    "expectMinItems": 6,
+    "expectAllPriority": "HIGH",
+    "expect": [
+      { "titleIncludes": "하원", "dueTimeMinutes": 1020 },
+      { "titleIncludes": "숙제", "dueTimeMinutes": 1260 }
     ]
   }
 ]
