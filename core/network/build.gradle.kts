@@ -7,6 +7,8 @@ plugins {
 }
 
 val serverBaseUrlProperty = providers.gradleProperty("yourtodo.serverBaseUrl")
+val aiServerBaseUrlProperty = providers.gradleProperty("yourtodo.aiServerBaseUrl")
+val defaultNgrokBaseUrl = "https://stainable-sulphate-grading.ngrok-free.dev/"
 
 fun quotedBuildConfigString(value: String) = "\"$value\""
 
@@ -28,12 +30,26 @@ android {
                     serverBaseUrlProperty.orElse("https://stainable-sulphate-grading.ngrok-free.dev/").get()
                 )
             )
+            buildConfigField(
+                "String",
+                "YOURTODO_AI_SERVER_BASE_URL",
+                quotedBuildConfigString(
+                    aiServerBaseUrlProperty.orElse(defaultNgrokBaseUrl).get()
+                )
+            )
         }
         release {
             buildConfigField(
                 "String",
                 "YOURTODO_SERVER_BASE_URL",
                 quotedBuildConfigString(serverBaseUrlProperty.orElse("").get())
+            )
+            buildConfigField(
+                "String",
+                "YOURTODO_AI_SERVER_BASE_URL",
+                quotedBuildConfigString(
+                    aiServerBaseUrlProperty.orElse(serverBaseUrlProperty).orElse(defaultNgrokBaseUrl).get()
+                )
             )
         }
     }

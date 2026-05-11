@@ -23,12 +23,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -83,6 +85,7 @@ import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
+import com.neo.yourtodo.feature.todo.impl.ui.ai.AiTodoDraftRoute
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -222,6 +225,9 @@ private fun TodoListScreen(
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
     val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val aiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var isAddMenuExpanded by remember { mutableStateOf(false) }
+    var isAiSheetVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(
         uiState.selectedFilter,
@@ -235,20 +241,20 @@ private fun TodoListScreen(
         Scaffold(
             containerColor = Color.Transparent,
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = {
+                AddTodoFloatingMenu(
+                    expanded = isAddMenuExpanded,
+                    onExpandedChange = { isAddMenuExpanded = it },
+                    onManualAdd = {
+                        isAddMenuExpanded = false
                         onAddRequested(
                             if (uiState.selectedFilter == TodoFilter.TODAY) LocalDate.now() else null
                         )
                     },
-                    containerColor = Color(0xFF676CB4),
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .size(58.dp)
-                        .testTag("add_fab")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                }
+                    onAiAdd = {
+                        isAddMenuExpanded = false
+                        isAiSheetVisible = true
+                    }
+                )
             },
             floatingActionButtonPosition = FabPosition.End,
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -458,6 +464,94 @@ private fun TodoListScreen(
                 onDelete = { uiState.editingItem?.id?.let { onAction(TodoListAction.OnDeleteRequest(it)) } },
                 showDelete = !isAssignedEdit && uiState.editingItem?.id != null,
                 contentEditable = !isAssignedEdit
+            )
+        }
+    }
+
+    if (isAiSheetVisible) {
+        ModalBottomSheet(
+            onDismissRequest = { isAiSheetVisible = false },
+            sheetState = aiSheetState,
+            containerColor = Color.Transparent,
+            dragHandle = null
+        ) {
+            AiTodoDraftRoute(onDismiss = { isAiSheetVisible = false })
+        }
+    }
+}
+
+@Composable
+private fun AddTodoFloatingMenu(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onManualAdd: () -> Unit,
+    onAiAdd: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (expanded) {
+            AddTodoMenuAction(
+                label = stringResource(R.string.todo_add_manual),
+                icon = Icons.Default.Edit,
+                onClick = onManualAdd,
+                modifier = Modifier.testTag("add_manual_action")
+            )
+            AddTodoMenuAction(
+                label = stringResource(R.string.todo_add_ai),
+                icon = Icons.Default.AutoAwesome,
+                onClick = onAiAdd,
+                modifier = Modifier.testTag("add_ai_action")
+            )
+        }
+        FloatingActionButton(
+            onClick = { onExpandedChange(!expanded) },
+            containerColor = Color(0xFF676CB4),
+            contentColor = Color.White,
+            modifier = Modifier
+                .size(58.dp)
+                .testTag("add_fab")
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Default.Close else Icons.Default.Add,
+                contentDescription = null
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddTodoMenuAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(999.dp),
+        color = Color.White,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+        border = BorderStroke(1.dp, Color(0xFFE0E5F0))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFF5F5391),
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = Color(0xFF384052)
             )
         }
     }
