@@ -9,6 +9,7 @@
     <string name="todo_header_all_subtitle">Open tasks first</string>
     <string name="todo_header_all_subtitle_due_date">Sorted by due date</string>
     <string name="todo_header_all_subtitle_priority">Sorted by priority</string>
+    <string name="todo_header_all_subtitle_friend">Sorted by friend</string>
     <string name="todo_header_completed_title">Done Tasks</string>
     <string name="todo_header_completed_subtitle">Finished tasks</string>
     <string name="todo_header_profile_icon">Profile</string>
@@ -23,9 +24,11 @@
     <string name="todo_sort_default">Default</string>
     <string name="todo_sort_due_date">Due date</string>
     <string name="todo_sort_priority">By priority</string>
+    <string name="todo_sort_friend">By friend</string>
     <string name="todo_sort_default_description">Keep unfinished tasks first</string>
     <string name="todo_sort_due_date_description">Earliest scheduled work first</string>
     <string name="todo_sort_priority_description">High priority work first</string>
+    <string name="todo_sort_friend_description">Show tasks from friends first</string>
 
     <string name="todo_editor_title_new_task">New Task</string>
     <string name="todo_editor_title_edit_task">Edit Task</string>
@@ -61,6 +64,13 @@
     <string name="todo_today_section_overdue">Overdue</string>
     <string name="todo_today_section_timed">Timed today</string>
     <string name="todo_today_section_today">Due today</string>
+    <string name="todo_section_open">Open</string>
+    <string name="todo_section_priority_high">High priority</string>
+    <string name="todo_section_priority_medium">Medium priority</string>
+    <string name="todo_section_priority_low">Low priority</string>
+    <string name="todo_section_no_due_date">No due date</string>
+    <string name="todo_section_unknown_friend">Friend</string>
+    <string name="todo_section_self">Me</string>
     <string name="todo_quick_action_tomorrow">Tomorrow</string>
     <string name="todo_quick_action_clear_date">Clear date</string>
     <string name="todo_quick_add_open">Quick add</string>
@@ -88,6 +98,7 @@
     <string name="todo_ai_due_date_label">Date</string>
     <string name="todo_ai_due_time_label">Time</string>
     <string name="todo_ai_register_selected">Register selected</string>
+    <string name="todo_ai_close">Close AI registration</string>
     <string name="todo_ai_error_prompt_required">Enter text to analyze.</string>
     <string name="todo_ai_error_analyze_failed">Failed to create AI drafts. Check the proxy server.</string>
     <string name="todo_ai_error_no_drafts">No task drafts were found.</string>

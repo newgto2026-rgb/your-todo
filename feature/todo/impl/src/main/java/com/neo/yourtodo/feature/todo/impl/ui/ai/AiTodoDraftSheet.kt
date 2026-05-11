@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
@@ -42,12 +43,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -101,12 +107,32 @@ private fun AiTodoDraftSheet(
     onDraftPriorityChange: (String, TodoPriority) -> Unit,
     onDraftDelete: (String) -> Unit
 ) {
+    val scrollState = rememberScrollState()
+    val lockSheetDragConnection = remember(scrollState) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
+                if (scrollState.value == 0 && available.y > 0f) {
+                    Offset(x = 0f, y = available.y)
+                } else {
+                    Offset.Zero
+                }
+
+            override suspend fun onPreFling(available: Velocity): Velocity =
+                if (scrollState.value == 0 && available.y > 0f) {
+                    Velocity(x = 0f, y = available.y)
+                } else {
+                    Velocity.Zero
+                }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFFF7F8FC), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .padding(horizontal = 20.dp, vertical = 18.dp)
-            .verticalScroll(rememberScrollState())
+            .nestedScroll(lockSheetDragConnection)
+            .verticalScroll(scrollState)
             .testTag("ai_todo_sheet"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -127,6 +153,16 @@ private fun AiTodoDraftSheet(
                     text = stringResource(R.string.todo_ai_sheet_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF697085)
+                )
+            }
+            IconButton(
+                onClick = onDismiss,
+                enabled = !uiState.isSaving,
+                modifier = Modifier.testTag("ai_todo_close_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.todo_ai_close)
                 )
             }
         }

@@ -37,12 +37,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -225,7 +227,10 @@ private fun TodoListScreen(
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
     val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val aiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val aiSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden }
+    )
     var isAddMenuExpanded by remember { mutableStateOf(false) }
     var isAiSheetVisible by remember { mutableStateOf(false) }
 
@@ -352,14 +357,7 @@ private fun TodoListScreen(
                         todayPlannerSections(uiState.items).forEach { section ->
                             if (section.items.isNotEmpty()) {
                                 item(key = "section_${section.titleRes}") {
-                                    Text(
-                                        text = stringResource(section.titleRes),
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold
-                                        ),
-                                        color = Color(0xFF323640),
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    )
+                                    TodoListSectionHeader(text = stringResource(section.titleRes))
                                 }
                                 items(items = section.items, key = { item -> item.id }) { item ->
                                     TodoPlannerRow(
@@ -377,6 +375,30 @@ private fun TodoListScreen(
                                         showQuickActions = true
                                     )
                                 }
+                            }
+                        }
+                    } else if (uiState.sections.isNotEmpty()) {
+                        uiState.sections.forEach { section ->
+                            item(key = "section_${section.key}") {
+                                TodoListSectionHeader(
+                                    text = section.key.label(dueDateFormat = dueDateFormat)
+                                )
+                            }
+                            items(items = section.items, key = { item -> item.id }) { item ->
+                                TodoPlannerRow(
+                                    item = item,
+                                    rowCompletedText = rowCompletedText,
+                                    rowTodayText = rowTodayText,
+                                    dueDateFormat = dueDateFormat,
+                                    onAction = onAction,
+                                    onEditRequested = onEditRequested,
+                                    onDeleteRequest = {
+                                        item.assignedTodoId?.let {
+                                            onAction(TodoListAction.OnAssignedDeleteRequest(it))
+                                        } ?: onAction(TodoListAction.OnDeleteRequest(item.id))
+                                    },
+                                    showQuickActions = false
+                                )
                             }
                         }
                     } else {
@@ -413,6 +435,9 @@ private fun TodoListScreen(
 
     BackHandler(enabled = uiState.isQuickAddVisible && shouldShowQuickAdd) {
         onAction(TodoListAction.OnQuickAddDismiss)
+    }
+    BackHandler(enabled = isAiSheetVisible) {
+        Unit
     }
 
     uiState.deleteConfirmation?.let { confirmation ->
@@ -470,7 +495,7 @@ private fun TodoListScreen(
 
     if (isAiSheetVisible) {
         ModalBottomSheet(
-            onDismissRequest = { isAiSheetVisible = false },
+            onDismissRequest = {},
             sheetState = aiSheetState,
             containerColor = Color.Transparent,
             dragHandle = null
@@ -980,6 +1005,43 @@ internal fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlann
 }
 
 @Composable
+private fun TodoListSectionHeader(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF4A5161)
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = Color(0xFFDCE2EC)
+        )
+    }
+}
+
+@Composable
+private fun TodoListSectionKey.label(dueDateFormat: String): String = when (this) {
+    TodoListSectionKey.Open -> stringResource(R.string.todo_section_open)
+    TodoListSectionKey.Completed -> stringResource(R.string.todo_filter_completed)
+    is TodoListSectionKey.Priority -> when (priority) {
+        TodoPriority.HIGH -> stringResource(R.string.todo_section_priority_high)
+        TodoPriority.MEDIUM -> stringResource(R.string.todo_section_priority_medium)
+        TodoPriority.LOW -> stringResource(R.string.todo_section_priority_low)
+    }
+    is TodoListSectionKey.DueDate -> date?.let {
+        formatDateLabel(it, dueDateFormat)
+    } ?: stringResource(R.string.todo_section_no_due_date)
+    is TodoListSectionKey.Friend -> nickname ?: stringResource(R.string.todo_section_unknown_friend)
+    TodoListSectionKey.Self -> stringResource(R.string.todo_section_self)
+}
+
+@Composable
 private fun priorityLabel(priority: TodoPriority): String = when (priority) {
     TodoPriority.LOW -> stringResource(R.string.todo_priority_low)
     TodoPriority.MEDIUM -> stringResource(R.string.todo_priority_medium)
@@ -1011,18 +1073,21 @@ private fun TodoSortOption.labelRes(): Int = when (this) {
     TodoSortOption.DEFAULT -> R.string.todo_sort_default
     TodoSortOption.DUE_DATE -> R.string.todo_sort_due_date
     TodoSortOption.PRIORITY -> R.string.todo_sort_priority
+    TodoSortOption.FRIEND -> R.string.todo_sort_friend
 }
 
 private fun TodoSortOption.descriptionRes(): Int = when (this) {
     TodoSortOption.DEFAULT -> R.string.todo_sort_default_description
     TodoSortOption.DUE_DATE -> R.string.todo_sort_due_date_description
     TodoSortOption.PRIORITY -> R.string.todo_sort_priority_description
+    TodoSortOption.FRIEND -> R.string.todo_sort_friend_description
 }
 
 private fun TodoSortOption.accentColor(): Color = when (this) {
     TodoSortOption.DEFAULT -> Color(0xFF8A93A5)
     TodoSortOption.DUE_DATE -> Color(0xFF4B83C5)
     TodoSortOption.PRIORITY -> Color(0xFFC76B7D)
+    TodoSortOption.FRIEND -> Color(0xFF6FA58C)
 }
 
 @StringRes
@@ -1030,12 +1095,14 @@ private fun TodoSortOption.subtitleRes(): Int = when (this) {
     TodoSortOption.DEFAULT -> R.string.todo_header_all_subtitle
     TodoSortOption.DUE_DATE -> R.string.todo_header_all_subtitle_due_date
     TodoSortOption.PRIORITY -> R.string.todo_header_all_subtitle_priority
+    TodoSortOption.FRIEND -> R.string.todo_header_all_subtitle_friend
 }
 
 private fun TodoSortOption.testTag(): String = when (this) {
     TodoSortOption.DEFAULT -> "todo_sort_option_default"
     TodoSortOption.DUE_DATE -> "todo_sort_option_due_date"
     TodoSortOption.PRIORITY -> "todo_sort_option_priority"
+    TodoSortOption.FRIEND -> "todo_sort_option_friend"
 }
 
 private fun completionProgress(uiState: TodoListUiState): Float {

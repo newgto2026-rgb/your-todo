@@ -9,6 +9,7 @@
     <string name="todo_header_all_subtitle">미완료 우선</string>
     <string name="todo_header_all_subtitle_due_date">마감일 순 정렬</string>
     <string name="todo_header_all_subtitle_priority">중요도 순 정렬</string>
+    <string name="todo_header_all_subtitle_friend">친구 순 정렬</string>
     <string name="todo_header_completed_title">완료 목록</string>
     <string name="todo_header_completed_subtitle">완료한 할 일</string>
     <string name="todo_header_profile_icon">프로필</string>
@@ -23,9 +24,11 @@
     <string name="todo_sort_default">기본</string>
     <string name="todo_sort_due_date">마감일순</string>
     <string name="todo_sort_priority">중요도순</string>
+    <string name="todo_sort_friend">친구순</string>
     <string name="todo_sort_default_description">열린 할 일을 먼저 보여줘요</string>
     <string name="todo_sort_due_date_description">가까운 일정부터 보여줘요</string>
     <string name="todo_sort_priority_description">중요한 할 일을 먼저 보여줘요</string>
+    <string name="todo_sort_friend_description">친구가 준 일을 먼저 보여줘요</string>
 
     <string name="todo_editor_title_new_task">새 할 일</string>
     <string name="todo_editor_title_edit_task">할 일 수정</string>
@@ -60,6 +63,13 @@
     <string name="todo_today_section_overdue">기한 지남</string>
     <string name="todo_today_section_timed">시간 지정</string>
     <string name="todo_today_section_today">오늘 마감</string>
+    <string name="todo_section_open">진행 중</string>
+    <string name="todo_section_priority_high">중요도 높음</string>
+    <string name="todo_section_priority_medium">중요도 중간</string>
+    <string name="todo_section_priority_low">중요도 낮음</string>
+    <string name="todo_section_no_due_date">날짜 없음</string>
+    <string name="todo_section_unknown_friend">친구</string>
+    <string name="todo_section_self">나</string>
     <string name="todo_quick_action_tomorrow">내일로 미루기</string>
     <string name="todo_quick_action_clear_date">날짜 제거</string>
     <string name="todo_quick_add_open">빠른 추가</string>
@@ -86,6 +96,7 @@
     <string name="todo_ai_due_date_label">날짜</string>
     <string name="todo_ai_due_time_label">시간</string>
     <string name="todo_ai_register_selected">선택 항목 등록</string>
+    <string name="todo_ai_close">AI 등록 닫기</string>
     <string name="todo_ai_error_prompt_required">분석할 내용을 입력해주세요.</string>
     <string name="todo_ai_error_analyze_failed">AI 초안 생성에 실패했습니다. proxy 서버를 확인해주세요.</string>
     <string name="todo_ai_error_no_drafts">찾은 할 일 초안이 없습니다.</string>

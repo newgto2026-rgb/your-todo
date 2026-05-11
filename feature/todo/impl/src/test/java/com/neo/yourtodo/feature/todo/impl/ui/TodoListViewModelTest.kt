@@ -420,6 +420,12 @@ class TodoListViewModelTest {
 
         val state = viewModel.uiState.value
         assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
+        assertThat(state.sections.map { it.key }).containsExactly(
+            TodoListSectionKey.DueDate(today),
+            TodoListSectionKey.DueDate(today.plusDays(3)),
+            TodoListSectionKey.DueDate(null),
+            TodoListSectionKey.Completed
+        ).inOrder()
         assertThat(state.items.map { it.title }).containsExactly(
             "Today early",
             "Today late",
@@ -477,6 +483,12 @@ class TodoListViewModelTest {
 
         val state = viewModel.uiState.value
         assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.PRIORITY)
+        assertThat(state.sections.map { it.key }).containsExactly(
+            TodoListSectionKey.Priority(TodoPriority.HIGH),
+            TodoListSectionKey.Priority(TodoPriority.MEDIUM),
+            TodoListSectionKey.Priority(TodoPriority.LOW),
+            TodoListSectionKey.Completed
+        ).inOrder()
         assertThat(state.items.map { it.title }).containsExactly(
             "High today early",
             "High today no time",
@@ -484,6 +496,55 @@ class TodoListViewModelTest {
             "Medium overdue",
             "Low today",
             "Completed high"
+        ).inOrder()
+    }
+
+    @Test
+    fun friendSortGroupsFriendTasksFirstAndSelfTasksBeforeCompletedSection() = runTest {
+        repository.addTodo(
+            title = "My task",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        )
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "assigned-bob",
+                title = "Bob task",
+                senderNickname = "Bob",
+                priority = TodoPriority.MEDIUM
+            ),
+            assignedTodo(
+                id = "assigned-ann",
+                title = "Ann task",
+                senderNickname = "Ann",
+                priority = TodoPriority.LOW
+            ),
+            assignedTodo(
+                id = "assigned-done",
+                title = "Done friend task",
+                senderNickname = "Ann",
+                status = AssignedTodoStatus.DONE,
+                priority = TodoPriority.HIGH
+            )
+        )
+
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.FRIEND))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.FRIEND)
+        assertThat(state.sections.map { it.key }).containsExactly(
+            TodoListSectionKey.Friend("Ann"),
+            TodoListSectionKey.Friend("Bob"),
+            TodoListSectionKey.Self,
+            TodoListSectionKey.Completed
+        ).inOrder()
+        assertThat(state.items.map { it.title }).containsExactly(
+            "Ann task",
+            "Bob task",
+            "My task",
+            "Done friend task"
         ).inOrder()
     }
 
@@ -1470,7 +1531,9 @@ private fun assignedTodo(
     status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
     dueDate: LocalDate? = null,
     dueTimeMinutes: Int? = null,
-    reminder: AssignedTodoReminder? = null
+    reminder: AssignedTodoReminder? = null,
+    priority: TodoPriority = TodoPriority.MEDIUM,
+    senderNickname: String = "monday"
 ) = AssignedTodo(
     id = id,
     bundleId = "bundle-1",
@@ -1478,12 +1541,12 @@ private fun assignedTodo(
     description = null,
     dueDate = dueDate,
     dueTimeMinutes = dueTimeMinutes,
-    priority = TodoPriority.MEDIUM,
+    priority = priority,
     category = null,
     status = status,
     terminalReason = null,
     progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
-    sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
+    sender = AssignedTodoUser(id = "friend-1", nickname = senderNickname),
     receiver = AssignedTodoUser(id = "me", nickname = "tester"),
     reminder = reminder,
     checklist = emptyList()
