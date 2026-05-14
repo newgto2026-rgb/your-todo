@@ -37,6 +37,7 @@
     <string name="todo_editor_task_placeholder">무엇을 해야 하나요?</string>
     <string name="todo_editor_select_due_date">마감일 선택</string>
     <string name="todo_editor_select_due_time">마감 시간 선택</string>
+    <string name="todo_editor_clear_due_time">마감 시간 제거</string>
     <string name="todo_editor_priority_label">중요도</string>
     <string name="todo_editor_reminder_label">리마인더</string>
     <string name="todo_editor_enable_reminder">리마인더 사용</string>

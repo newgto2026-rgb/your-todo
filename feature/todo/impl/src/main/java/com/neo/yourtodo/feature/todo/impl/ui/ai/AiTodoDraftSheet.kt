@@ -411,7 +411,8 @@ private fun AiDraftDateTimeSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("ai_todo_due_time_selector"),
-            isError = isTimeError
+            isError = isTimeError,
+            onClear = { onDueTimeChange("") }
         )
     }
 }

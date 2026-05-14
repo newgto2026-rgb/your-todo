@@ -26,6 +26,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -298,7 +299,8 @@ internal fun TodoEditorDueTimeSelector(
     onDueTimeInputChange: (String) -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
-    isError: Boolean = false
+    isError: Boolean = false,
+    onClear: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -349,6 +351,16 @@ internal fun TodoEditorDueTimeSelector(
                     else -> Color(0xFF2F3441)
                 }
             )
+            if (enabled && dueTimeInput.isNotBlank() && onClear != null) {
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onClear) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.todo_editor_clear_due_time),
+                        tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF5C6170)
+                    )
+                }
+            }
         }
     }
 }
