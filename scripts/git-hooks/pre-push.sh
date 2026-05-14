@@ -2,6 +2,7 @@
 
 set -eu
 
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 zero_sha="0000000000000000000000000000000000000000"
 should_run_lint=0
 should_run_full_lint=0
@@ -68,6 +69,11 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   if [ "$local_sha" != "$zero_sha" ]; then
     should_run_lint=1
+    case "$local_ref" in
+      refs/heads/*)
+        "$script_dir/ensure-latest-main.sh" "$local_sha"
+        ;;
+    esac
   fi
 
   if [ "$local_sha" = "$zero_sha" ]; then
