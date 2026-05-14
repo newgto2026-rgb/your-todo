@@ -69,7 +69,11 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   if [ "$local_sha" != "$zero_sha" ]; then
     should_run_lint=1
-    "$script_dir/ensure-latest-main.sh" "$local_sha"
+    case "$local_ref" in
+      refs/heads/*)
+        "$script_dir/ensure-latest-main.sh" "$local_sha"
+        ;;
+    esac
   fi
 
   if [ "$local_sha" = "$zero_sha" ]; then
