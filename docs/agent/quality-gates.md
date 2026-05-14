@@ -13,7 +13,18 @@
 - Flow 테스트에는 Turbine을 사용하고 공용 fake/rule은 `core:testing`을 재사용한다.
 - 테스트는 구현 세부가 아닌 동작 중심으로 작성한다.
 - non-view 레이어 커버리지 최소 80%를 확인한다.
+- pre-commit/pre-push 훅에서 최신 `origin/main`을 fetch하고 현재 브랜치가 이를 포함하는지 확인한다.
 - pre-push 훅에서 변경 모듈 `lintDebug`를 우선 실행하며, Gradle/CI/훅 변경 시 `./gradlew lint` 전체를 실행한다.
+
+## 작업 시작 가드
+
+새 구현 작업은 최신 원격 main 기준 전용 worktree에서 시작한다.
+
+```sh
+scripts/start-worktree-from-main.sh codex/my-feature ../worktrees/my-feature
+```
+
+이 스크립트는 `origin/main`을 먼저 갱신한 뒤 해당 커밋에서 새 브랜치와 worktree를 만든다.
 
 ## 작업 타입별 체크리스트
 
