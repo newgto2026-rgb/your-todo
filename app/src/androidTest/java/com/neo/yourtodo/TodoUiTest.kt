@@ -28,6 +28,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeLeft
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -711,6 +712,19 @@ class TodoUiTest {
         tabNode("all").assertIsSelected()
         composeTestRule.onNodeWithTag("quick_add_open").performClick()
         composeTestRule.waitUntilNodeExists("quick_add_title_input")
+    }
+
+    @Test
+    fun aiSheet_whenSwipedDown_staysOpen() {
+        openAiAddFromFab()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("ai_todo_sheet")
+            .performTouchInput { swipeDown() }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+        tabNode("all").assertIsSelected()
     }
 
     @Test
