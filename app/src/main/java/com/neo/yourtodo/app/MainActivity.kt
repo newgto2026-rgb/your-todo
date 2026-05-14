@@ -5,11 +5,19 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.designsystem.theme.YourTodoTheme
 import com.neo.yourtodo.core.ui.navigation.AppFeatureEntry
@@ -31,6 +39,13 @@ class MainActivity : ComponentActivity() {
     private val launchNavigationRequest = MutableStateFlow<AppLaunchNavigationRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val showStartupSplashOnLaunch = savedInstanceState == null && !isRunningInstrumentationTest()
+        val systemSplashStartedAt = SystemClock.uptimeMillis()
+        val systemSplash = installSplashScreen()
+        systemSplash.setKeepOnScreenCondition {
+            showStartupSplashOnLaunch &&
+                SystemClock.uptimeMillis() - systemSplashStartedAt < MIN_SYSTEM_SPLASH_DURATION_MS
+        }
         super.onCreate(savedInstanceState)
         launchNavigationRequest.value = parseNavigationRequest(intent)
         if (!isRunningInstrumentationTest()) {
@@ -39,12 +54,20 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val navigationRequest by launchNavigationRequest.collectAsStateWithLifecycle()
+            var showStartupSplash by remember { mutableStateOf(showStartupSplashOnLaunch) }
             YourTodoTheme {
-                authGateEntry.Content {
-                    AppNavHost(
-                        entries = featureEntries,
-                        launchNavigationRequest = navigationRequest
-                    )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    authGateEntry.Content {
+                        AppNavHost(
+                            entries = featureEntries,
+                            launchNavigationRequest = navigationRequest
+                        )
+                    }
+                    if (showStartupSplash) {
+                        AppStartupSplash(
+                            onFinished = { showStartupSplash = false }
+                        )
+                    }
                 }
             }
         }
@@ -80,10 +103,14 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val REQUEST_NOTIFICATION_PERMISSION = 1001
+        const val MIN_SYSTEM_SPLASH_DURATION_MS = 650L
     }
 
     private fun isRunningInstrumentationTest(): Boolean = runCatching {
-        Class.forName("androidx.test.platform.app.InstrumentationRegistry")
+        val registry = Class.forName("androidx.test.platform.app.InstrumentationRegistry")
+        registry
+            .getMethod("getInstrumentation")
+            .invoke(null)
         true
     }.getOrDefault(false)
 
