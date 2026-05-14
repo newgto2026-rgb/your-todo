@@ -333,6 +333,9 @@ private fun AiTodoDraftCard(
             AiDraftDateTimeSection(
                 dueDateInput = draft.dueDateInput,
                 dueTimeInput = draft.dueTimeInput,
+                isDateError = draft.errorMessageRes == R.string.todo_error_due_date_format,
+                isTimeError = draft.errorMessageRes == R.string.todo_error_due_time_format ||
+                    draft.errorMessageRes == R.string.todo_error_due_time_requires_due_date,
                 onDueDateChange = onDueDateChange,
                 onDueTimeChange = onDueTimeChange
             )
@@ -376,6 +379,8 @@ private fun AiTodoDraftCard(
 private fun AiDraftDateTimeSection(
     dueDateInput: String,
     dueTimeInput: String,
+    isDateError: Boolean,
+    isTimeError: Boolean,
     onDueDateChange: (String) -> Unit,
     onDueTimeChange: (String) -> Unit
 ) {
@@ -383,7 +388,7 @@ private fun AiDraftDateTimeSection(
         Text(
             text = stringResource(R.string.todo_ai_due_date_label),
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = Color(0xFF7A7F8C)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         TodoEditorDueDateSelector(
             dueDateInput = dueDateInput,
@@ -391,12 +396,13 @@ private fun AiDraftDateTimeSection(
             enabled = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("ai_todo_due_date_selector")
+                .testTag("ai_todo_due_date_selector"),
+            isError = isDateError
         )
         Text(
             text = stringResource(R.string.todo_ai_due_time_label),
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = Color(0xFF7A7F8C)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         TodoEditorDueTimeSelector(
             dueTimeInput = dueTimeInput,
@@ -404,7 +410,8 @@ private fun AiDraftDateTimeSection(
             enabled = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("ai_todo_due_time_selector")
+                .testTag("ai_todo_due_time_selector"),
+            isError = isTimeError
         )
     }
 }

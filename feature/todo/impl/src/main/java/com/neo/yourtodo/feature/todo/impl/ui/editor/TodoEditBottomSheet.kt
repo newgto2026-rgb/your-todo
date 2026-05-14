@@ -1,6 +1,7 @@
 package com.neo.yourtodo.feature.todo.impl.ui
 
 import android.app.TimePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -221,19 +222,24 @@ internal fun TodoEditorDueDateSelector(
     dueDateInput: String,
     onDateInputChange: (String) -> Unit,
     enabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = isoDateToUtcMillis(dueDateInput)
     )
+    LaunchedEffect(dueDateInput) {
+        datePickerState.selectedDateMillis = isoDateToUtcMillis(dueDateInput)
+    }
 
     Surface(
         onClick = { showDatePicker = true },
         enabled = enabled,
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        color = if (enabled) Color(0xFFEBEDF4) else Color(0xFFE2E5EC)
+        color = if (enabled) Color(0xFFEBEDF4) else Color(0xFFE2E5EC),
+        border = if (isError) BorderStroke(1.dp, MaterialTheme.colorScheme.error) else null
     ) {
         Row(
             modifier = Modifier
@@ -244,7 +250,7 @@ internal fun TodoEditorDueDateSelector(
             Icon(
                 imageVector = Icons.Default.CalendarMonth,
                 contentDescription = null,
-                tint = Color(0xFF5C6170)
+                tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF5C6170)
             )
             Spacer(Modifier.size(10.dp))
             Text(
@@ -255,6 +261,7 @@ internal fun TodoEditorDueDateSelector(
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 color = when {
+                    isError -> MaterialTheme.colorScheme.error
                     !enabled -> Color(0xFF7A808C)
                     dueDateInput.isBlank() -> Color(0xFF8E94A3)
                     else -> Color(0xFF2F3441)
@@ -290,7 +297,8 @@ internal fun TodoEditorDueTimeSelector(
     dueTimeInput: String,
     onDueTimeInputChange: (String) -> Unit,
     enabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -312,7 +320,8 @@ internal fun TodoEditorDueTimeSelector(
         enabled = enabled,
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        color = if (enabled) Color(0xFFEBEDF4) else Color(0xFFE2E5EC)
+        color = if (enabled) Color(0xFFEBEDF4) else Color(0xFFE2E5EC),
+        border = if (isError) BorderStroke(1.dp, MaterialTheme.colorScheme.error) else null
     ) {
         Row(
             modifier = Modifier
@@ -323,7 +332,7 @@ internal fun TodoEditorDueTimeSelector(
             Icon(
                 imageVector = Icons.Default.AccessTime,
                 contentDescription = null,
-                tint = Color(0xFF5C6170)
+                tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF5C6170)
             )
             Spacer(Modifier.size(10.dp))
             Text(
@@ -334,6 +343,7 @@ internal fun TodoEditorDueTimeSelector(
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 color = when {
+                    isError -> MaterialTheme.colorScheme.error
                     !enabled -> Color(0xFF7A808C)
                     dueTimeInput.isBlank() -> Color(0xFF8E94A3)
                     else -> Color(0xFF2F3441)
