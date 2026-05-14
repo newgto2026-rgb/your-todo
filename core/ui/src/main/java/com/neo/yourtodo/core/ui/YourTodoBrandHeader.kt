@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ fun YourTodoBrandHeader(
     profileContentDescription: String,
     modifier: Modifier = Modifier,
     profileInitial: String? = null,
+    onProfileClick: () -> Unit = {},
     content: @Composable RowScope.() -> Unit = {}
 ) {
     val displayInitial = profileInitial.toProfileInitial()
@@ -48,27 +50,33 @@ fun YourTodoBrandHeader(
         )
         Spacer(modifier = Modifier.weight(1f))
         content()
-        Box(
+        IconButton(
+            onClick = onProfileClick,
             modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF1F3A56))
-                .semantics { contentDescription = profileContentDescription },
-            contentAlignment = Alignment.Center
+                .size(48.dp)
+                .semantics { contentDescription = profileContentDescription }
         ) {
-            if (displayInitial == null) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-            } else {
-                Text(
-                    text = displayInitial,
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White
-                )
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1F3A56)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (displayInitial == null) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    Text(
+                        text = displayInitial,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White
+                    )
+                }
             }
         }
     }

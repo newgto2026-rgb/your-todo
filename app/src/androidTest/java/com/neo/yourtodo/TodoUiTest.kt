@@ -93,6 +93,7 @@ class TodoUiTest {
     private lateinit var newTaskTitle: String
     private lateinit var editTaskTitle: String
     private lateinit var undoText: String
+    private lateinit var todoProfileContentDescription: String
 
     @Before
     fun setup() {
@@ -106,6 +107,9 @@ class TodoUiTest {
         undoText = InstrumentationRegistry.getInstrumentation()
             .targetContext
             .getString(TodoImplR.string.todo_action_undo)
+        todoProfileContentDescription = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_header_profile_icon)
         runBlocking {
             appDatabase.clearAllTables()
             userPreferencesDataSource.setSelectedTodoFilter(TodoFilter.ALL)
@@ -133,6 +137,21 @@ class TodoUiTest {
         tabNode("completed").assertIsNotSelected()
         tabNode("calendar").assertIsNotSelected()
         composeTestRule.onNodeWithTag("todo_sync_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun profileMenu_opensAndClosesFromTodoHeader() {
+        composeTestRule.onNodeWithContentDescription(todoProfileContentDescription).performClick()
+
+        composeTestRule.waitUntilNodeExists("profile_menu_drawer")
+        composeTestRule.onNodeWithTag("profile_menu_nickname").assertTextContains("tester")
+        composeTestRule.onNodeWithTag("profile_menu_email").assertTextContains("tester@example.com")
+        composeTestRule.onNodeWithTag("profile_menu_copy_nickname").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("profile_menu_logout").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("profile_menu_close").performClick()
+
+        composeTestRule.waitUntilNodeDoesNotExist("profile_menu_drawer")
     }
 
     @Test

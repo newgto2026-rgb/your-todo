@@ -36,6 +36,7 @@ interface AppRouteActions {
     fun openAssignedTodoEdit(assignedTodoId: String)
     fun openTodoAdd(dueDate: String)
     fun requestWorkspaceSync() = Unit
+    fun openProfileMenu() = Unit
     fun closeCurrentEntry()
     fun setBackBlocked(blocked: Boolean)
 }

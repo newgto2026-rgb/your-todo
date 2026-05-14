@@ -104,6 +104,7 @@ fun TodoListRoute(
     onEditRequested: (Long) -> Unit = {},
     workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
     onWorkspaceSyncClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     viewModel: TodoListViewModel = hiltViewModel(key = viewModelKey)
 ) {
     val routeUiState = remember(viewModel, presetFilter) {
@@ -183,7 +184,8 @@ fun TodoListRoute(
         snackbarHostState = snackbarHostState,
         onAddRequested = onAddRequested,
         onEditRequested = onEditRequested,
-        onSyncClick = onWorkspaceSyncClick
+        onSyncClick = onWorkspaceSyncClick,
+        onProfileClick = onProfileClick
     )
 }
 
@@ -207,7 +209,8 @@ private fun TodoListScreen(
     snackbarHostState: SnackbarHostState,
     onAddRequested: (LocalDate?) -> Unit,
     onEditRequested: (Long) -> Unit,
-    onSyncClick: () -> Unit
+    onSyncClick: () -> Unit,
+    onProfileClick: () -> Unit
 ) {
     val todayHeaderDateFormat = stringResource(R.string.todo_today_header_date_format)
     val (title, subtitle) = headerTextFor(
@@ -272,7 +275,8 @@ private fun TodoListScreen(
             AppHeader(
                 profileInitial = uiState.profileInitial,
                 isSyncing = isSyncing,
-                onSyncClick = onSyncClick
+                onSyncClick = onSyncClick,
+                onProfileClick = onProfileClick
             )
             Spacer(Modifier.height(12.dp))
 

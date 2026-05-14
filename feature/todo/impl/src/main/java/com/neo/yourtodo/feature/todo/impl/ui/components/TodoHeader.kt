@@ -32,7 +32,8 @@ import com.neo.yourtodo.feature.todo.impl.R
 internal fun AppHeader(
     profileInitial: String?,
     isSyncing: Boolean,
-    onSyncClick: () -> Unit
+    onSyncClick: () -> Unit,
+    onProfileClick: () -> Unit = {}
 ) {
     YourTodoAppHeader(
         wordmarkContentDescription = stringResource(R.string.todo_app_header_title),
@@ -41,6 +42,7 @@ internal fun AppHeader(
         profileInitial = profileInitial,
         isSyncing = isSyncing,
         onSyncClick = onSyncClick,
+        onProfileClick = onProfileClick,
         syncTestTag = "todo_sync_button"
     )
 }

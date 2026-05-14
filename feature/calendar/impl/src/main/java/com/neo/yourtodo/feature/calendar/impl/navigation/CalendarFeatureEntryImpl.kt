@@ -29,7 +29,8 @@ class CalendarFeatureEntryImpl @Inject constructor() : CalendarFeatureEntry {
                     routeActions.openTodoAdd(dueDate.toString())
                 },
                 workspaceSyncState = routeActions.workspaceSyncState,
-                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync,
+                onProfileClick = routeActions::openProfileMenu
             )
         }
     }

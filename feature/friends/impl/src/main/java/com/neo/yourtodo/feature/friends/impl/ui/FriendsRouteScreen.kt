@@ -106,6 +106,7 @@ fun FriendsRouteScreen(
     workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
     launchRouteState: StateFlow<NavKey?> = MutableStateFlow(null),
     onWorkspaceSyncClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     initialFriendsRouteKey: Any = Unit,
     initialIncomingAssignmentFriendUserId: String? = null,
     initialIncomingAssignmentFriendNickname: String? = null,
@@ -159,6 +160,7 @@ fun FriendsRouteScreen(
         isSyncing = syncUiState.isSyncing,
         snackbarHostState = snackbarHostState,
         onSyncClick = onWorkspaceSyncClick,
+        onProfileClick = onProfileClick,
         onAction = viewModel::onAction
     )
 }
@@ -169,6 +171,7 @@ private fun FriendsScreen(
     isSyncing: Boolean,
     snackbarHostState: SnackbarHostState,
     onSyncClick: () -> Unit,
+    onProfileClick: () -> Unit,
     onAction: (FriendsAction) -> Unit
 ) {
     YourTodoScreenBackground {
@@ -194,6 +197,7 @@ private fun FriendsScreen(
                         profileInitial = uiState.profileInitial,
                         isSyncing = isSyncing,
                         onSyncClick = onSyncClick,
+                        onProfileClick = onProfileClick,
                         syncTestTag = "friends_refresh"
                     )
                 }
