@@ -19,7 +19,8 @@ class FriendsFeatureEntryImpl @Inject constructor() : FriendsFeatureEntry {
             FriendsRouteScreen(
                 workspaceSyncState = routeActions.workspaceSyncState,
                 launchRouteState = routeActions.topLevelLaunchRouteState,
-                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync,
+                onProfileClick = routeActions::openProfileMenu
             )
         }
     }

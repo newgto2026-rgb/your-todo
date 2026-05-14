@@ -44,7 +44,8 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
                 },
                 onEditRequested = routeActions::openTodoEdit,
                 workspaceSyncState = routeActions.workspaceSyncState,
-                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync,
+                onProfileClick = routeActions::openProfileMenu
             )
         }
         entryProviderScope.entry<TodoTodayRoute> {
@@ -57,7 +58,8 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
                 },
                 onEditRequested = routeActions::openTodoEdit,
                 workspaceSyncState = routeActions.workspaceSyncState,
-                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync,
+                onProfileClick = routeActions::openProfileMenu
             )
         }
         entryProviderScope.entry<TodoCompletedRoute> {
@@ -70,7 +72,8 @@ class TodoFeatureEntryImpl @Inject constructor() : TodoFeatureEntry {
                 },
                 onEditRequested = routeActions::openTodoEdit,
                 workspaceSyncState = routeActions.workspaceSyncState,
-                onWorkspaceSyncClick = routeActions::requestWorkspaceSync
+                onWorkspaceSyncClick = routeActions::requestWorkspaceSync,
+                onProfileClick = routeActions::openProfileMenu
             )
         }
         entryProviderScope.entry<TodoEditorRoute>(

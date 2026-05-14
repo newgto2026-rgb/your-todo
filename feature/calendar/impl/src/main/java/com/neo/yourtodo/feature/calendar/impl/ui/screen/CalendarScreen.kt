@@ -54,6 +54,7 @@ fun CalendarRouteScreen(
     workspaceSyncState: StateFlow<WorkspaceSyncUiState> = MutableStateFlow(WorkspaceSyncUiState()),
     launchRouteState: StateFlow<NavKey?> = MutableStateFlow(null),
     onWorkspaceSyncClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     viewModel: CalendarViewModel = hiltViewModel()
 ) {
     val launchRoute by launchRouteState.collectAsStateWithLifecycle()
@@ -120,6 +121,7 @@ fun CalendarRouteScreen(
             viewModel.onAction(action)
         },
         onSyncClick = onWorkspaceSyncClick,
+        onProfileClick = onProfileClick,
         snackbarHostState = snackbarHostState
     )
 }
@@ -130,6 +132,7 @@ private fun CalendarScreen(
     isSyncing: Boolean,
     onAction: (CalendarAction) -> Unit,
     onSyncClick: () -> Unit,
+    onProfileClick: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     YourTodoScreenBackground {
@@ -153,6 +156,7 @@ private fun CalendarScreen(
                 profileInitial = uiState.profileInitial,
                 isSyncing = isSyncing,
                 onSyncClick = onSyncClick,
+                onProfileClick = onProfileClick,
                 syncTestTag = "calendar_sync"
             )
 

@@ -8,6 +8,29 @@
     <string name="tab_friends">Friends</string>
     <string name="app_sync_success">Sync completed.</string>
     <string name="app_sync_failed">Sync was partially completed.</string>
+    <string name="profile_menu_title">Account</string>
+    <string name="profile_menu_close">Close profile menu</string>
+    <string name="profile_menu_nickname_missing">Nickname required</string>
+    <string name="profile_menu_email_missing">Email unavailable</string>
+    <string name="profile_menu_copy_nickname">Copy nickname</string>
+    <string name="profile_menu_copy_nickname_subtitle">Use it for friend search.</string>
+    <string name="profile_menu_copy_success">Nickname copied.</string>
+    <string name="profile_menu_notification_settings">Notification settings</string>
+    <string name="profile_menu_notification_settings_subtitle">Manage app alerts.</string>
+    <string name="profile_menu_app_settings">App settings</string>
+    <string name="profile_menu_app_settings_subtitle">Open Android settings.</string>
+    <string name="profile_menu_privacy_policy">Privacy Policy</string>
+    <string name="profile_menu_terms">Terms of Service</string>
+    <string name="profile_menu_privacy_policy_url" translatable="false"></string>
+    <string name="profile_menu_terms_url" translatable="false"></string>
+    <string name="profile_menu_link_unavailable">This link is not ready yet.</string>
+    <string name="profile_menu_app_version">App version</string>
+    <string name="profile_menu_app_version_value">v%1$s</string>
+    <string name="profile_menu_logout">Log out</string>
+    <string name="profile_menu_logout_confirm_title">Log out?</string>
+    <string name="profile_menu_logout_confirm_message">This account will be logged out on this device. Sign in with Google to use it again.</string>
+    <string name="profile_menu_logout_failed">Could not log out. Please try again.</string>
+    <string name="profile_menu_cancel">Cancel</string>
     <string name="push_notification_channel_name">Friend updates</string>
     <string name="push_notification_channel_description">Friend requests and shared todo updates</string>
     <string name="push_default_title">YourTodo update</string>

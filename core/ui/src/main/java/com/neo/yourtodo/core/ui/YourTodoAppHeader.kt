@@ -16,6 +16,7 @@ fun YourTodoAppHeader(
     isSyncing: Boolean,
     onSyncClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onProfileClick: () -> Unit = {},
     syncTestTag: String? = null,
     content: @Composable RowScope.() -> Unit = {}
 ) {
@@ -24,6 +25,7 @@ fun YourTodoAppHeader(
         profileContentDescription = profileContentDescription,
         profileInitial = profileInitial,
         modifier = modifier,
+        onProfileClick = onProfileClick,
         content = {
             content()
             YourTodoSyncActionButton(
