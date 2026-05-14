@@ -1,6 +1,7 @@
 package com.neo.yourtodo.feature.todo.impl.ui
 
 import android.app.TimePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -75,13 +77,8 @@ internal fun EditTodoBottomSheet(
     showDelete: Boolean,
     contentEditable: Boolean = true
 ) {
-    var showDatePicker by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = isoDateToUtcMillis(dueDateInput)
-    )
     LaunchedEffect(Unit) {
         scrollState.scrollTo(0)
     }
@@ -149,93 +146,24 @@ internal fun EditTodoBottomSheet(
             )
 
             Spacer(Modifier.height(12.dp))
-            Surface(
-                onClick = { showDatePicker = true },
+            TodoEditorDueDateSelector(
+                dueDateInput = dueDateInput,
+                onDateInputChange = onDateInputChange,
                 enabled = contentEditable,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("due_date_selector"),
-                shape = RoundedCornerShape(14.dp),
-                color = if (contentEditable) Color(0xFFEBEDF4) else Color(0xFFE2E5EC)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        tint = Color(0xFF5C6170)
-                    )
-                    Spacer(Modifier.size(10.dp))
-                    Text(
-                        text = if (dueDateInput.isBlank()) {
-                            stringResource(R.string.todo_editor_select_due_date)
-                        } else {
-                            dueDateInput
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = when {
-                            !contentEditable -> Color(0xFF7A808C)
-                            dueDateInput.isBlank() -> Color(0xFF8E94A3)
-                            else -> Color(0xFF2F3441)
-                        }
-                    )
-                }
-            }
+                    .testTag("due_date_selector")
+            )
 
             Spacer(Modifier.height(10.dp))
-            Surface(
-                onClick = {
-                    val minutes = dueTimeTextToMinutes(dueTimeInput)
-                    val initialHour = minutes?.div(60) ?: 9
-                    val initialMinute = minutes?.rem(60) ?: 0
-                    TimePickerDialog(
-                        context,
-                        { _, hour, minute ->
-                            onDueTimeInputChange(minutesToDueTimeText(hour * 60 + minute))
-                        },
-                        initialHour,
-                        initialMinute,
-                        true
-                    ).show()
-                },
+            TodoEditorDueTimeSelector(
+                dueTimeInput = dueTimeInput,
+                onDueTimeInputChange = onDueTimeInputChange,
                 enabled = contentEditable,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("due_time_selector"),
-                shape = RoundedCornerShape(14.dp),
-                color = if (contentEditable) Color(0xFFEBEDF4) else Color(0xFFE2E5EC)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AccessTime,
-                        contentDescription = null,
-                        tint = Color(0xFF5C6170)
-                    )
-                    Spacer(Modifier.size(10.dp))
-                    Text(
-                        text = if (dueTimeInput.isBlank()) {
-                            stringResource(R.string.todo_editor_select_due_time)
-                        } else {
-                            dueTimeInput
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = when {
-                            !contentEditable -> Color(0xFF7A808C)
-                            dueTimeInput.isBlank() -> Color(0xFF8E94A3)
-                            else -> Color(0xFF2F3441)
-                        }
-                    )
-                }
-            }
+                    .testTag("due_time_selector")
+            )
 
             Spacer(Modifier.height(14.dp))
             TodoEditorPrioritySection(
@@ -287,7 +215,63 @@ internal fun EditTodoBottomSheet(
         }
     }
 
-    if (showDatePicker && contentEditable) {
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TodoEditorDueDateSelector(
+    dueDateInput: String,
+    onDateInputChange: (String) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = isoDateToUtcMillis(dueDateInput)
+    )
+    LaunchedEffect(dueDateInput) {
+        datePickerState.selectedDateMillis = isoDateToUtcMillis(dueDateInput)
+    }
+
+    Surface(
+        onClick = { showDatePicker = true },
+        enabled = enabled,
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = if (enabled) Color(0xFFEBEDF4) else Color(0xFFE2E5EC),
+        border = if (isError) BorderStroke(1.dp, MaterialTheme.colorScheme.error) else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.CalendarMonth,
+                contentDescription = null,
+                tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF5C6170)
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = if (dueDateInput.isBlank()) {
+                    stringResource(R.string.todo_editor_select_due_date)
+                } else {
+                    dueDateInput
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = when {
+                    isError -> MaterialTheme.colorScheme.error
+                    !enabled -> Color(0xFF7A808C)
+                    dueDateInput.isBlank() -> Color(0xFF8E94A3)
+                    else -> Color(0xFF2F3441)
+                }
+            )
+        }
+    }
+
+    if (showDatePicker && enabled) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -305,6 +289,78 @@ internal fun EditTodoBottomSheet(
             }
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+}
+
+@Composable
+internal fun TodoEditorDueTimeSelector(
+    dueTimeInput: String,
+    onDueTimeInputChange: (String) -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    onClear: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+
+    Surface(
+        onClick = {
+            val minutes = dueTimeTextToMinutes(dueTimeInput)
+            val initialHour = minutes?.div(60) ?: 9
+            val initialMinute = minutes?.rem(60) ?: 0
+            TimePickerDialog(
+                context,
+                { _, hour, minute ->
+                    onDueTimeInputChange(minutesToDueTimeText(hour * 60 + minute))
+                },
+                initialHour,
+                initialMinute,
+                true
+            ).show()
+        },
+        enabled = enabled,
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = if (enabled) Color(0xFFEBEDF4) else Color(0xFFE2E5EC),
+        border = if (isError) BorderStroke(1.dp, MaterialTheme.colorScheme.error) else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.AccessTime,
+                contentDescription = null,
+                tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF5C6170)
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = if (dueTimeInput.isBlank()) {
+                    stringResource(R.string.todo_editor_select_due_time)
+                } else {
+                    dueTimeInput
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = when {
+                    isError -> MaterialTheme.colorScheme.error
+                    !enabled -> Color(0xFF7A808C)
+                    dueTimeInput.isBlank() -> Color(0xFF8E94A3)
+                    else -> Color(0xFF2F3441)
+                }
+            )
+            if (enabled && dueTimeInput.isNotBlank() && onClear != null) {
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onClear) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.todo_editor_clear_due_time),
+                        tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF5C6170)
+                    )
+                }
+            }
         }
     }
 }

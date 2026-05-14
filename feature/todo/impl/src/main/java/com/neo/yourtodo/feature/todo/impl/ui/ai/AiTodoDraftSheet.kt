@@ -60,6 +60,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.aitodo.AiTodoPerson
 import com.neo.yourtodo.feature.todo.impl.R
+import com.neo.yourtodo.feature.todo.impl.ui.TodoEditorDueDateSelector
+import com.neo.yourtodo.feature.todo.impl.ui.TodoEditorDueTimeSelector
 
 @Composable
 fun AiTodoDraftRoute(
@@ -328,27 +330,15 @@ private fun AiTodoDraftCard(
                 selectedAssigneeId = draft.assigneeId,
                 onAssigneeChange = onAssigneeChange
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = draft.dueDateInput,
-                    onValueChange = onDueDateChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.todo_ai_due_date_label)) },
-                    placeholder = { Text("yyyy-MM-dd") },
-                    singleLine = true,
-                    isError = draft.errorMessageRes == R.string.todo_error_due_date_format
-                )
-                OutlinedTextField(
-                    value = draft.dueTimeInput,
-                    onValueChange = onDueTimeChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.todo_ai_due_time_label)) },
-                    placeholder = { Text("HH:mm") },
-                    singleLine = true,
-                    isError = draft.errorMessageRes == R.string.todo_error_due_time_format ||
-                        draft.errorMessageRes == R.string.todo_error_due_time_requires_due_date
-                )
-            }
+            AiDraftDateTimeSection(
+                dueDateInput = draft.dueDateInput,
+                dueTimeInput = draft.dueTimeInput,
+                isDateError = draft.errorMessageRes == R.string.todo_error_due_date_format,
+                isTimeError = draft.errorMessageRes == R.string.todo_error_due_time_format ||
+                    draft.errorMessageRes == R.string.todo_error_due_time_requires_due_date,
+                onDueDateChange = onDueDateChange,
+                onDueTimeChange = onDueTimeChange
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TodoPriority.entries.forEach { priority ->
                     val selected = draft.priority == priority
@@ -382,6 +372,48 @@ private fun AiTodoDraftCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AiDraftDateTimeSection(
+    dueDateInput: String,
+    dueTimeInput: String,
+    isDateError: Boolean,
+    isTimeError: Boolean,
+    onDueDateChange: (String) -> Unit,
+    onDueTimeChange: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.todo_ai_due_date_label),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        TodoEditorDueDateSelector(
+            dueDateInput = dueDateInput,
+            onDateInputChange = onDueDateChange,
+            enabled = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ai_todo_due_date_selector"),
+            isError = isDateError
+        )
+        Text(
+            text = stringResource(R.string.todo_ai_due_time_label),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        TodoEditorDueTimeSelector(
+            dueTimeInput = dueTimeInput,
+            onDueTimeInputChange = onDueTimeChange,
+            enabled = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ai_todo_due_time_selector"),
+            isError = isTimeError,
+            onClear = { onDueTimeChange("") }
+        )
     }
 }
 

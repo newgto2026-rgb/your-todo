@@ -37,6 +37,7 @@
     <string name="todo_editor_task_placeholder">What needs to be done?</string>
     <string name="todo_editor_select_due_date">Select due date</string>
     <string name="todo_editor_select_due_time">Select due time</string>
+    <string name="todo_editor_clear_due_time">Clear due time</string>
     <string name="todo_editor_priority_label">PRIORITY</string>
     <string name="todo_editor_reminder_label">REMINDER</string>
     <string name="todo_editor_enable_reminder">Enable reminder</string>
