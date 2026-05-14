@@ -29,7 +29,8 @@ data class NetworkTodoMutationPayload(
     val title: String? = null,
     val description: String? = null,
     val dueDate: String? = null,
-    val status: String? = null
+    val status: String? = null,
+    val priority: String? = null
 )
 
 @Serializable
@@ -60,6 +61,7 @@ data class NetworkTodo(
     val description: String? = null,
     val dueDate: String? = null,
     val status: String,
+    val priority: String? = null,
     val revision: String,
     val createdAt: String,
     val updatedAt: String,

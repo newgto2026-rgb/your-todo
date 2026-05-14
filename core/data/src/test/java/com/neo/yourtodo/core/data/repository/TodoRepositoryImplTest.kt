@@ -11,6 +11,7 @@ import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoCategoryFilter
+import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession
@@ -211,7 +212,8 @@ class TodoRepositoryImplTest {
         val id = repository.addTodo(
             title = "sync me",
             dueDate = LocalDate.of(2026, 5, 10),
-            categoryId = null
+            categoryId = null,
+            priority = TodoPriority.HIGH
         ).getOrThrow()
 
         val saved = todoDao.getTodoById(id)!!
@@ -221,6 +223,7 @@ class TodoRepositoryImplTest {
         assertThat(outboxDao.items).hasSize(1)
         assertThat(outboxDao.items.single().type).isEqualTo("CREATE")
         assertThat(outboxDao.items.single().payloadJson).contains("sync me")
+        assertThat(outboxDao.items.single().payloadJson).contains("\"priority\":\"HIGH\"")
     }
 
     @Test
@@ -426,6 +429,120 @@ class TodoRepositoryImplTest {
     }
 
     @Test
+    fun `sync create keeps local priority when server response omits priority`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource()
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs, network = network)
+        val id = repository.addTodo(
+            title = "high priority",
+            dueDate = null,
+            categoryId = null,
+            priority = TodoPriority.HIGH
+        ).getOrThrow()
+        val clientId = todoDao.getTodoById(id)!!.clientId!!
+        network.nextPushResponse = NetworkTodoSyncPushResponse(
+            results = listOf(
+                NetworkTodoMutationResult(
+                    clientMutationId = outboxDao.items.single().clientMutationId,
+                    status = "APPLIED",
+                    todo = networkTodo(id = "server-high", clientId = clientId, title = "high priority", revision = "2")
+                )
+            ),
+            nextCursor = "2"
+        )
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(network.lastPushRequest?.mutations?.single()?.payload?.priority).isEqualTo("HIGH")
+        assertThat(todoDao.getTodoById(id)?.priority).isEqualTo(TodoPriority.HIGH.name)
+        assertThat(todoDao.getTodoById(id)?.syncStatus).isEqualTo("SYNCED")
+        assertThat(outboxDao.items).isEmpty()
+    }
+
+    @Test
+    fun `sync legacy outbox without priority uses local priority`() = runTest {
+        val todoDao = FakeTodoDao()
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource()
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs, network = network)
+        val clientId = "legacy-client-id"
+        todoDao.seed(
+            TodoEntity(
+                id = 10L,
+                title = "legacy high",
+                isDone = false,
+                dueDateEpochDay = null,
+                createdAt = 1L,
+                updatedAt = 1L,
+                categoryId = null,
+                priority = TodoPriority.HIGH.name,
+                clientId = clientId,
+                ownerUserId = "user-id",
+                syncStatus = "PENDING_CREATE"
+            )
+        )
+        outboxDao.insert(
+            TodoOutboxEntity(
+                ownerUserId = "user-id",
+                clientMutationId = "legacy-mutation-id",
+                todoLocalId = 10L,
+                serverId = null,
+                clientId = clientId,
+                type = "CREATE",
+                payloadJson = """{"title":"legacy high","status":"ACTIVE"}""",
+                createdAt = 1L
+            )
+        )
+        network.nextPushResponse = NetworkTodoSyncPushResponse(
+            results = listOf(
+                NetworkTodoMutationResult(
+                    clientMutationId = "legacy-mutation-id",
+                    status = "APPLIED",
+                    todo = networkTodo(id = "server-legacy", clientId = clientId, title = "legacy high", revision = "2")
+                )
+            ),
+            nextCursor = "2"
+        )
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(network.lastPushRequest?.mutations?.single()?.payload?.priority).isEqualTo("HIGH")
+        assertThat(todoDao.getTodoById(10L)?.priority).isEqualTo(TodoPriority.HIGH.name)
+        assertThat(outboxDao.items).isEmpty()
+    }
+
+    @Test
+    fun `sync pull maps remote priority case insensitively`() = runTest {
+        val todoDao = FakeTodoDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource().apply {
+            nextPullResponse = NetworkTodoSyncPullResponse(
+                todos = listOf(
+                    networkTodo(
+                        id = "server-case",
+                        clientId = "client-case",
+                        title = "case",
+                        revision = "2",
+                        priority = "high"
+                    )
+                ),
+                nextCursor = "2"
+            )
+        }
+        val repository = repository(todoDao = todoDao, prefs = prefs, network = network)
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(todoDao.getTodoByServerId("user-id", "server-case")?.priority).isEqualTo(TodoPriority.HIGH.name)
+    }
+
+    @Test
     fun `rejected deleted sync result applies tombstone and clears outbox`() = runTest {
         val todoDao = FakeTodoDao().apply {
             seed(
@@ -558,7 +675,8 @@ class TodoRepositoryImplTest {
         clientId: String,
         title: String,
         revision: String,
-        status: String = "ACTIVE"
+        status: String = "ACTIVE",
+        priority: String? = null
     ): NetworkTodo =
         NetworkTodo(
             id = id,
@@ -566,6 +684,7 @@ class TodoRepositoryImplTest {
             title = title,
             dueDate = null,
             status = status,
+            priority = priority,
             revision = revision,
             createdAt = "2026-05-08T00:00:00.000Z",
             updatedAt = "2026-05-08T00:00:00.000Z",
@@ -806,6 +925,7 @@ class TodoRepositoryImplTest {
     private class FakeTodoSyncNetworkDataSource : TodoSyncNetworkDataSource {
         var nextPullResponse = NetworkTodoSyncPullResponse(todos = emptyList(), nextCursor = "0")
         var nextPushResponse = NetworkTodoSyncPushResponse(results = emptyList(), nextCursor = "0")
+        var lastPushRequest: NetworkTodoSyncPushRequest? = null
         var authRequired = false
         var authFailuresRemaining = 0
 
@@ -823,6 +943,7 @@ class TodoRepositoryImplTest {
             request: NetworkTodoSyncPushRequest
         ): NetworkTodoSyncPushResponse {
             if (shouldFailAuth()) throw TodoSyncAuthRequiredException()
+            lastPushRequest = request
             return nextPushResponse
         }
 
