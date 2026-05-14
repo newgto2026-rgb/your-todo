@@ -486,19 +486,20 @@ class TodoRepositoryImpl @Inject constructor(
         when {
             remoteDeleted -> {
                 todoOutboxDao.deleteByTodoLocalId(existing.id)
-                todoDao.update(remote.toEntity(ownerUserId, existing.id))
+                todoDao.update(remote.toEntity(ownerUserId, existing.id, existing.priority))
             }
             localStatus == TodoSyncStatus.PENDING_DELETE -> Unit
             localStatus == TodoSyncStatus.PENDING_UPDATE -> Unit
             else -> {
-                todoDao.update(remote.toEntity(ownerUserId, existing.id))
+                todoDao.update(remote.toEntity(ownerUserId, existing.id, existing.priority))
                 todoOutboxDao.deleteByTodoLocalId(existing.id)
             }
         }
     }
 
-    private fun TodoOutboxEntity.toNetworkMutation(): NetworkTodoMutation {
+    private suspend fun TodoOutboxEntity.toNetworkMutation(): NetworkTodoMutation {
         val payload = if (type == MUTATION_DELETE) null else json.decodeFromString<TodoSyncPayload>(payloadJson)
+        val fallbackPriority = todoLocalId?.let { todoDao.getTodoById(it)?.priority }
         return NetworkTodoMutation(
             clientMutationId = clientMutationId,
             type = type,
@@ -509,7 +510,8 @@ class TodoRepositoryImpl @Inject constructor(
                     title = it.title,
                     description = it.description,
                     dueDate = it.dueDate,
-                    status = it.status
+                    status = it.status,
+                    priority = it.priority.toTodoPriorityNameOrNull(fallbackPriority)
                 )
             }
         )
@@ -519,10 +521,15 @@ class TodoRepositoryImpl @Inject constructor(
         TodoSyncPayload(
             title = title,
             dueDate = dueDateEpochDay?.let { LocalDate.ofEpochDay(it).toString() },
-            status = if (isDone) STATUS_COMPLETED else STATUS_ACTIVE
+            status = if (isDone) STATUS_COMPLETED else STATUS_ACTIVE,
+            priority = priority
         )
 
-    private fun NetworkTodo.toEntity(ownerUserId: String, localId: Long = 0L): TodoEntity =
+    private fun NetworkTodo.toEntity(
+        ownerUserId: String,
+        localId: Long = 0L,
+        fallbackPriority: String? = null
+    ): TodoEntity =
         TodoEntity(
             id = localId,
             title = title,
@@ -531,7 +538,7 @@ class TodoRepositoryImpl @Inject constructor(
             createdAt = parseInstantMillis(createdAt),
             updatedAt = parseInstantMillis(updatedAt),
             categoryId = null,
-            priority = TodoPriority.MEDIUM.name,
+            priority = priority.toTodoPriorityName(fallbackPriority),
             serverId = id,
             clientId = clientId,
             ownerUserId = ownerUserId,
@@ -540,6 +547,15 @@ class TodoRepositoryImpl @Inject constructor(
             deletedAt = deletedAt?.let(::parseInstantMillis),
             lastSyncError = null
         )
+
+    private fun String?.toTodoPriorityName(fallbackPriority: String?): String =
+        toTodoPriorityNameOrNull(fallbackPriority) ?: TodoPriority.MEDIUM.name
+
+    private fun String?.toTodoPriorityNameOrNull(fallbackPriority: String?): String? {
+        val entries = TodoPriority.entries
+        return entries.firstOrNull { it.name.equals(this, ignoreCase = true) }?.name
+            ?: entries.firstOrNull { it.name.equals(fallbackPriority, ignoreCase = true) }?.name
+    }
 
     private fun parseInstantMillis(value: String): Long =
         Instant.parse(value).toEpochMilli()

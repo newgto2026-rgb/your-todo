@@ -598,6 +598,35 @@ class TodoUiTest {
     }
 
     @Test
+    fun detailAdd_highPriorityAppearsOnlyInHighPriorityFilter() {
+        val title = "UI high priority ${System.currentTimeMillis()}"
+        val highLabel = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_priority_high)
+        val mediumLabel = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(TodoImplR.string.todo_priority_medium)
+
+        openDetailAddFromFab()
+        composeTestRule.waitUntilNodeExists("task_title_input")
+        composeTestRule.onNodeWithTag("task_title_input").performTextInput(title)
+        composeTestRule.onNodeWithTag("priority_high_option", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("save_button").performScrollTo().performClick()
+
+        composeTestRule.waitUntilNodeDoesNotExist("task_title_input")
+        composeTestRule.waitUntilDisplayedTodoScreenText("all", title)
+        val saved = runBlocking {
+            appDatabase.todoDao().observeTodos().first().single { it.title == title }
+        }
+        composeTestRule.onTodoScreenTag("all", "priority_filter_chip_$highLabel").performClick()
+        composeTestRule.waitUntilTodoScreenTag("all", "todo_row_${saved.id}")
+        composeTestRule.onTodoScreenText("all", title).assertIsDisplayed()
+
+        composeTestRule.onTodoScreenTag("all", "priority_filter_chip_$mediumLabel").performClick()
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_${saved.id}")
+    }
+
+    @Test
     fun sortMenu_isScopedToAllTabAndHiddenOnTodayPlanner() {
         composeTestRule.onNodeWithTag("todo_sort_menu_button", useUnmergedTree = true)
             .assertIsDisplayed()
@@ -1538,6 +1567,9 @@ class TodoUiTest {
         composeTestRule.waitUntilNodeDisplayed("add_fab")
         val fabIndex = composeTestRule.displayedNodeIndex("add_fab")
         composeTestRule.onAllNodesWithTag("add_fab", useUnmergedTree = true)[fabIndex].performClick()
+        composeTestRule.waitUntilNodeDisplayed("add_manual_action")
+        val manualIndex = composeTestRule.displayedNodeIndex("add_manual_action")
+        composeTestRule.onAllNodesWithTag("add_manual_action", useUnmergedTree = true)[manualIndex].performClick()
         composeTestRule.waitUntilNodeExists("task_edit_close")
     }
 

@@ -7,5 +7,6 @@ data class TodoSyncPayload(
     val title: String,
     val description: String? = null,
     val dueDate: String? = null,
-    val status: String = "ACTIVE"
+    val status: String = "ACTIVE",
+    val priority: String? = null
 )
