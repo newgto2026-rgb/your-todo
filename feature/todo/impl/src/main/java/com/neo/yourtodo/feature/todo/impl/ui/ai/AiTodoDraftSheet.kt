@@ -3,6 +3,7 @@ package com.neo.yourtodo.feature.todo.impl.ui.ai
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -133,6 +135,13 @@ private fun AiTodoDraftSheet(
             .fillMaxWidth()
             .background(Color(0xFFF7F8FC), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .padding(horizontal = 20.dp, vertical = 18.dp)
+            .pointerInput(scrollState) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    if (scrollState.value == 0 && dragAmount > 0f) {
+                        change.consume()
+                    }
+                }
+            }
             .nestedScroll(lockSheetDragConnection)
             .verticalScroll(scrollState)
             .testTag("ai_todo_sheet"),

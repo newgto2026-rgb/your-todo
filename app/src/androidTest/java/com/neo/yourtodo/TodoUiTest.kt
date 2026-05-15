@@ -2,6 +2,7 @@ package com.neo.yourtodo
 
 import android.Manifest
 import android.os.Build
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDisplayed
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -724,6 +726,22 @@ class TodoUiTest {
 
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+        tabNode("all").assertIsSelected()
+    }
+
+    @Test
+    fun aiSheet_whenScrimClicked_closesSheet() {
+        openAiAddFromFab()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+
+        composeTestRule.onAllNodes(isRoot(), useUnmergedTree = true)[1]
+            .performTouchInput {
+                down(Offset(x = center.x, y = 1f))
+                up()
+            }
+
+        composeTestRule.waitUntilNodeDoesNotExist("ai_todo_sheet")
+        composeTestRule.onAllNodesWithTag("profile_menu_drawer").assertCountEquals(0)
         tabNode("all").assertIsSelected()
     }
 
