@@ -56,7 +56,7 @@ class AiTodoDraftViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun analyzeExcludesSelfFromFriendCandidatesByUserIdAndNickname() = runTest {
+    fun analyzeExcludesSelfFromFriendCandidatesByUserIdOnly() = runTest {
         val aiRepository = RecordingAiTodoDraftRepository()
         val authRepository = FakeAuthRepository(
             session = testAuthSession(userId = "user-tee", nickname = "tee")
@@ -78,9 +78,52 @@ class AiTodoDraftViewModelTest {
         viewModel.onAnalyze()
         advanceUntilIdle()
 
-        assertThat(aiRepository.people.map { it.id }).containsExactly("self", "friend-neo").inOrder()
+        assertThat(aiRepository.people.map { it.id }).containsExactly("self", "friend-duplicate", "friend-neo").inOrder()
         assertThat(aiRepository.people.first { it.isSelf }.aliases).contains("tee")
-        assertThat(viewModel.uiState.value.people.map { it.id }).containsExactly("self", "friend-neo").inOrder()
+        assertThat(viewModel.uiState.value.people.map { it.id }).containsExactly("self", "friend-duplicate", "friend-neo").inOrder()
+    }
+
+    @Test
+    fun analyzeIncludesFamilyNamedActiveFriendInAssigneeCandidates() = runTest {
+        val aiRepository = RecordingAiTodoDraftRepository()
+        val viewModel = createViewModel(
+            aiRepository = aiRepository,
+            authRepository = FakeAuthRepository(
+                session = testAuthSession(userId = "user-dad", nickname = "아빠")
+            ),
+            friendRepository = FakeFriendRepository(
+                friends = listOf(testFriend(userId = "user-mom", nickname = "엄마"))
+            )
+        )
+
+        viewModel.onPromptChange("엄마에게 내일 9시 병원 예약 부탁해")
+        viewModel.onAnalyze()
+        advanceUntilIdle()
+
+        assertThat(aiRepository.people.map { it.displayName }).containsExactly("아빠", "엄마").inOrder()
+        assertThat(viewModel.uiState.value.people.map { it.displayName }).containsExactly("아빠", "엄마").inOrder()
+    }
+
+    @Test
+    fun analyzeRefreshesAssigneeCandidatesWhenFriendsChangeAfterInitialLoad() = runTest {
+        val aiRepository = RecordingAiTodoDraftRepository()
+        val friendRepository = FakeFriendRepository(friends = emptyList())
+        val viewModel = createViewModel(
+            aiRepository = aiRepository,
+            authRepository = FakeAuthRepository(
+                session = testAuthSession(userId = "user-dad", nickname = "아빠")
+            ),
+            friendRepository = friendRepository
+        )
+        advanceUntilIdle()
+
+        friendRepository.friends = listOf(testFriend(userId = "user-mom", nickname = "엄마"))
+        viewModel.onPromptChange("엄마에게 내일 9시 병원 예약 부탁해")
+        viewModel.onAnalyze()
+        advanceUntilIdle()
+
+        assertThat(aiRepository.people.map { it.displayName }).containsExactly("아빠", "엄마").inOrder()
+        assertThat(viewModel.uiState.value.people.map { it.displayName }).containsExactly("아빠", "엄마").inOrder()
     }
 
     @Test
@@ -269,7 +312,7 @@ class AiTodoDraftViewModelTest {
     }
 
     private class FakeFriendRepository(
-        private val friends: List<Friend>
+        var friends: List<Friend>
     ) : FriendRepository {
         override suspend fun getFriends(): Result<List<Friend>> = Result.success(friends)
 

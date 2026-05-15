@@ -63,7 +63,7 @@ class AiTodoDraftViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            val people = ensurePeople()
+            val people = ensurePeople(forceRefresh = true)
             _uiState.update { it.copy(isAnalyzing = true, errorMessageRes = null) }
             parseAiTodoDraftsUseCase(prompt, people)
                 .onSuccess { result ->
@@ -226,24 +226,20 @@ class AiTodoDraftViewModel @Inject constructor(
 
     private fun refreshPeople() {
         viewModelScope.launch {
-            ensurePeople()
+            ensurePeople(forceRefresh = true)
         }
     }
 
-    private suspend fun ensurePeople(): List<AiTodoPerson> {
+    private suspend fun ensurePeople(forceRefresh: Boolean = false): List<AiTodoPerson> {
         val current = _uiState.value.people
-        if (current.isNotEmpty()) return current
+        if (!forceRefresh && current.isNotEmpty()) return current
 
         val session = observeAuthSessionUseCase().firstOrNull()
         val selfName = session?.user?.nickname?.takeIf { it.isNotBlank() } ?: "나"
         val selfPerson = session.toSelfPerson(selfName)
-        val selfAliasKeys = selfPerson.aliases.map { it.aliasKey() }.toSet()
         val friends = getFriendsUseCase().getOrDefault(emptyList())
             .filter { it.status == FriendshipStatus.ACTIVE }
-            .filter { friend ->
-                friend.userId != session?.user?.id &&
-                    friend.nickname.aliasKey() !in selfAliasKeys
-            }
+            .filter { friend -> friend.userId != session?.user?.id }
         val people = buildList {
             add(selfPerson)
             friends.forEach { friend ->
@@ -271,8 +267,6 @@ class AiTodoDraftViewModel @Inject constructor(
 
     private fun String.aliases(): List<String> =
         listOf(this, trim(), lowercase()).filter { it.isNotBlank() }.distinct()
-
-    private fun String.aliasKey(): String = trim().lowercase()
 
     private fun updateDraft(id: String, transform: AiTodoDraftUiModel.() -> AiTodoDraftUiModel) {
         _uiState.update { state ->
