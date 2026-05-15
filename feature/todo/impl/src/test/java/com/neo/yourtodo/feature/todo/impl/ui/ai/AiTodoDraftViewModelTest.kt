@@ -127,6 +127,68 @@ class AiTodoDraftViewModelTest {
     }
 
     @Test
+    fun analyzeSetsLoadingBeforeRefreshingFriendsAndIgnoresDuplicateTaps() = runTest {
+        val aiRepository = RecordingAiTodoDraftRepository(
+            result = AiTodoDraftResult(
+                items = listOf(testDraft(title = "병원 예약")),
+                model = "test-model",
+                fallbackUsed = false
+            )
+        )
+        val friendRepository = FakeFriendRepository(
+            friends = listOf(testFriend(userId = "user-mom", nickname = "엄마"))
+        )
+        val viewModel = createViewModel(
+            aiRepository = aiRepository,
+            authRepository = FakeAuthRepository(
+                session = testAuthSession(userId = "user-dad", nickname = "아빠")
+            ),
+            friendRepository = friendRepository
+        )
+        advanceUntilIdle()
+
+        val refreshGate = CompletableDeferred<Unit>()
+        friendRepository.getFriendsGate = refreshGate
+        viewModel.onPromptChange("엄마에게 내일 9시 병원 예약 부탁해")
+
+        viewModel.onAnalyze()
+        assertThat(viewModel.uiState.value.isAnalyzing).isTrue()
+        viewModel.onAnalyze()
+        assertThat(aiRepository.parseCallCount).isEqualTo(0)
+
+        refreshGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertThat(aiRepository.parseCallCount).isEqualTo(1)
+        assertThat(viewModel.uiState.value.isAnalyzing).isFalse()
+    }
+
+    @Test
+    fun analyzeKeepsCachedAssigneeCandidatesWhenFriendRefreshFails() = runTest {
+        val aiRepository = RecordingAiTodoDraftRepository()
+        val friendRepository = FakeFriendRepository(
+            friends = listOf(testFriend(userId = "user-mom", nickname = "엄마"))
+        )
+        val viewModel = createViewModel(
+            aiRepository = aiRepository,
+            authRepository = FakeAuthRepository(
+                session = testAuthSession(userId = "user-dad", nickname = "아빠")
+            ),
+            friendRepository = friendRepository
+        )
+        advanceUntilIdle()
+        assertThat(viewModel.uiState.value.people.map { it.displayName }).containsExactly("아빠", "엄마").inOrder()
+
+        friendRepository.failure = RuntimeException("offline")
+        viewModel.onPromptChange("엄마에게 내일 9시 병원 예약 부탁해")
+        viewModel.onAnalyze()
+        advanceUntilIdle()
+
+        assertThat(aiRepository.people.map { it.displayName }).containsExactly("아빠", "엄마").inOrder()
+        assertThat(viewModel.uiState.value.people.map { it.displayName }).containsExactly("아빠", "엄마").inOrder()
+    }
+
+    @Test
     fun saveSuccessClearsDraftsAndAllowsNextPromptToAnalyze() = runTest {
         val aiRepository = RecordingAiTodoDraftRepository(
             result = AiTodoDraftResult(
@@ -269,6 +331,8 @@ class AiTodoDraftViewModelTest {
     ) : AiTodoDraftRepository {
         var people: List<AiTodoPerson> = emptyList()
             private set
+        var parseCallCount: Int = 0
+            private set
 
         override suspend fun parseTodoDrafts(
             text: String,
@@ -276,6 +340,7 @@ class AiTodoDraftViewModelTest {
             zoneId: ZoneId,
             people: List<AiTodoPerson>
         ): Result<AiTodoDraftResult> {
+            parseCallCount += 1
             this.people = people
             return Result.success(result)
         }
@@ -312,9 +377,15 @@ class AiTodoDraftViewModelTest {
     }
 
     private class FakeFriendRepository(
-        var friends: List<Friend>
+        var friends: List<Friend>,
+        var failure: Throwable? = null
     ) : FriendRepository {
-        override suspend fun getFriends(): Result<List<Friend>> = Result.success(friends)
+        var getFriendsGate: CompletableDeferred<Unit>? = null
+
+        override suspend fun getFriends(): Result<List<Friend>> {
+            getFriendsGate?.await()
+            return failure?.let { Result.failure(it) } ?: Result.success(friends)
+        }
 
         override suspend fun getIncomingRequests(): Result<List<FriendRequest>> = Result.success(emptyList())
 

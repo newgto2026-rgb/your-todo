@@ -57,14 +57,16 @@ class AiTodoDraftViewModel @Inject constructor(
     }
 
     fun onAnalyze() {
-        val prompt = _uiState.value.prompt.trim()
+        val state = _uiState.value
+        if (state.isAnalyzing) return
+        val prompt = state.prompt.trim()
         if (prompt.isBlank()) {
             _uiState.update { it.copy(errorMessageRes = R.string.todo_ai_error_prompt_required) }
             return
         }
+        _uiState.update { it.copy(isAnalyzing = true, errorMessageRes = null) }
         viewModelScope.launch {
             val people = ensurePeople(forceRefresh = true)
-            _uiState.update { it.copy(isAnalyzing = true, errorMessageRes = null) }
             parseAiTodoDraftsUseCase(prompt, people)
                 .onSuccess { result ->
                     _uiState.update {
@@ -237,7 +239,13 @@ class AiTodoDraftViewModel @Inject constructor(
         val session = observeAuthSessionUseCase().firstOrNull()
         val selfName = session?.user?.nickname?.takeIf { it.isNotBlank() } ?: "나"
         val selfPerson = session.toSelfPerson(selfName)
-        val friends = getFriendsUseCase().getOrDefault(emptyList())
+        val friendsResult = getFriendsUseCase()
+        if (friendsResult.isFailure) {
+            val fallbackPeople = current.takeIf { it.matchesSelf(selfName) } ?: listOf(selfPerson)
+            _uiState.update { it.copy(people = fallbackPeople) }
+            return fallbackPeople
+        }
+        val friends = friendsResult.getOrDefault(emptyList())
             .filter { it.status == FriendshipStatus.ACTIVE }
             .filter { friend -> friend.userId != session?.user?.id }
         val people = buildList {
@@ -267,6 +275,9 @@ class AiTodoDraftViewModel @Inject constructor(
 
     private fun String.aliases(): List<String> =
         listOf(this, trim(), lowercase()).filter { it.isNotBlank() }.distinct()
+
+    private fun List<AiTodoPerson>.matchesSelf(selfName: String): Boolean =
+        firstOrNull { it.isSelf }?.displayName == selfName
 
     private fun updateDraft(id: String, transform: AiTodoDraftUiModel.() -> AiTodoDraftUiModel) {
         _uiState.update { state ->
