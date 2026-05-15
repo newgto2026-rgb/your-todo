@@ -39,6 +39,9 @@ Last updated: 2026-05-15
 - Final review decision: `AssignmentRepository` implementers must handle the mode-aware create method directly so DIRECT cannot silently fall back to REQUEST.
 - Final review decision: Friends copy must use neutral sent/received wording because those sections contain both REQUEST and DIRECT items.
 - 2026-05-15 server correction: Android default debug server is `https://stainable-sulphate-grading.ngrok-free.dev/`; this ngrok forwards to local Docker `yourtodo-server-1` on port 8080. The old container was 5 days stale and returned 404 for the opt-in endpoint. It was rebuilt/restarted from the server worktree and now returns `401 AUTH_REQUIRED` for `PUT /api/friends/{friendUserId}/direct-assignment-opt-in`, proving the route exists.
+- 2026-05-15 login correction: emulator Google sign-in reached `POST /api/auth/google` but server returned `401` because local Docker was missing ignored `infra/env/server.env` and therefore had no `GOOGLE_WEB_CLIENT_ID`. Galaxy could still appear healthy when it reused an existing app session/refresh token instead of calling Google sign-in. Local server env was created from `infra/env/server.env.example` with `GOOGLE_WEB_CLIENT_ID` matching Android `default_web_client_id`, then `yourtodo-server-1` was force-recreated.
+- 2026-05-15 auto-accept correction: a stale or alternate Android create path could still send `assignmentMode=REQUEST` after the receiver enabled auto-accept, causing `PENDING_ACCEPTANCE` and showing in the received request list. Server now treats receiver opt-in as the final source of truth and promotes REQUEST/omitted mode creates to `DIRECT/ACCEPTED` when allowed. Android AI todo save also now sends `AssignmentMode.DIRECT` for friends whose `canDirectAssignToFriend` is active.
+- 2026-05-15 push correction: recent `ASSIGNMENT_BUNDLE_RECEIVED` event failed because Docker env lacked FCM credentials even though push tokens existed. The ignored server env was synced from the push-notifications worktree, `yourtodo-server-1` now has FCM project/client env injected, and future notification events should dispatch instead of failing with `Firebase Cloud Messaging credentials are not configured`.
 
 ## Current implementation scope
 - `core:model`
@@ -54,7 +57,7 @@ Last updated: 2026-05-15
   - Maps mode and consent summary.
   - Preserves existing mode for partial mutation responses.
 - `core:database`
-  - Version 11 with `assigned_todo.assignmentMode`.
+  - Version 11 added `assigned_todo.assignmentMode`.
 - `feature:friends:impl`
   - Friend list auto-accept controls.
   - Send sheet infers mode from `grantedToMe`; no manual mode selection.
@@ -64,6 +67,7 @@ Last updated: 2026-05-15
 - `feature:todo:impl`
   - Row source labels distinguish request/direct.
   - Editor state preserves assignment mode.
+  - AI friend-assigned drafts send `AssignmentMode.DIRECT` when the selected friend has allowed direct assignment to the current user.
 - `feature:calendar:impl`
   - Agenda source label distinguishes request/direct.
   - Tests should cover direct inclusion and pending exclusion.
@@ -140,6 +144,9 @@ Before final PR, review with agents and locally check:
   - `docker compose -f infra/compose.yaml up --build -d` completed.
   - `yourtodo-server-1` is healthy on port 8080.
   - ngrok opt-in route now returns `401 AUTH_REQUIRED`, not stale 404.
+  - Google login requires ignored server file `/Users/kimtaenyun/.codex/worktrees/direct-assignment-server/server/infra/env/server.env`; without it `POST /api/auth/google` logs `GOOGLE_WEB_CLIENT_ID is not configured` and returns `401`.
+  - Push dispatch also requires FCM env in the same ignored server env; without it `notification_events.last_error` becomes `Firebase Cloud Messaging credentials are not configured`.
+  - New server migration `20260515020000_direct_assignment_consent_notifications` has been applied locally.
   - Latest Android debug APK installed on Galaxy and emulator.
 
 ## PR acceptance checklist
@@ -147,6 +154,7 @@ Before final PR, review with agents and locally check:
 - DIRECT mode survives network, data, DB, UI mapper, and app restart cache paths.
 - REQUEST behavior remains unchanged.
 - DIRECT cannot be sent with inverse or missing consent.
+- REQUEST/omitted create is promoted to DIRECT by the server when receiver opt-in is already active, covering stale clients and AI paths.
 - DIRECT server failure leaves editor open and shows error.
 - DIRECT never appears in received request decision UI.
 - REQUEST pending never appears in Todo, Calendar, or Widget.

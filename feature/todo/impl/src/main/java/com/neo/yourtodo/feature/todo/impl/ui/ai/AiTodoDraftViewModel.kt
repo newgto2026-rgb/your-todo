@@ -14,6 +14,7 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.aitodo.AiTodoDraft
 import com.neo.yourtodo.core.model.aitodo.AiTodoPerson
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.feature.todo.impl.R
@@ -184,7 +185,19 @@ class AiTodoDraftViewModel @Inject constructor(
     }
 
     private suspend fun saveFriendDrafts(drafts: List<ValidatedAiTodoDraft>): Boolean {
+        val directAssignableFriends = getFriendsUseCase()
+            .getOrDefault(emptyList())
+            .asSequence()
+            .filter { it.status == FriendshipStatus.ACTIVE }
+            .filter { it.directAssignment.canDirectAssignToFriend }
+            .map { it.userId }
+            .toSet()
         drafts.groupBy { it.assigneeId }.forEach { (receiverUserId, receiverDrafts) ->
+            val assignmentMode = if (receiverUserId in directAssignableFriends) {
+                AssignmentMode.DIRECT
+            } else {
+                AssignmentMode.REQUEST
+            }
             val result = createAssignmentBundleUseCase(
                 receiverUserId = receiverUserId,
                 items = receiverDrafts.map {
@@ -196,7 +209,8 @@ class AiTodoDraftViewModel @Inject constructor(
                         priority = it.priority,
                         category = null
                     )
-                }
+                },
+                assignmentMode = assignmentMode
             )
             if (result.isFailure) return false
         }

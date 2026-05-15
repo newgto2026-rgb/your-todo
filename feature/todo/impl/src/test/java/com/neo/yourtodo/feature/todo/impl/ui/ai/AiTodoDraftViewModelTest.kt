@@ -21,11 +21,17 @@ import com.neo.yourtodo.core.model.aitodo.AiTodoDraftResult
 import com.neo.yourtodo.core.model.aitodo.AiTodoPerson
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundleStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
@@ -149,16 +155,61 @@ class AiTodoDraftViewModelTest {
         advanceUntilIdle()
     }
 
+    @Test
+    fun saveFriendDraftsUsesDirectModeForFriendsThatAllowedAutoAssignment() = runTest {
+        val aiRepository = RecordingAiTodoDraftRepository(
+            result = AiTodoDraftResult(
+                items = listOf(testDraft(title = "바로 추가", assigneeId = "friend-neo")),
+                model = "test-model",
+                fallbackUsed = false
+            )
+        )
+        val assignmentRepository = FakeAssignmentRepository()
+        val viewModel = createViewModel(
+            aiRepository = aiRepository,
+            authRepository = FakeAuthRepository(testAuthSession(userId = "user-tee", nickname = "tee")),
+            friendRepository = FakeFriendRepository(
+                friends = listOf(
+                    testFriend(
+                        userId = "friend-neo",
+                        nickname = "neo",
+                        directAssignment = DirectAssignmentConsentSummary(
+                            grantedToMe = DirectAssignmentConsentState.ACTIVE
+                        )
+                    )
+                )
+            ),
+            assignmentRepository = assignmentRepository
+        )
+
+        viewModel.onPromptChange("neo 오늘 바로 추가")
+        viewModel.onAnalyze()
+        advanceUntilIdle()
+        viewModel.onSave()
+        advanceUntilIdle()
+
+        assertThat(assignmentRepository.createdBundles).containsExactly(
+            CreatedAssignmentBundle(
+                receiverUserId = "friend-neo",
+                assignmentMode = AssignmentMode.DIRECT,
+                itemTitles = listOf("바로 추가")
+            )
+        )
+        assertThat(viewModel.uiState.value.isSaving).isFalse()
+        assertThat(viewModel.uiState.value.errorMessageRes).isNull()
+    }
+
     private fun createViewModel(
         aiRepository: RecordingAiTodoDraftRepository,
         authRepository: FakeAuthRepository,
         friendRepository: FakeFriendRepository,
-        todoRepository: TodoItemRepository = FakeTodoRepository()
+        todoRepository: TodoItemRepository = FakeTodoRepository(),
+        assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
     ): AiTodoDraftViewModel {
         return AiTodoDraftViewModel(
             parseAiTodoDraftsUseCase = ParseAiTodoDraftsUseCase(aiRepository),
             addTodoUseCase = AddTodoUseCase(todoRepository),
-            createAssignmentBundleUseCase = CreateAssignmentBundleUseCase(FakeAssignmentRepository()),
+            createAssignmentBundleUseCase = CreateAssignmentBundleUseCase(assignmentRepository),
             getFriendsUseCase = GetFriendsUseCase(friendRepository),
             observeAuthSessionUseCase = ObserveAuthSessionUseCase(authRepository),
             syncTodosUseCase = SyncTodosUseCase(todoRepository),
@@ -236,11 +287,42 @@ class AiTodoDraftViewModelTest {
     }
 
     private class FakeAssignmentRepository : AssignmentRepository {
+        val createdBundles = mutableListOf<CreatedAssignmentBundle>()
+
         override suspend fun createBundle(
             receiverUserId: String,
             items: List<AssignmentDraftItem>,
-            assignmentMode: com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
-        ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
+            assignmentMode: AssignmentMode
+        ): Result<AssignmentBundle> {
+            createdBundles += CreatedAssignmentBundle(
+                receiverUserId = receiverUserId,
+                assignmentMode = assignmentMode,
+                itemTitles = items.map { it.title }
+            )
+            return Result.success(
+                AssignmentBundle(
+                    id = "bundle-${createdBundles.size}",
+                    sender = AssignedTodoUser(id = "user-tee", nickname = "tee"),
+                    receiver = AssignedTodoUser(id = receiverUserId, nickname = receiverUserId),
+                    status = if (assignmentMode == AssignmentMode.DIRECT) {
+                        AssignmentBundleStatus.ACCEPTED
+                    } else {
+                        AssignmentBundleStatus.SENT
+                    },
+                    summary = AssignmentSummary(
+                        totalCount = items.size,
+                        pendingCount = if (assignmentMode == AssignmentMode.DIRECT) 0 else items.size,
+                        acceptedCount = if (assignmentMode == AssignmentMode.DIRECT) items.size else 0,
+                        inProgressCount = 0,
+                        doneCount = 0,
+                        rejectedCount = 0,
+                        canceledCount = 0,
+                        progressPercent = 0
+                    ),
+                    items = emptyList()
+                )
+            )
+        }
 
         override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
             Result.failure(UnsupportedOperationException())
@@ -315,10 +397,16 @@ class AiTodoDraftViewModelTest {
             )
         )
 
-    private fun testDraft(title: String): AiTodoDraft =
+    private data class CreatedAssignmentBundle(
+        val receiverUserId: String,
+        val assignmentMode: AssignmentMode,
+        val itemTitles: List<String>
+    )
+
+    private fun testDraft(title: String, assigneeId: String = "self"): AiTodoDraft =
         AiTodoDraft(
             title = title,
-            assigneeId = "self",
+            assigneeId = assigneeId,
             dueDate = LocalDate.of(2026, 5, 11),
             dueTimeMinutes = null,
             priority = TodoPriority.MEDIUM,
@@ -326,13 +414,18 @@ class AiTodoDraftViewModelTest {
             reviewReason = null
         )
 
-    private fun testFriend(userId: String, nickname: String): Friend =
+    private fun testFriend(
+        userId: String,
+        nickname: String,
+        directAssignment: DirectAssignmentConsentSummary = DirectAssignmentConsentSummary()
+    ): Friend =
         Friend(
             friendshipId = "friendship-$userId",
             userId = userId,
             nickname = nickname,
             status = FriendshipStatus.ACTIVE,
             createdAt = "2026-05-11T00:00:00Z",
-            removedAt = null
+            removedAt = null,
+            directAssignment = directAssignment
         )
 }
