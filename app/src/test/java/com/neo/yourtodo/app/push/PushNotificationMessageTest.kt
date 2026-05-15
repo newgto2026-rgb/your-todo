@@ -34,6 +34,42 @@ class PushNotificationMessageTest {
     }
 
     @Test
+    fun directAssignmentReceivedPayloadUsesDirectCopy() {
+        val data = mapOf(
+            PushNotificationContract.EXTRA_TYPE to PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_RECEIVED,
+            PushNotificationContract.EXTRA_ITEM_TITLE to "운동하기",
+            PushNotificationContract.EXTRA_ACTOR_NICKNAME to "monday"
+        )
+
+        assertThat(PushNotificationMessage.defaultTitle(data))
+            .isEqualTo(R.string.push_direct_assignment_received_title)
+        val body = PushNotificationMessage.body(data)
+        assertThat(body.resId).isEqualTo(R.string.push_direct_assignment_received_by_friend_body)
+        assertThat(body.args).containsExactly("monday", "운동하기").inOrder()
+    }
+
+    @Test
+    fun directAssignmentConsentPayloadsUsePermissionCopy() {
+        val accepted = mapOf(
+            PushNotificationContract.EXTRA_TYPE to PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED,
+            PushNotificationContract.EXTRA_ACTOR_NICKNAME to "monday"
+        )
+        val revoked = mapOf(
+            PushNotificationContract.EXTRA_TYPE to PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REVOKED,
+            PushNotificationContract.EXTRA_ACTOR_NICKNAME to "monday"
+        )
+
+        assertThat(PushNotificationMessage.defaultTitle(accepted))
+            .isEqualTo(R.string.push_direct_assignment_consent_accepted_title)
+        assertThat(PushNotificationMessage.body(accepted).resId)
+            .isEqualTo(R.string.push_direct_assignment_consent_accepted_by_friend_body)
+        assertThat(PushNotificationMessage.defaultTitle(revoked))
+            .isEqualTo(R.string.push_direct_assignment_consent_revoked_title)
+        assertThat(PushNotificationMessage.body(revoked).resId)
+            .isEqualTo(R.string.push_direct_assignment_consent_revoked_by_friend_body)
+    }
+
+    @Test
     fun defaultMessage_mapsFakeCompletionPayload() {
         val data = mapOf(
             PushNotificationContract.EXTRA_TYPE to "ASSIGNED_TODO_COMPLETED",

@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class NetworkCreateAssignmentBundleRequest(
     val receiverUserId: String,
+    val assignmentMode: String = "REQUEST",
     val items: List<NetworkCreateAssignmentItem>
 )
 
@@ -42,6 +43,11 @@ data class NetworkUpsertAssignedTodoReminderRequest(
 )
 
 @Serializable
+data class NetworkSetDirectAssignmentOptInRequest(
+    val enabled: Boolean
+)
+
+@Serializable
 data class NetworkAssignmentBundleResponse(
     val bundle: NetworkAssignmentBundle,
     val items: List<NetworkAssignedTodo>
@@ -70,6 +76,7 @@ data class NetworkAssignedTodoMutationItem(
     val id: String,
     val bundleId: String? = null,
     val source: String? = null,
+    val assignmentMode: String? = null,
     val sender: NetworkAssignmentUser? = null,
     val receiver: NetworkAssignmentUser? = null,
     val title: String? = null,
@@ -109,6 +116,7 @@ data class NetworkAssignedTodo(
     val id: String,
     val bundleId: String? = null,
     val source: String? = null,
+    val assignmentMode: String? = null,
     val sender: NetworkAssignmentUser? = null,
     val receiver: NetworkAssignmentUser? = null,
     val title: String,
@@ -165,4 +173,17 @@ data class NetworkFriendAssignmentSummaryResponse(
     val friendUserId: String,
     val sent: NetworkAssignmentSummary,
     val received: NetworkAssignmentSummary
+)
+
+@Serializable
+data class NetworkDirectAssignmentConsentSummaryResponse(
+    val directAssignment: NetworkDirectAssignmentConsentSummary
+)
+
+@Serializable
+data class NetworkDirectAssignmentConsentSummary(
+    val grantedByMe: String? = null,
+    val grantedToMe: String? = null,
+    val canFriendDirectAssignToMe: Boolean? = null,
+    val canDirectAssignToFriend: Boolean? = null
 )

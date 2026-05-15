@@ -81,6 +81,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.ui.TodoItemRow
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
@@ -463,6 +464,8 @@ private fun TodoListScreen(
             EditTodoBottomSheet(
                 sheetTitle = stringResource(
                     when {
+                        isAssignedEdit && uiState.editingAssignedTodoMode == AssignmentMode.DIRECT ->
+                            R.string.todo_editor_title_direct_assigned_task
                         isAssignedEdit -> R.string.todo_editor_title_received_task
                         uiState.editingItem == null -> R.string.todo_editor_title_new_task
                         else -> R.string.todo_editor_title_edit_task
@@ -810,7 +813,14 @@ private fun TodoPlannerRow(
         null
     }
     val assignedFromLabel = item.senderNickname?.let {
-        stringResource(R.string.todo_row_assigned_from, it)
+        stringResource(
+            if (item.assignmentMode == AssignmentMode.DIRECT) {
+                R.string.todo_row_direct_assigned_from
+            } else {
+                R.string.todo_row_assigned_from
+            },
+            it
+        )
     }
     val rowDueLabel = when {
         item.isDone -> rowCompletedText

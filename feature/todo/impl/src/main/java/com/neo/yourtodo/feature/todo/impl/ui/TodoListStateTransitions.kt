@@ -2,6 +2,7 @@ package com.neo.yourtodo.feature.todo.impl.ui
 
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.feature.todo.impl.model.TodoEditModel
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
 import java.time.LocalDate
@@ -10,6 +11,7 @@ internal fun TodoListUiState.openNewTodoEditor(): TodoListUiState = copy(
     isEditDialogVisible = true,
     editingItem = null,
     editingAssignedTodoId = null,
+    editingAssignedTodoMode = AssignmentMode.REQUEST,
     draftTitle = "",
     draftDueDateInput = "",
     draftDueTimeInput = "",
@@ -28,6 +30,7 @@ internal fun TodoListUiState.dismissTodoEditor(): TodoListUiState = copy(
     isEditDialogVisible = false,
     editingItem = null,
     editingAssignedTodoId = null,
+    editingAssignedTodoMode = AssignmentMode.REQUEST,
     draftTitle = "",
     draftDueDateInput = "",
     draftDueTimeInput = "",

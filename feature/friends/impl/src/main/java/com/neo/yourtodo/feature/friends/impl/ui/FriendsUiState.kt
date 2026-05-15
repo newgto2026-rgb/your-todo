@@ -5,6 +5,7 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
@@ -34,6 +35,7 @@ data class FriendsUiState(
     val assignmentDueDateInput: String = "",
     val assignmentDueTimeInput: String = "",
     val assignmentPriority: TodoPriority = TodoPriority.MEDIUM,
+    val assignmentMode: AssignmentMode = AssignmentMode.REQUEST,
     val assignmentDraftItems: List<AssignmentDraftItem> = emptyList(),
     @StringRes val assignmentInputErrorMessageRes: Int? = null,
     val runningActionKey: String? = null,
@@ -41,6 +43,9 @@ data class FriendsUiState(
 ) {
     val canSendRequest: Boolean
         get() = nicknameInput.trim().isNotEmpty() && runningActionKey == null
+
+    val canSendDirectAssignment: Boolean
+        get() = assignmentTargetFriend?.directAssignment?.canDirectAssignToFriend == true
 
     val assignmentDetail: FriendAssignmentDetailUiModel
         get() {
@@ -101,6 +106,8 @@ enum class FriendAssignmentSection {
 data class AssignmentTodoUiModel(
     val id: String,
     val title: String,
+    val assignmentMode: AssignmentMode,
+    @StringRes val assignmentModeLabelRes: Int,
     val progressPercent: Int,
     val showProgress: Boolean,
     @StringRes val statusLabelRes: Int,
@@ -123,9 +130,11 @@ internal fun AssignedTodo.toAssignmentTodoUiModel(
 ): AssignmentTodoUiModel = AssignmentTodoUiModel(
     id = id,
     title = title,
+    assignmentMode = assignmentMode,
+    assignmentModeLabelRes = assignmentMode.labelRes(),
     progressPercent = progressPercent.coerceIn(0, 100),
     showProgress = checklist.isNotEmpty(),
-    statusLabelRes = status.statusLabelRes(perspective),
+    statusLabelRes = status.statusLabelRes(perspective, assignmentMode),
     statusStyle = status.statusStyle(),
     selected = selected
 )
@@ -137,12 +146,17 @@ internal enum class AssignmentTodoPerspective {
 
 @StringRes
 internal fun AssignedTodoStatus.statusLabelRes(
-    perspective: AssignmentTodoPerspective = AssignmentTodoPerspective.SENT
+    perspective: AssignmentTodoPerspective = AssignmentTodoPerspective.SENT,
+    assignmentMode: AssignmentMode = AssignmentMode.REQUEST
 ): Int = when (this) {
     AssignedTodoStatus.PENDING_ACCEPTANCE -> R.string.friends_assignment_status_pending
-    AssignedTodoStatus.ACCEPTED -> when (perspective) {
-        AssignmentTodoPerspective.SENT -> R.string.friends_assignment_status_accepted
-        AssignmentTodoPerspective.RECEIVED -> R.string.friends_assignment_status_accepted_by_me
+    AssignedTodoStatus.ACCEPTED -> if (assignmentMode == AssignmentMode.DIRECT) {
+        R.string.friends_assignment_status_assigned
+    } else {
+        when (perspective) {
+            AssignmentTodoPerspective.SENT -> R.string.friends_assignment_status_accepted
+            AssignmentTodoPerspective.RECEIVED -> R.string.friends_assignment_status_accepted_by_me
+        }
     }
     AssignedTodoStatus.IN_PROGRESS -> R.string.friends_assignment_status_in_progress
     AssignedTodoStatus.DONE -> when (perspective) {
@@ -157,6 +171,12 @@ internal fun AssignedTodoStatus.statusLabelRes(
         AssignmentTodoPerspective.SENT -> R.string.friends_assignment_status_canceled_by_me
         AssignmentTodoPerspective.RECEIVED -> R.string.friends_assignment_status_canceled
     }
+}
+
+@StringRes
+internal fun AssignmentMode.labelRes(): Int = when (this) {
+    AssignmentMode.REQUEST -> R.string.friends_assignment_mode_chip_request
+    AssignmentMode.DIRECT -> R.string.friends_assignment_mode_chip_direct
 }
 
 internal fun AssignedTodoStatus.statusStyle(): AssignmentTodoStatusStyle = when (this) {
@@ -200,6 +220,7 @@ sealed interface FriendsAction {
     data class OnRemoveAssignmentDraft(val index: Int) : FriendsAction
     data object OnSendAssignmentNow : FriendsAction
     data object OnSendAssignmentDrafts : FriendsAction
+    data class OnSetDirectAssignmentOptIn(val friend: Friend, val enabled: Boolean) : FriendsAction
     data object OnErrorShown : FriendsAction
 }
 
@@ -218,6 +239,15 @@ enum class FriendsMessage(@StringRes val messageRes: Int) {
     REQUEST_DECLINED(R.string.friends_request_declined),
     FRIEND_REMOVED(R.string.friends_removed),
     ASSIGNMENT_SENT(R.string.friends_assignment_sent),
+    ASSIGNMENT_DIRECT_SENT(R.string.friends_assignment_direct_sent),
     ASSIGNMENT_ACCEPTED(R.string.friends_assignment_accepted),
-    ASSIGNMENT_REJECTED(R.string.friends_assignment_rejected)
+    ASSIGNMENT_REJECTED(R.string.friends_assignment_rejected),
+    DIRECT_ASSIGNMENT_OPT_IN_ENABLED(R.string.friends_direct_assignment_opt_in_enabled),
+    DIRECT_ASSIGNMENT_OPT_IN_DISABLED(R.string.friends_direct_assignment_opt_in_disabled)
 }
+
+internal fun Friend.canDirectAssignToFriend(): Boolean =
+    directAssignment.canDirectAssignToFriend
+
+internal fun Friend.isAutoAcceptEnabledForMe(): Boolean =
+    directAssignment.canFriendDirectAssignToMe

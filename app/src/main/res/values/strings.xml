@@ -39,6 +39,16 @@
     <string name="push_friend_request_body">Open Friends to accept or decline the request.</string>
     <string name="push_assignment_received_title">Shared todos received</string>
     <string name="push_assignment_received_body">Open Friends to review the request.</string>
+    <string name="push_direct_assignment_received_title">Task auto-assigned</string>
+    <string name="push_direct_assignment_received_body">A permitted friend added a task to your list.</string>
+    <string name="push_direct_assignment_received_single_body">%1$s was added to your list.</string>
+    <string name="push_direct_assignment_received_by_friend_body">%1$s added %2$s to your list.</string>
+    <string name="push_direct_assignment_consent_accepted_title">Auto-assignment allowed</string>
+    <string name="push_direct_assignment_consent_accepted_body">Your friend allowed auto-assignment.</string>
+    <string name="push_direct_assignment_consent_accepted_by_friend_body">%1$s allowed you to assign tasks directly.</string>
+    <string name="push_direct_assignment_consent_revoked_title">Auto-assignment turned off</string>
+    <string name="push_direct_assignment_consent_revoked_body">Auto-assignment permission was turned off.</string>
+    <string name="push_direct_assignment_consent_revoked_by_friend_body">%1$s turned off auto-assignment.</string>
     <string name="push_assignment_decided_title">Shared todo response received</string>
     <string name="push_assignment_decided_body">The accept or decline result was applied.</string>
     <string name="push_assignment_accepted_single_body">%1$s was accepted.</string>

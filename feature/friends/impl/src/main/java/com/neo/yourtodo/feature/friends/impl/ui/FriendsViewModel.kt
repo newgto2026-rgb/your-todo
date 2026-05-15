@@ -15,6 +15,7 @@ import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.domain.usecase.SetDirectAssignmentOptInUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
@@ -22,6 +23,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.friends.Friend
@@ -47,6 +49,7 @@ class FriendsViewModel @Inject constructor(
     private val respondFriendRequest: RespondFriendRequestUseCase,
     private val removeFriend: RemoveFriendUseCase,
     private val createAssignmentBundle: CreateAssignmentBundleUseCase,
+    private val setDirectAssignmentOptIn: SetDirectAssignmentOptInUseCase,
     private val getAssignedTodos: GetAssignedTodosUseCase,
     private val respondAssignmentBundle: RespondAssignmentBundleUseCase,
     private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
@@ -144,6 +147,11 @@ class FriendsViewModel @Inject constructor(
                 successMessage = FriendsMessage.ASSIGNMENT_REJECTED
             )
             is FriendsAction.OnOpenAssignmentEditor -> mutableUiState.update {
+                val mode = if (action.friend.canDirectAssignToFriend()) {
+                    AssignmentMode.DIRECT
+                } else {
+                    AssignmentMode.REQUEST
+                }
                 it.copy(
                     assignmentTargetFriend = action.friend,
                     assignmentDraftItems = emptyList(),
@@ -151,6 +159,7 @@ class FriendsViewModel @Inject constructor(
                     assignmentDueDateInput = "",
                     assignmentDueTimeInput = "",
                     assignmentPriority = TodoPriority.MEDIUM,
+                    assignmentMode = mode,
                     assignmentInputErrorMessageRes = null,
                     error = null
                 )
@@ -162,6 +171,7 @@ class FriendsViewModel @Inject constructor(
                     assignmentTitleInput = "",
                     assignmentDueDateInput = "",
                     assignmentDueTimeInput = "",
+                    assignmentMode = AssignmentMode.REQUEST,
                     assignmentInputErrorMessageRes = null
                 )
             }
@@ -199,6 +209,10 @@ class FriendsViewModel @Inject constructor(
             }
             FriendsAction.OnSendAssignmentNow -> sendAssignment(includeDrafts = false)
             FriendsAction.OnSendAssignmentDrafts -> sendAssignment(includeDrafts = true)
+            is FriendsAction.OnSetDirectAssignmentOptIn -> runDirectAssignmentOptInMutation(
+                friend = action.friend,
+                enabled = action.enabled
+            )
             FriendsAction.OnErrorShown -> mutableUiState.update { it.copy(error = null) }
         }
     }
@@ -628,10 +642,19 @@ class FriendsViewModel @Inject constructor(
             listOfNotNull(currentDraft)
         }
         if (items.isEmpty() || state.runningActionKey != null) return
+        val assignmentMode = if (friend.canDirectAssignToFriend()) {
+            AssignmentMode.DIRECT
+        } else {
+            AssignmentMode.REQUEST
+        }
 
         runMutation(
             key = "assignment:${friend.userId}",
-            successMessage = FriendsMessage.ASSIGNMENT_SENT,
+            successMessage = if (assignmentMode == AssignmentMode.DIRECT) {
+                FriendsMessage.ASSIGNMENT_DIRECT_SENT
+            } else {
+                FriendsMessage.ASSIGNMENT_SENT
+            },
             onSuccess = {
                 mutableUiState.update {
                     it.copy(
@@ -640,17 +663,40 @@ class FriendsViewModel @Inject constructor(
                         assignmentTitleInput = "",
                         assignmentDueDateInput = "",
                         assignmentDueTimeInput = "",
+                        assignmentMode = AssignmentMode.REQUEST,
                         assignmentInputErrorMessageRes = null
                     )
                 }
             }
         ) {
-            createAssignmentBundle(friend.userId, items).also { result ->
+            createAssignmentBundle(friend.userId, items, assignmentMode).also { result ->
                 val selectedFriend = uiState.value.selectedFriend
                 if (result.isSuccess && selectedFriend?.userId == friend.userId) {
                     refreshFriendDetail(selectedFriend)
                 }
             }.map { Unit }
+        }
+    }
+
+    private fun runDirectAssignmentOptInMutation(
+        friend: Friend,
+        enabled: Boolean
+    ) {
+        runMutation(
+            key = "direct_assignment_opt_in:${friend.userId}",
+            successMessage = if (enabled) {
+                FriendsMessage.DIRECT_ASSIGNMENT_OPT_IN_ENABLED
+            } else {
+                FriendsMessage.DIRECT_ASSIGNMENT_OPT_IN_DISABLED
+            },
+            onSuccess = {
+                val selectedFriend = uiState.value.selectedFriend
+                if (selectedFriend?.userId == friend.userId) {
+                    viewModelScope.launch { refreshFriendDetail(selectedFriend) }
+                }
+            },
+        ) {
+            setDirectAssignmentOptIn(friend.userId, enabled).map { Unit }
         }
     }
 
@@ -706,10 +752,21 @@ class FriendsViewModel @Inject constructor(
         val outgoing = getFriendRequests.outgoing()
         mutableUiState.update {
             if (friends.isSuccess && incoming.isSuccess && outgoing.isSuccess) {
+                val refreshedFriends = friends.getOrThrow()
+                val refreshedAssignmentTarget = it.assignmentTargetFriend?.let { target ->
+                    refreshedFriends.firstOrNull { friend -> friend.userId == target.userId } ?: target
+                }
                 it.copy(
-                    friends = friends.getOrThrow(),
+                    friends = refreshedFriends,
                     incomingRequests = incoming.getOrThrow(),
                     outgoingRequests = outgoing.getOrThrow(),
+                    selectedFriend = it.selectedFriend?.let { selected ->
+                        refreshedFriends.firstOrNull { friend -> friend.userId == selected.userId } ?: selected
+                    },
+                    assignmentTargetFriend = refreshedAssignmentTarget,
+                    assignmentMode = refreshedAssignmentTarget?.let { target ->
+                        if (target.canDirectAssignToFriend()) AssignmentMode.DIRECT else AssignmentMode.REQUEST
+                    } ?: it.assignmentMode,
                     runningActionKey = null,
                     error = null
                 )
@@ -811,6 +868,7 @@ internal fun IncomingAssignmentTarget.matches(other: IncomingAssignmentTarget): 
 internal fun List<AssignedTodo>.firstPendingIncomingAssignment(bundleId: String?): AssignedTodo? =
     firstOrNull { item ->
         item.status == AssignedTodoStatus.PENDING_ACCEPTANCE &&
+            item.assignmentMode == AssignmentMode.REQUEST &&
             item.bundleId != null &&
             (bundleId == null || item.bundleId == bundleId)
     }
@@ -843,7 +901,9 @@ internal fun FriendsUiState.decisionPendingAssignedTodos(): List<AssignedTodo> =
 
 internal fun List<AssignedTodo>.pendingDecisionItems(): List<AssignedTodo> =
     filter { item ->
-        item.status == AssignedTodoStatus.PENDING_ACCEPTANCE && item.bundleId != null
+        item.status == AssignedTodoStatus.PENDING_ACCEPTANCE &&
+            item.assignmentMode == AssignmentMode.REQUEST &&
+            item.bundleId != null
     }
 
 internal fun List<AssignedTodo>.pendingBundleItemIds(bundleId: String): Set<String> =

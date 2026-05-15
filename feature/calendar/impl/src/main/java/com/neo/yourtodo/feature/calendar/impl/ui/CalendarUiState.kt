@@ -3,6 +3,7 @@ package com.neo.yourtodo.feature.calendar.impl.ui
 import androidx.compose.runtime.Immutable
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -38,5 +39,6 @@ data class CalendarSelectedTodoUiModel(
     val dueTimeLabel: String?,
     val reminderLeadMinutes: Int?,
     val sourceLabel: String? = null,
+    val assignmentMode: AssignmentMode = AssignmentMode.REQUEST,
     val assignedTodoId: String? = null
 )

@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.feature.calendar.impl.R
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarSelectedTodoUiModel
 
@@ -58,6 +59,16 @@ internal fun CalendarAgendaItem(
         30 -> stringResource(R.string.calendar_reminder_lead_30m)
         60 -> stringResource(R.string.calendar_reminder_lead_60m)
         else -> null
+    }
+    val sourceText = todo.sourceLabel?.let { sourceLabel ->
+        stringResource(
+            if (todo.assignmentMode == AssignmentMode.DIRECT) {
+                R.string.calendar_direct_assigned_from
+            } else {
+                R.string.calendar_request_assigned_from
+            },
+            sourceLabel
+        )
     }
 
     Surface(
@@ -175,9 +186,9 @@ internal fun CalendarAgendaItem(
                                 color = Color(0xFF5A6065).copy(alpha = if (todo.isDone) 0.6f else 1f)
                             )
                         }
-                        if (!todo.sourceLabel.isNullOrBlank()) {
+                        if (!sourceText.isNullOrBlank()) {
                             Text(
-                                text = todo.sourceLabel,
+                                text = sourceText,
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                                 color = Color(0xFF3C7766).copy(alpha = if (todo.isDone) 0.6f else 1f)
                             )

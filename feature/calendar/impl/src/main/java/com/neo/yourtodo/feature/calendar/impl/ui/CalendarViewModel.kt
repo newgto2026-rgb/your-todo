@@ -378,6 +378,7 @@ internal fun AssignedTodo.toSelectedTodoUiModel(): CalendarSelectedTodoUiModel {
         dueTimeLabel = dueTimeMinutes?.let(::formatLocalTimeFromMinutes),
         reminderLeadMinutes = reminderLeadMinutes(reminderEpochMillis),
         sourceLabel = sender?.nickname?.let { "@$it" },
+        assignmentMode = assignmentMode,
         assignedTodoId = id
     )
 }

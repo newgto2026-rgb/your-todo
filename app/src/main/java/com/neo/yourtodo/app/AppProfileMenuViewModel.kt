@@ -29,10 +29,13 @@ class AppProfileMenuViewModel @Inject constructor(
         observeAuthSession(),
         operationState
     ) { session, operation ->
+        if (session == null) {
+            return@combine AppProfileMenuUiState()
+        }
         AppProfileMenuUiState(
-            nickname = session?.user?.nickname?.trim()?.takeIf(String::isNotBlank),
-            email = session?.user?.email?.trim()?.takeIf(String::isNotBlank),
-            isSignedIn = session != null,
+            nickname = session.user.nickname?.trim()?.takeIf(String::isNotBlank),
+            email = session.user.email?.trim()?.takeIf(String::isNotBlank),
+            isSignedIn = true,
             isSigningOut = operation.isSigningOut
         )
     }.stateIn(
@@ -55,6 +58,7 @@ class AppProfileMenuViewModel @Inject constructor(
             operationState.update { it.copy(isSigningOut = false) }
         }
     }
+
 }
 
 data class AppProfileMenuUiState(

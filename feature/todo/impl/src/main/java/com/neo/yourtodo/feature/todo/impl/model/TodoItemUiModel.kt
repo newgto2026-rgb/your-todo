@@ -3,6 +3,7 @@ package com.neo.yourtodo.feature.todo.impl.model
 import androidx.compose.runtime.Immutable
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import java.time.LocalDate
 
 @Immutable
@@ -20,7 +21,8 @@ data class TodoItemUiModel(
     val reminderRepeatType: ReminderRepeatType,
     val priority: TodoPriority,
     val assignedTodoId: String? = null,
-    val senderNickname: String? = null
+    val senderNickname: String? = null,
+    val assignmentMode: AssignmentMode = AssignmentMode.REQUEST
 ) {
     val isAssigned: Boolean
         get() = assignedTodoId != null

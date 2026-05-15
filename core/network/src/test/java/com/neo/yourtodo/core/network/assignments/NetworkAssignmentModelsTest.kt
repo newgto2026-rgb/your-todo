@@ -29,6 +29,26 @@ class NetworkAssignmentModelsTest {
 
         assertThat(requestJson).contains("\"dueDate\":\"2026-05-10\"")
         assertThat(requestJson).contains("\"dueTimeMinutes\":870")
+        assertThat(requestJson).contains("\"assignmentMode\":\"REQUEST\"")
+    }
+
+    @Test
+    fun `create bundle request serializes direct assignment mode`() {
+        val requestJson = NetworkProvidesModule.provideJson().encodeToString(
+            NetworkCreateAssignmentBundleRequest(
+                receiverUserId = "receiver-1",
+                assignmentMode = "DIRECT",
+                items = listOf(
+                    NetworkCreateAssignmentItem(
+                        clientItemId = "client-item-1",
+                        title = "Buy milk",
+                        priority = "MEDIUM"
+                    )
+                )
+            )
+        )
+
+        assertThat(requestJson).contains("\"assignmentMode\":\"DIRECT\"")
     }
 
     @Test
@@ -43,6 +63,7 @@ class NetworkAssignmentModelsTest {
                   "title": "Buy milk",
                   "dueDate": "2026-05-10",
                   "dueTimeMinutes": 870,
+                  "assignmentMode": "DIRECT",
                   "priority": "MEDIUM",
                   "status": "ACCEPTED",
                   "progressPercent": 0,
@@ -55,6 +76,7 @@ class NetworkAssignmentModelsTest {
 
         assertThat(response.items.single().bundleId).isEqualTo("bundle-1")
         assertThat(response.items.single().dueTimeMinutes).isEqualTo(14 * 60 + 30)
+        assertThat(response.items.single().assignmentMode).isEqualTo("DIRECT")
         assertThat(response.items.single().completedAt).isEqualTo("2026-05-09T00:00:00Z")
     }
 

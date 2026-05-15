@@ -1,5 +1,6 @@
 package com.neo.yourtodo.core.network.friends
 
+import com.neo.yourtodo.core.network.assignments.NetworkDirectAssignmentConsentSummary
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -14,7 +15,8 @@ data class NetworkFriend(
     val nickname: String,
     val status: String,
     val createdAt: String,
-    val removedAt: String? = null
+    val removedAt: String? = null,
+    val directAssignment: NetworkDirectAssignmentConsentSummary? = null
 )
 
 @Serializable

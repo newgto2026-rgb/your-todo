@@ -37,6 +37,16 @@
     <string name="push_friend_request_body">친구 탭에서 요청을 확인해 보세요.</string>
     <string name="push_assignment_received_title">공유 할 일이 도착했어요</string>
     <string name="push_assignment_received_body">친구 탭에서 요청받은 일을 확인해 보세요.</string>
+    <string name="push_direct_assignment_received_title">할 일이 자동 할당됐어요</string>
+    <string name="push_direct_assignment_received_body">허용한 친구가 내 목록에 할 일을 추가했어요.</string>
+    <string name="push_direct_assignment_received_single_body">%1$s이 내 목록에 추가됐어요.</string>
+    <string name="push_direct_assignment_received_by_friend_body">%1$s님이 내 목록에 %2$s을 추가했어요.</string>
+    <string name="push_direct_assignment_consent_accepted_title">자동 할당이 허용됐어요</string>
+    <string name="push_direct_assignment_consent_accepted_body">친구가 자동 할당을 허용했어요.</string>
+    <string name="push_direct_assignment_consent_accepted_by_friend_body">%1$s님에게 할 일을 바로 할당할 수 있어요.</string>
+    <string name="push_direct_assignment_consent_revoked_title">자동 할당이 꺼졌어요</string>
+    <string name="push_direct_assignment_consent_revoked_body">자동 할당 권한이 꺼졌어요.</string>
+    <string name="push_direct_assignment_consent_revoked_by_friend_body">%1$s님이 자동 할당을 껐어요.</string>
     <string name="push_assignment_decided_title">공유 할 일 응답이 도착했어요</string>
     <string name="push_assignment_decided_body">요청한 공유 할 일의 수락/거절 결과가 반영되었습니다.</string>
     <string name="push_assignment_accepted_single_body">%1$s을 수락했습니다.</string>

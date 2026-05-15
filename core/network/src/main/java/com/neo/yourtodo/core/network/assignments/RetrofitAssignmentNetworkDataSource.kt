@@ -53,6 +53,16 @@ internal class RetrofitAssignmentNetworkDataSource @Inject constructor(
             api.decideItems(accessToken.authorizationHeader(), idempotencyKey, bundleId, request)
         }
 
+    override suspend fun setDirectAssignmentOptIn(
+        accessToken: String,
+        idempotencyKey: String,
+        friendUserId: String,
+        request: NetworkSetDirectAssignmentOptInRequest
+    ): NetworkDirectAssignmentConsentSummaryResponse =
+        runAssignmentRequest {
+            api.setDirectAssignmentOptIn(accessToken.authorizationHeader(), idempotencyKey, friendUserId, request)
+        }
+
     override suspend fun completeAssignedTodo(
         accessToken: String,
         assignedTodoId: String

@@ -32,6 +32,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
@@ -1023,6 +1024,7 @@ class TodoListViewModelTest {
         val confirmation = viewModel.uiState.value.deleteConfirmation as TodoDeleteConfirmation.Completed
         assertThat(confirmation.todoIds).isEmpty()
         assertThat(confirmation.assignedTodoIds).containsExactly("assigned-done")
+        val widgetUpdateCountBeforeDelete = calendarWidgetUpdater.updateCount
 
         viewModel.onAction(TodoListAction.OnDeleteConfirm)
         advanceUntilIdle()
@@ -1032,6 +1034,7 @@ class TodoListViewModelTest {
         assertThat(assignmentRepository.receivedItems.single { it.id == "assigned-done" }.status)
             .isEqualTo(AssignedTodoStatus.DONE)
         assertThat(viewModel.uiState.value.items.map { it.assignedTodoId }).doesNotContain("assigned-done")
+        assertThat(calendarWidgetUpdater.updateCount).isEqualTo(widgetUpdateCountBeforeDelete + 1)
 
         viewModel.onAction(TodoListAction.OnScreenStarted)
         mainDispatcherRule.testDispatcher.scheduler.runCurrent()
@@ -1345,6 +1348,30 @@ class TodoListViewModelTest {
         assertThat(viewModel.uiState.value.isEditDialogVisible).isFalse()
     }
 
+    @Test
+    fun directAssignedTodoKeepsModeInListAndEditorState() = runTest {
+        assignmentRepository.receivedItems = listOf(
+            assignedTodo(
+                id = "direct-assigned",
+                title = "Direct task",
+                assignmentMode = AssignmentMode.DIRECT
+            )
+        )
+
+        viewModel.onAction(TodoListAction.OnScreenStarted)
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnScreenStopped)
+        advanceUntilIdle()
+
+        val assigned = viewModel.uiState.value.items.single { it.assignedTodoId == "direct-assigned" }
+        assertThat(assigned.assignmentMode).isEqualTo(AssignmentMode.DIRECT)
+
+        viewModel.onAction(TodoListAction.OnEditClick(assigned.id))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.editingAssignedTodoMode).isEqualTo(AssignmentMode.DIRECT)
+    }
+
     private class RecordingReminderScheduler : TodoReminderScheduler {
         val cancelledTodoIds = mutableListOf<Long>()
 
@@ -1430,7 +1457,8 @@ class TodoListViewModelTest {
 
         override suspend fun createBundle(
             receiverUserId: String,
-            items: List<AssignmentDraftItem>
+            items: List<AssignmentDraftItem>,
+            assignmentMode: com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
         ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
 
         override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
@@ -1533,7 +1561,8 @@ private fun assignedTodo(
     dueTimeMinutes: Int? = null,
     reminder: AssignedTodoReminder? = null,
     priority: TodoPriority = TodoPriority.MEDIUM,
-    senderNickname: String = "monday"
+    senderNickname: String = "monday",
+    assignmentMode: AssignmentMode = AssignmentMode.REQUEST
 ) = AssignedTodo(
     id = id,
     bundleId = "bundle-1",
@@ -1548,6 +1577,7 @@ private fun assignedTodo(
     progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
     sender = AssignedTodoUser(id = "friend-1", nickname = senderNickname),
     receiver = AssignedTodoUser(id = "me", nickname = "tester"),
+    assignmentMode = assignmentMode,
     reminder = reminder,
     checklist = emptyList()
 )

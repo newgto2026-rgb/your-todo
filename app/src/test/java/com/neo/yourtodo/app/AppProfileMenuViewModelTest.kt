@@ -137,6 +137,7 @@ class AppProfileMenuViewModelTest {
             return Result.success(Unit)
         }
     }
+
 }
 
 private fun authSession(

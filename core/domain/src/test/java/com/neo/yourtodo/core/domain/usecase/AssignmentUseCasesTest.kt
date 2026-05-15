@@ -18,8 +18,11 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundleStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import java.time.Instant
@@ -44,6 +47,38 @@ class AssignmentUseCasesTest {
         assertThat(result.getOrNull()).isEqualTo(bundle)
         assertThat(repository.createdReceiverUserIds).containsExactly("friend-1")
         assertThat(repository.createdItems).containsExactly(listOf(draft))
+        assertThat(repository.createdModes).containsExactly(AssignmentMode.REQUEST)
+    }
+
+    @Test
+    fun createAssignmentBundleDelegatesDirectMode() = runTest {
+        val repository = FakeAssignmentRepository(createResult = Result.success(testBundle()))
+        val useCase = CreateAssignmentBundleUseCase(repository)
+
+        useCase(
+            receiverUserId = "friend-1",
+            items = listOf(testDraft()),
+            assignmentMode = AssignmentMode.DIRECT
+        )
+
+        assertThat(repository.createdModes).containsExactly(AssignmentMode.DIRECT)
+    }
+
+    @Test
+    fun setDirectAssignmentOptInDelegatesEnabledState() = runTest {
+        val summary = DirectAssignmentConsentSummary(
+            grantedByMe = DirectAssignmentConsentState.ACTIVE,
+            grantedToMe = DirectAssignmentConsentState.NONE
+        )
+        val repository = FakeAssignmentRepository(consentResult = Result.success(summary))
+        val useCase = SetDirectAssignmentOptInUseCase(repository)
+
+        assertThat(useCase("friend-1", true).getOrThrow()).isEqualTo(summary)
+        assertThat(useCase("friend-2", false).getOrThrow()).isEqualTo(summary)
+
+        assertThat(repository.directAssignmentOptInRequests)
+            .containsExactly("friend-1" to true, "friend-2" to false)
+            .inOrder()
     }
 
     @Test
@@ -620,10 +655,14 @@ class AssignmentUseCasesTest {
         private val upsertReminderResult: Result<Unit> =
             Result.failure(UnsupportedOperationException()),
         private val deleteReminderResult: Result<Unit> =
+            Result.failure(UnsupportedOperationException()),
+        private val consentResult: Result<DirectAssignmentConsentSummary> =
             Result.failure(UnsupportedOperationException())
     ) : AssignmentRepository {
         val createdReceiverUserIds = mutableListOf<String>()
         val createdItems = mutableListOf<List<AssignmentDraftItem>>()
+        val createdModes = mutableListOf<AssignmentMode>()
+        val directAssignmentOptInRequests = mutableListOf<Pair<String, Boolean>>()
         val summaryFriendUserIds = mutableListOf<String>()
         val friendFeedRequests = mutableListOf<FriendFeedRequest>()
         val receivedStatuses = mutableListOf<AssignmentFeedStatus>()
@@ -647,7 +686,27 @@ class AssignmentUseCasesTest {
         ): Result<AssignmentBundle> {
             createdReceiverUserIds += receiverUserId
             createdItems += items
+            createdModes += AssignmentMode.REQUEST
             return createResult
+        }
+
+        override suspend fun createBundle(
+            receiverUserId: String,
+            items: List<AssignmentDraftItem>,
+            assignmentMode: AssignmentMode
+        ): Result<AssignmentBundle> {
+            createdReceiverUserIds += receiverUserId
+            createdItems += items
+            createdModes += assignmentMode
+            return createResult
+        }
+
+        override suspend fun setDirectAssignmentOptIn(
+            friendUserId: String,
+            enabled: Boolean
+        ): Result<DirectAssignmentConsentSummary> {
+            directAssignmentOptInRequests += friendUserId to enabled
+            return consentResult
         }
 
         override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> {

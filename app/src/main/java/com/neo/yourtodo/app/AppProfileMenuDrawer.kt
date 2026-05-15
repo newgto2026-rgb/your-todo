@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Close
@@ -76,6 +78,7 @@ fun AppProfileMenuDrawer(
     var showLogoutConfirm by remember { mutableStateOf(false) }
     val nickname = uiState.nickname ?: stringResource(R.string.profile_menu_nickname_missing)
     val email = uiState.email ?: stringResource(R.string.profile_menu_email_missing)
+    val drawerScrollState = rememberScrollState()
 
     if (isOpen) {
         BackHandler(enabled = !showLogoutConfirm) {
@@ -155,54 +158,59 @@ fun AppProfileMenuDrawer(
 
                         Spacer(Modifier.height(18.dp))
 
-                        ProfileMenuAction(
-                            icon = Icons.Default.ContentCopy,
-                            title = stringResource(R.string.profile_menu_copy_nickname),
-                            subtitle = stringResource(R.string.profile_menu_copy_nickname_subtitle),
-                            enabled = uiState.canCopyNickname && !uiState.isSigningOut,
-                            testTag = "profile_menu_copy_nickname",
-                            onClick = {
-                                uiState.nickname?.let(onCopyNickname)
-                            }
-                        )
-                        ProfileMenuAction(
-                            icon = Icons.Default.Notifications,
-                            title = stringResource(R.string.profile_menu_notification_settings),
-                            subtitle = stringResource(R.string.profile_menu_notification_settings_subtitle),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_notification_settings",
-                            onClick = onOpenNotificationSettings
-                        )
-                        ProfileMenuAction(
-                            icon = Icons.Default.Settings,
-                            title = stringResource(R.string.profile_menu_app_settings),
-                            subtitle = stringResource(R.string.profile_menu_app_settings_subtitle),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_app_settings",
-                            onClick = onOpenAppSettings
-                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(drawerScrollState)
+                        ) {
+                            ProfileMenuAction(
+                                icon = Icons.Default.ContentCopy,
+                                title = stringResource(R.string.profile_menu_copy_nickname),
+                                subtitle = stringResource(R.string.profile_menu_copy_nickname_subtitle),
+                                enabled = uiState.canCopyNickname && !uiState.isSigningOut,
+                                testTag = "profile_menu_copy_nickname",
+                                onClick = {
+                                    uiState.nickname?.let(onCopyNickname)
+                                }
+                            )
+                            ProfileMenuAction(
+                                icon = Icons.Default.Notifications,
+                                title = stringResource(R.string.profile_menu_notification_settings),
+                                subtitle = stringResource(R.string.profile_menu_notification_settings_subtitle),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_notification_settings",
+                                onClick = onOpenNotificationSettings
+                            )
+                            ProfileMenuAction(
+                                icon = Icons.Default.Settings,
+                                title = stringResource(R.string.profile_menu_app_settings),
+                                subtitle = stringResource(R.string.profile_menu_app_settings_subtitle),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_app_settings",
+                                onClick = onOpenAppSettings
+                            )
 
-                        Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = Color(0xFFE6E8EF))
-                        Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(color = Color(0xFFE6E8EF))
+                            Spacer(Modifier.height(12.dp))
 
-                        ProfileMenuAction(
-                            icon = Icons.Default.Policy,
-                            title = stringResource(R.string.profile_menu_privacy_policy),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_privacy_policy",
-                            onClick = onOpenPrivacyPolicy
-                        )
-                        ProfileMenuAction(
-                            icon = Icons.Default.Info,
-                            title = stringResource(R.string.profile_menu_terms),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_terms",
-                            onClick = onOpenTerms
-                        )
-                        ProfileMenuVersionRow(appVersion = appVersion)
+                            ProfileMenuAction(
+                                icon = Icons.Default.Policy,
+                                title = stringResource(R.string.profile_menu_privacy_policy),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_privacy_policy",
+                                onClick = onOpenPrivacyPolicy
+                            )
+                            ProfileMenuAction(
+                                icon = Icons.Default.Info,
+                                title = stringResource(R.string.profile_menu_terms),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_terms",
+                                onClick = onOpenTerms
+                            )
+                            ProfileMenuVersionRow(appVersion = appVersion)
+                        }
 
-                        Spacer(Modifier.weight(1f))
                         HorizontalDivider(color = Color(0xFFE6E8EF))
                         Spacer(Modifier.height(8.dp))
 

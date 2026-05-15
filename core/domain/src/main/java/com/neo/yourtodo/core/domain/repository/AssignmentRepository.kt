@@ -4,14 +4,28 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
 import kotlinx.coroutines.flow.Flow
 
 interface AssignmentRepository {
     suspend fun createBundle(
         receiverUserId: String,
         items: List<AssignmentDraftItem>
+    ): Result<AssignmentBundle> = createBundle(receiverUserId, items, AssignmentMode.REQUEST)
+
+    suspend fun createBundle(
+        receiverUserId: String,
+        items: List<AssignmentDraftItem>,
+        assignmentMode: AssignmentMode = AssignmentMode.REQUEST
     ): Result<AssignmentBundle>
+
+    suspend fun setDirectAssignmentOptIn(
+        friendUserId: String,
+        enabled: Boolean
+    ): Result<DirectAssignmentConsentSummary> =
+        Result.failure(UnsupportedOperationException())
 
     suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary>
 

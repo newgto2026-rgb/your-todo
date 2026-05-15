@@ -33,6 +33,7 @@
     <string name="todo_editor_title_new_task">새 할 일</string>
     <string name="todo_editor_title_edit_task">할 일 수정</string>
     <string name="todo_editor_title_received_task">요청받은 할 일</string>
+    <string name="todo_editor_title_direct_assigned_task">할당받은 할 일</string>
     <string name="todo_editor_task_description">할 일 설명</string>
     <string name="todo_editor_task_placeholder">무엇을 해야 하나요?</string>
     <string name="todo_editor_select_due_date">마감일 선택</string>
@@ -113,7 +114,8 @@
 
     <string name="todo_row_subtitle_completed">@string/todo_filter_completed</string>
     <string name="todo_row_subtitle_today">@string/todo_filter_today</string>
-    <string name="todo_row_assigned_from">@%1$s</string>
+    <string name="todo_row_assigned_from">요청 수락 · @%1$s</string>
+    <string name="todo_row_direct_assigned_from">자동 할당 · @%1$s</string>
 
     <string name="todo_error_title_required">제목을 입력해주세요.</string>
     <string name="todo_error_due_date_format">날짜 형식은 yyyy-MM-dd 입니다.</string>

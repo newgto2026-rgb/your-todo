@@ -12,14 +12,15 @@ import com.neo.yourtodo.feature.todo.api.TodoAllRoute
 import java.net.URI
 import java.time.LocalDate
 
-private const val PushTypeAssignmentBundleReceived = "ASSIGNMENT_BUNDLE_RECEIVED"
 private val FriendRelatedPushTypes = setOf(
-    "FRIEND_REQUEST_RECEIVED",
-    "ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED",
-    "ASSIGNMENT_BUNDLE_FULLY_DECIDED",
-    "ASSIGNED_TODO_COMPLETED",
-    "ASSIGNED_TODO_REOPENED",
-    "ASSIGNED_TODO_CANCELED"
+    PushNotificationContract.TYPE_FRIEND_REQUEST_RECEIVED,
+    PushNotificationContract.TYPE_ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED,
+    PushNotificationContract.TYPE_ASSIGNMENT_BUNDLE_FULLY_DECIDED,
+    PushNotificationContract.TYPE_ASSIGNED_TODO_COMPLETED,
+    PushNotificationContract.TYPE_ASSIGNED_TODO_REOPENED,
+    PushNotificationContract.TYPE_ASSIGNED_TODO_CANCELED,
+    PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED,
+    PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REVOKED
 )
 
 data class AppLaunchNavigationRequest(
@@ -145,6 +146,12 @@ private fun parsePushNavigationRequest(
             contentRoute = incomingAssignmentRoute,
             syncOnOpen = true
         )
+        pushType == PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_RECEIVED ->
+            AppLaunchNavigationRequest(
+                id = requestId,
+                topLevelRoute = TodoAllRoute,
+                syncOnOpen = true
+            )
         isFriendRelatedPush(pushType = pushType, actorUserId = actorUserId, actorNickname = actorNickname) ->
             AppLaunchNavigationRequest(
                 id = requestId,
@@ -186,7 +193,7 @@ private fun incomingAssignmentRoute(
     requestId: Long
 ): FriendsIncomingAssignmentRoute? {
     val deepLinkBundleId = deepLink.assignmentBundleIdOrNull()
-    val isDecisionRequest = pushType == PushTypeAssignmentBundleReceived ||
+    val isDecisionRequest = pushType == PushNotificationContract.TYPE_ASSIGNMENT_BUNDLE_RECEIVED ||
         (pushType.isNullOrBlank() && deepLinkBundleId != null)
     if (!isDecisionRequest) {
         return null
