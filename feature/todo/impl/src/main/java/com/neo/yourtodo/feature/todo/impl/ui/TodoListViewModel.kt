@@ -386,6 +386,7 @@ class TodoListViewModel @Inject constructor(
             isEditDialogVisible = true,
             editingItem = target.toTodoEditModel(),
             editingAssignedTodoId = target.assignedTodoId,
+            editingAssignedTodoMode = target.assignmentMode,
             draftTitle = target.title,
             draftDueDateInput = target.dueDateText.orEmpty(),
             draftDueTimeInput = target.dueTimeText.orEmpty(),
@@ -504,8 +505,10 @@ class TodoListViewModel @Inject constructor(
                 )
             }
 
-            if (deletedIds.isNotEmpty()) {
+            if (deletedIds.isNotEmpty() || deletedAssignedIds.isNotEmpty()) {
                 notifyCalendarWidgetChanged()
+            }
+            if (deletedIds.isNotEmpty()) {
                 syncTodosQuietly()
             }
             if (hasFailure) {

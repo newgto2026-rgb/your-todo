@@ -18,6 +18,8 @@
     <string name="calendar_reminder_lead_10m">10 min before</string>
     <string name="calendar_reminder_lead_30m">30 min before</string>
     <string name="calendar_reminder_lead_60m">1 hour before</string>
+    <string name="calendar_request_assigned_from">Accepted request · %1$s</string>
+    <string name="calendar_direct_assigned_from">Auto-assigned · %1$s</string>
     <string name="calendar_priority_low">Low</string>
     <string name="calendar_priority_medium">Medium</string>
     <string name="calendar_priority_high">High</string>

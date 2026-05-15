@@ -18,6 +18,8 @@
     <string name="calendar_reminder_lead_10m">10분 전</string>
     <string name="calendar_reminder_lead_30m">30분 전</string>
     <string name="calendar_reminder_lead_60m">1시간 전</string>
+    <string name="calendar_request_assigned_from">요청 수락 · %1$s</string>
+    <string name="calendar_direct_assigned_from">자동 할당 · %1$s</string>
     <string name="calendar_priority_low">낮음</string>
     <string name="calendar_priority_medium">중간</string>
     <string name="calendar_priority_high">높음</string>

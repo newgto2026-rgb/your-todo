@@ -238,7 +238,8 @@ private fun AssignedTodo.toUiModel(
             reminderRepeatType = com.neo.yourtodo.core.model.ReminderRepeatType.NONE,
             priority = priority,
             assignedTodoId = id,
-            senderNickname = sender?.nickname
+            senderNickname = sender?.nickname,
+            assignmentMode = assignmentMode
         )
     }
 

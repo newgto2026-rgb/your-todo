@@ -207,4 +207,10 @@ object AppDatabaseMigrations {
             )
         }
     }
+
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `assigned_todo` ADD COLUMN `assignmentMode` TEXT NOT NULL DEFAULT 'REQUEST'")
+        }
+    }
 }

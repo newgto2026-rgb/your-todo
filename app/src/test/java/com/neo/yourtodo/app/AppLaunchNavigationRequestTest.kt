@@ -242,6 +242,55 @@ class AppLaunchNavigationRequestTest {
     }
 
     @Test
+    fun parseDirectAssignmentReceivedPush_doesNotOpenIncomingDecisionRoute() {
+        val request = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_RECEIVED,
+            deepLink = "yourtodo://assignment-bundles/received/bundle-id",
+            bundleId = "bundle-id",
+            actorUserId = "friend-user-id",
+            actorNickname = "monday",
+            dataScheme = null,
+            requestId = 28L
+        )
+
+        assertThat(request).isEqualTo(
+            AppLaunchNavigationRequest(
+                id = 28L,
+                topLevelRoute = TodoAllRoute,
+                contentRoute = null,
+                syncOnOpen = true
+            )
+        )
+    }
+
+    @Test
+    fun parseDirectAssignmentConsentRequestedPushOpensProfilePermissionSurface() {
+        val request = parseAppLaunchNavigationRequest(
+            action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
+            selectedDate = null,
+            pushType = PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED,
+            deepLink = null,
+            bundleId = null,
+            actorUserId = "friend-user-id",
+            actorNickname = "monday",
+            dataScheme = null,
+            requestId = 29L
+        )
+
+        assertThat(request).isEqualTo(
+            AppLaunchNavigationRequest(
+                id = 29L,
+                topLevelRoute = FriendsRoute,
+                contentRoute = null,
+                syncOnOpen = true,
+                openProfileMenuOnLaunch = true
+            )
+        )
+    }
+
+    @Test
     fun parseNonFriendStatusPush_returnsFirstTabRequest() {
         val request = parseAppLaunchNavigationRequest(
             action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,

@@ -52,6 +52,34 @@ interface AssignmentApi {
         @Body request: NetworkDecideAssignmentItemsRequest
     ): NetworkAssignmentBundleResponse
 
+    @POST("api/friends/{friendUserId}/direct-assignment-consent/request")
+    suspend fun requestDirectAssignmentConsent(
+        @Header("Authorization") authorization: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Path("friendUserId") friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
+    @POST("api/friends/{friendUserId}/direct-assignment-consent/accept")
+    suspend fun acceptDirectAssignmentConsent(
+        @Header("Authorization") authorization: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Path("friendUserId") friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
+    @POST("api/friends/{friendUserId}/direct-assignment-consent/reject")
+    suspend fun rejectDirectAssignmentConsent(
+        @Header("Authorization") authorization: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Path("friendUserId") friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
+    @POST("api/friends/{friendUserId}/direct-assignment-consent/revoke")
+    suspend fun revokeDirectAssignmentConsent(
+        @Header("Authorization") authorization: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Path("friendUserId") friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
     @POST("api/assigned-todos/{assignedTodoId}/complete")
     suspend fun completeAssignedTodo(
         @Header("Authorization") authorization: String,

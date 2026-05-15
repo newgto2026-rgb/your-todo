@@ -18,6 +18,7 @@ data class AssignedTodo(
     val progressPercent: Int,
     val sender: AssignedTodoUser?,
     val receiver: AssignedTodoUser?,
+    val assignmentMode: AssignmentMode = AssignmentMode.REQUEST,
     val reminder: AssignedTodoReminder?,
     val checklist: List<AssignedTodoChecklistItem> = emptyList(),
     val createdAt: Instant? = null,

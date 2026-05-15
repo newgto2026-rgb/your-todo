@@ -36,6 +36,30 @@ interface AssignmentNetworkDataSource {
         request: NetworkDecideAssignmentItemsRequest
     ): NetworkAssignmentBundleResponse
 
+    suspend fun requestDirectAssignmentConsent(
+        accessToken: String,
+        idempotencyKey: String,
+        friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
+    suspend fun acceptDirectAssignmentConsent(
+        accessToken: String,
+        idempotencyKey: String,
+        friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
+    suspend fun rejectDirectAssignmentConsent(
+        accessToken: String,
+        idempotencyKey: String,
+        friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
+    suspend fun revokeDirectAssignmentConsent(
+        accessToken: String,
+        idempotencyKey: String,
+        friendUserId: String
+    ): NetworkDirectAssignmentConsentSummaryResponse
+
     suspend fun completeAssignedTodo(accessToken: String, assignedTodoId: String): NetworkAssignedTodoMutationResponse
 
     suspend fun reopenAssignedTodo(accessToken: String, assignedTodoId: String): NetworkAssignedTodoMutationResponse

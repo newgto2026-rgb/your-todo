@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Close
@@ -58,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.neo.yourtodo.R
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
 
 @Composable
 fun AppProfileMenuDrawer(
@@ -70,12 +73,16 @@ fun AppProfileMenuDrawer(
     onOpenAppSettings: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     onOpenTerms: () -> Unit,
+    onAcceptDirectAssignment: (String) -> Unit,
+    onRejectDirectAssignment: (String) -> Unit,
+    onRevokeDirectAssignment: (String) -> Unit,
     onLogoutConfirm: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
     val nickname = uiState.nickname ?: stringResource(R.string.profile_menu_nickname_missing)
     val email = uiState.email ?: stringResource(R.string.profile_menu_email_missing)
+    val drawerScrollState = rememberScrollState()
 
     if (isOpen) {
         BackHandler(enabled = !showLogoutConfirm) {
@@ -155,54 +162,68 @@ fun AppProfileMenuDrawer(
 
                         Spacer(Modifier.height(18.dp))
 
-                        ProfileMenuAction(
-                            icon = Icons.Default.ContentCopy,
-                            title = stringResource(R.string.profile_menu_copy_nickname),
-                            subtitle = stringResource(R.string.profile_menu_copy_nickname_subtitle),
-                            enabled = uiState.canCopyNickname && !uiState.isSigningOut,
-                            testTag = "profile_menu_copy_nickname",
-                            onClick = {
-                                uiState.nickname?.let(onCopyNickname)
-                            }
-                        )
-                        ProfileMenuAction(
-                            icon = Icons.Default.Notifications,
-                            title = stringResource(R.string.profile_menu_notification_settings),
-                            subtitle = stringResource(R.string.profile_menu_notification_settings_subtitle),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_notification_settings",
-                            onClick = onOpenNotificationSettings
-                        )
-                        ProfileMenuAction(
-                            icon = Icons.Default.Settings,
-                            title = stringResource(R.string.profile_menu_app_settings),
-                            subtitle = stringResource(R.string.profile_menu_app_settings_subtitle),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_app_settings",
-                            onClick = onOpenAppSettings
-                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(drawerScrollState)
+                        ) {
+                            ProfileMenuAction(
+                                icon = Icons.Default.ContentCopy,
+                                title = stringResource(R.string.profile_menu_copy_nickname),
+                                subtitle = stringResource(R.string.profile_menu_copy_nickname_subtitle),
+                                enabled = uiState.canCopyNickname && !uiState.isSigningOut,
+                                testTag = "profile_menu_copy_nickname",
+                                onClick = {
+                                    uiState.nickname?.let(onCopyNickname)
+                                }
+                            )
+                            ProfileMenuAction(
+                                icon = Icons.Default.Notifications,
+                                title = stringResource(R.string.profile_menu_notification_settings),
+                                subtitle = stringResource(R.string.profile_menu_notification_settings_subtitle),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_notification_settings",
+                                onClick = onOpenNotificationSettings
+                            )
+                            ProfileDirectAssignmentPermissionSection(
+                                permissions = uiState.directAssignmentPermissions,
+                                isLoading = uiState.isLoadingDirectAssignmentPermissions,
+                                runningActionKey = uiState.runningDirectAssignmentActionKey,
+                                enabled = !uiState.isSigningOut,
+                                onAccept = onAcceptDirectAssignment,
+                                onReject = onRejectDirectAssignment,
+                                onRevoke = onRevokeDirectAssignment
+                            )
+                            ProfileMenuAction(
+                                icon = Icons.Default.Settings,
+                                title = stringResource(R.string.profile_menu_app_settings),
+                                subtitle = stringResource(R.string.profile_menu_app_settings_subtitle),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_app_settings",
+                                onClick = onOpenAppSettings
+                            )
 
-                        Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = Color(0xFFE6E8EF))
-                        Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(color = Color(0xFFE6E8EF))
+                            Spacer(Modifier.height(12.dp))
 
-                        ProfileMenuAction(
-                            icon = Icons.Default.Policy,
-                            title = stringResource(R.string.profile_menu_privacy_policy),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_privacy_policy",
-                            onClick = onOpenPrivacyPolicy
-                        )
-                        ProfileMenuAction(
-                            icon = Icons.Default.Info,
-                            title = stringResource(R.string.profile_menu_terms),
-                            enabled = !uiState.isSigningOut,
-                            testTag = "profile_menu_terms",
-                            onClick = onOpenTerms
-                        )
-                        ProfileMenuVersionRow(appVersion = appVersion)
+                            ProfileMenuAction(
+                                icon = Icons.Default.Policy,
+                                title = stringResource(R.string.profile_menu_privacy_policy),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_privacy_policy",
+                                onClick = onOpenPrivacyPolicy
+                            )
+                            ProfileMenuAction(
+                                icon = Icons.Default.Info,
+                                title = stringResource(R.string.profile_menu_terms),
+                                enabled = !uiState.isSigningOut,
+                                testTag = "profile_menu_terms",
+                                onClick = onOpenTerms
+                            )
+                            ProfileMenuVersionRow(appVersion = appVersion)
+                        }
 
-                        Spacer(Modifier.weight(1f))
                         HorizontalDivider(color = Color(0xFFE6E8EF))
                         Spacer(Modifier.height(8.dp))
 
@@ -309,6 +330,173 @@ private fun ProfileSummary(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag("profile_menu_email")
             )
+        }
+    }
+}
+
+@Composable
+private fun ProfileDirectAssignmentPermissionSection(
+    permissions: List<ProfileDirectAssignmentPermissionUiModel>,
+    isLoading: Boolean,
+    runningActionKey: String?,
+    enabled: Boolean,
+    onAccept: (String) -> Unit,
+    onReject: (String) -> Unit,
+    onRevoke: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp)
+            .testTag("profile_menu_direct_assignment_section"),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.profile_menu_direct_assignment_title),
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+            color = Color(0xFF303440)
+        )
+        Text(
+            text = stringResource(R.string.profile_menu_direct_assignment_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF69707D)
+        )
+
+        when {
+            isLoading && permissions.isEmpty() -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("profile_menu_direct_assignment_loading"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Text(
+                        text = stringResource(R.string.profile_menu_direct_assignment_loading),
+                        modifier = Modifier.padding(start = 10.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF69707D)
+                    )
+                }
+            }
+
+            permissions.isEmpty() -> Text(
+                text = stringResource(R.string.profile_menu_direct_assignment_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF69707D),
+                modifier = Modifier.testTag("profile_menu_direct_assignment_empty")
+            )
+
+            else -> permissions.forEach { permission ->
+                ProfileDirectAssignmentPermissionRow(
+                    permission = permission,
+                    runningActionKey = runningActionKey,
+                    enabled = enabled,
+                    onAccept = onAccept,
+                    onReject = onReject,
+                    onRevoke = onRevoke
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileDirectAssignmentPermissionRow(
+    permission: ProfileDirectAssignmentPermissionUiModel,
+    runningActionKey: String?,
+    enabled: Boolean,
+    onAccept: (String) -> Unit,
+    onReject: (String) -> Unit,
+    onRevoke: (String) -> Unit
+) {
+    val isPending = permission.state == DirectAssignmentConsentState.PENDING
+    val isActive = permission.state == DirectAssignmentConsentState.ACTIVE
+    val acceptKey = "accept:${permission.friendUserId}"
+    val rejectKey = "reject:${permission.friendUserId}"
+    val revokeKey = "revoke:${permission.friendUserId}"
+    val isRunning = runningActionKey in setOf(acceptKey, rejectKey, revokeKey)
+    val actionsEnabled = enabled && runningActionKey == null
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFFF6F7FB),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("profile_menu_direct_assignment_${permission.friendUserId}")
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(
+                            R.string.profile_menu_direct_assignment_friend_title,
+                            permission.nickname
+                        ),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color(0xFF303440),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = stringResource(
+                            if (isPending) {
+                                R.string.profile_menu_direct_assignment_pending
+                            } else {
+                                R.string.profile_menu_direct_assignment_active
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF69707D),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (isRunning) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(start = 10.dp)
+                            .size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (isPending) {
+                    TextButton(
+                        onClick = { onReject(permission.friendUserId) },
+                        enabled = actionsEnabled,
+                        modifier = Modifier.testTag("profile_menu_direct_assignment_reject_${permission.friendUserId}")
+                    ) {
+                        Text(stringResource(R.string.profile_menu_direct_assignment_reject))
+                    }
+                    TextButton(
+                        onClick = { onAccept(permission.friendUserId) },
+                        enabled = actionsEnabled,
+                        modifier = Modifier.testTag("profile_menu_direct_assignment_allow_${permission.friendUserId}")
+                    ) {
+                        Text(stringResource(R.string.profile_menu_direct_assignment_allow))
+                    }
+                } else if (isActive) {
+                    TextButton(
+                        onClick = { onRevoke(permission.friendUserId) },
+                        enabled = actionsEnabled,
+                        modifier = Modifier.testTag("profile_menu_direct_assignment_revoke_${permission.friendUserId}")
+                    ) {
+                        Text(stringResource(R.string.profile_menu_direct_assignment_revoke))
+                    }
+                }
+            }
         }
     }
 }

@@ -21,8 +21,11 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundleStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
 import com.neo.yourtodo.core.network.assignments.AssignmentAuthRequiredException
 import com.neo.yourtodo.core.network.assignments.AssignmentNetworkDataSource
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodo
@@ -31,6 +34,7 @@ import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoMutationItem
 import com.neo.yourtodo.core.network.assignments.NetworkAssignedTodoReminder
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentBundleResponse
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentDecision
+import com.neo.yourtodo.core.network.assignments.NetworkDirectAssignmentConsentSummary
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentSummary
 import com.neo.yourtodo.core.network.assignments.NetworkAssignmentUser
 import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentBundleRequest
@@ -63,12 +67,20 @@ class AssignmentRepositoryImpl @Inject constructor(
         receiverUserId: String,
         items: List<AssignmentDraftItem>
     ): Result<AssignmentBundle> =
+        createBundle(receiverUserId, items, AssignmentMode.REQUEST)
+
+    override suspend fun createBundle(
+        receiverUserId: String,
+        items: List<AssignmentDraftItem>,
+        assignmentMode: AssignmentMode
+    ): Result<AssignmentBundle> =
         authenticatedRequest { accessToken ->
             assignmentNetworkDataSource.createBundle(
                 accessToken = accessToken,
                 idempotencyKey = UUID.randomUUID().toString(),
                 request = NetworkCreateAssignmentBundleRequest(
                     receiverUserId = receiverUserId,
+                    assignmentMode = assignmentMode.name,
                     items = items.map { item ->
                         NetworkCreateAssignmentItem(
                             clientItemId = UUID.randomUUID().toString(),
@@ -91,6 +103,42 @@ class AssignmentRepositoryImpl @Inject constructor(
                         replaceStale = false
                     )
                 }
+        }
+
+    override suspend fun requestDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
+        authenticatedRequest { accessToken ->
+            assignmentNetworkDataSource.requestDirectAssignmentConsent(
+                accessToken = accessToken,
+                idempotencyKey = UUID.randomUUID().toString(),
+                friendUserId = friendUserId
+            ).directAssignment.toDomain()
+        }
+
+    override suspend fun acceptDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
+        authenticatedRequest { accessToken ->
+            assignmentNetworkDataSource.acceptDirectAssignmentConsent(
+                accessToken = accessToken,
+                idempotencyKey = UUID.randomUUID().toString(),
+                friendUserId = friendUserId
+            ).directAssignment.toDomain()
+        }
+
+    override suspend fun rejectDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
+        authenticatedRequest { accessToken ->
+            assignmentNetworkDataSource.rejectDirectAssignmentConsent(
+                accessToken = accessToken,
+                idempotencyKey = UUID.randomUUID().toString(),
+                friendUserId = friendUserId
+            ).directAssignment.toDomain()
+        }
+
+    override suspend fun revokeDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
+        authenticatedRequest { accessToken ->
+            assignmentNetworkDataSource.revokeDirectAssignmentConsent(
+                accessToken = accessToken,
+                idempotencyKey = UUID.randomUUID().toString(),
+                friendUserId = friendUserId
+            ).directAssignment.toDomain()
         }
 
     override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
@@ -525,6 +573,8 @@ class AssignmentRepositoryImpl @Inject constructor(
             progressPercent = progressPercent,
             sender = sender?.toDomain(),
             receiver = receiver?.toDomain(),
+            assignmentMode = assignmentMode?.let { enumValueOrDefault(it, AssignmentMode.REQUEST) }
+                ?: AssignmentMode.REQUEST,
             reminder = reminder?.toDomain(),
             checklist = checklist.map { it.toDomain() },
             createdAt = createdAt.toInstantOrNull(),
@@ -554,6 +604,9 @@ class AssignmentRepositoryImpl @Inject constructor(
             progressPercent = progressPercent ?: existing?.progressPercent ?: 0,
             sender = sender?.toDomain() ?: userOrNull(existing?.senderUserId, existing?.senderNickname),
             receiver = receiver?.toDomain() ?: userOrNull(existing?.receiverUserId, existing?.receiverNickname),
+            assignmentMode = assignmentMode?.let { enumValueOrDefault(it, AssignmentMode.REQUEST) }
+                ?: existing?.assignmentMode?.let { enumValueOrDefault(it, AssignmentMode.REQUEST) }
+                ?: AssignmentMode.REQUEST,
             reminder = reminder?.toDomain() ?: existing?.reminderAt?.let {
                 AssignedTodoReminder(
                     reminderAt = it,
@@ -585,6 +638,7 @@ class AssignmentRepositoryImpl @Inject constructor(
                 progressPercent = progressPercent,
                 sender = userOrNull(senderUserId, senderNickname),
                 receiver = userOrNull(receiverUserId, receiverNickname),
+                assignmentMode = enumValueOrDefault(assignmentMode, AssignmentMode.REQUEST),
                 reminder = reminderAt?.let {
                     AssignedTodoReminder(
                         reminderAt = it,
@@ -629,6 +683,7 @@ class AssignmentRepositoryImpl @Inject constructor(
             senderNickname = sender?.nickname ?: existing?.senderNickname,
             receiverUserId = receiver?.id ?: existing?.receiverUserId,
             receiverNickname = receiver?.nickname ?: existing?.receiverNickname,
+            assignmentMode = assignmentMode.name,
             reminderAt = reminder?.reminderAt,
             reminderEnabled = reminder?.enabled,
             createdAtEpochMillis = createdAt?.toEpochMilli(),
@@ -658,6 +713,12 @@ class AssignmentRepositoryImpl @Inject constructor(
             rejectedCount = rejectedCount,
             canceledCount = canceledCount,
             progressPercent = progressPercent
+        )
+
+    private fun NetworkDirectAssignmentConsentSummary.toDomain() =
+        DirectAssignmentConsentSummary(
+            grantedByMe = enumValueOrDefault(grantedByMe, DirectAssignmentConsentState.NONE),
+            grantedToMe = enumValueOrDefault(grantedToMe, DirectAssignmentConsentState.NONE)
         )
 
     private fun String?.toLocalDateOrNull(): LocalDate? =

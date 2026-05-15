@@ -238,7 +238,8 @@ class AiTodoDraftViewModelTest {
     private class FakeAssignmentRepository : AssignmentRepository {
         override suspend fun createBundle(
             receiverUserId: String,
-            items: List<AssignmentDraftItem>
+            items: List<AssignmentDraftItem>,
+            assignmentMode: com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
         ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
 
         override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =

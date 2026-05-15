@@ -6,7 +6,8 @@ data class Friend(
     val nickname: String,
     val status: FriendshipStatus,
     val createdAt: String,
-    val removedAt: String?
+    val removedAt: String?,
+    val directAssignment: DirectAssignmentConsentSummary = DirectAssignmentConsentSummary()
 ) {
     val initial: String
         get() = nickname.trim().firstOrNull()?.uppercase() ?: "?"
@@ -15,4 +16,23 @@ data class Friend(
 enum class FriendshipStatus {
     ACTIVE,
     REMOVED
+}
+
+data class DirectAssignmentConsentSummary(
+    val grantedByMe: DirectAssignmentConsentState = DirectAssignmentConsentState.NONE,
+    val grantedToMe: DirectAssignmentConsentState = DirectAssignmentConsentState.NONE
+) {
+    val canFriendDirectAssignToMe: Boolean
+        get() = grantedByMe == DirectAssignmentConsentState.ACTIVE
+
+    val canDirectAssignToFriend: Boolean
+        get() = grantedToMe == DirectAssignmentConsentState.ACTIVE
+}
+
+enum class DirectAssignmentConsentState {
+    NONE,
+    PENDING,
+    ACTIVE,
+    REVOKED,
+    EXPIRED
 }

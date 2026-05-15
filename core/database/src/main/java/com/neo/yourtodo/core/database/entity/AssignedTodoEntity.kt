@@ -34,6 +34,7 @@ data class AssignedTodoEntity(
     val senderNickname: String?,
     val receiverUserId: String?,
     val receiverNickname: String?,
+    val assignmentMode: String,
     val reminderAt: String?,
     val reminderEnabled: Boolean?,
     val createdAtEpochMillis: Long?,

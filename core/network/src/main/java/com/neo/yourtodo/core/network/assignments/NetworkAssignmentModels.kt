@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class NetworkCreateAssignmentBundleRequest(
     val receiverUserId: String,
+    val assignmentMode: String = "REQUEST",
     val items: List<NetworkCreateAssignmentItem>
 )
 
@@ -70,6 +71,7 @@ data class NetworkAssignedTodoMutationItem(
     val id: String,
     val bundleId: String? = null,
     val source: String? = null,
+    val assignmentMode: String? = null,
     val sender: NetworkAssignmentUser? = null,
     val receiver: NetworkAssignmentUser? = null,
     val title: String? = null,
@@ -109,6 +111,7 @@ data class NetworkAssignedTodo(
     val id: String,
     val bundleId: String? = null,
     val source: String? = null,
+    val assignmentMode: String? = null,
     val sender: NetworkAssignmentUser? = null,
     val receiver: NetworkAssignmentUser? = null,
     val title: String,
@@ -165,4 +168,15 @@ data class NetworkFriendAssignmentSummaryResponse(
     val friendUserId: String,
     val sent: NetworkAssignmentSummary,
     val received: NetworkAssignmentSummary
+)
+
+@Serializable
+data class NetworkDirectAssignmentConsentSummaryResponse(
+    val directAssignment: NetworkDirectAssignmentConsentSummary
+)
+
+@Serializable
+data class NetworkDirectAssignmentConsentSummary(
+    val grantedByMe: String = "NONE",
+    val grantedToMe: String = "NONE"
 )

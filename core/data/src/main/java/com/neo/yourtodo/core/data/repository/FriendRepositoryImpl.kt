@@ -8,6 +8,9 @@ import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.friends.FriendRequestStatus
 import com.neo.yourtodo.core.model.friends.FriendUser
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
+import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
+import com.neo.yourtodo.core.network.assignments.NetworkDirectAssignmentConsentSummary
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.friends.FriendAuthRequiredException
 import com.neo.yourtodo.core.network.friends.FriendNetworkDataSource
@@ -94,7 +97,8 @@ class FriendRepositoryImpl @Inject constructor(
             nickname = nickname,
             status = enumValueOf(status),
             createdAt = createdAt,
-            removedAt = removedAt
+            removedAt = removedAt,
+            directAssignment = directAssignment.toDomain()
         )
 
     private fun NetworkFriendRequest.toDomain() =
@@ -115,4 +119,15 @@ class FriendRepositoryImpl @Inject constructor(
 
     private inline fun <reified T : Enum<T>> enumValueOf(value: String): T =
         enumValues<T>().firstOrNull { it.name == value } ?: error("Unknown enum value: $value")
+
+    private fun NetworkDirectAssignmentConsentSummary?.toDomain() =
+        DirectAssignmentConsentSummary(
+            grantedByMe = this?.grantedByMe?.let { enumValueOrDefault(it, DirectAssignmentConsentState.NONE) }
+                ?: DirectAssignmentConsentState.NONE,
+            grantedToMe = this?.grantedToMe?.let { enumValueOrDefault(it, DirectAssignmentConsentState.NONE) }
+                ?: DirectAssignmentConsentState.NONE
+        )
+
+    private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =
+        enumValues<T>().firstOrNull { it.name == value } ?: default
 }

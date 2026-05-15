@@ -7,6 +7,7 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.feature.todo.impl.model.TodoEditModel
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
 
@@ -26,6 +27,7 @@ data class TodoListUiState(
     val deleteConfirmation: TodoDeleteConfirmation? = null,
     val editingItem: TodoEditModel? = null,
     val editingAssignedTodoId: String? = null,
+    val editingAssignedTodoMode: AssignmentMode = AssignmentMode.REQUEST,
     val draftPriority: TodoPriority = TodoPriority.MEDIUM,
     val draftTitle: String = "",
     val draftDueDateInput: String = "",

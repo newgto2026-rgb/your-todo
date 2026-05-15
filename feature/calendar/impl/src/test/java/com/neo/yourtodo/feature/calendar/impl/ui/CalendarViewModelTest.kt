@@ -27,6 +27,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
@@ -447,7 +448,61 @@ class CalendarViewModelTest {
         val todo = viewModel.uiState.value.selectedDateTodos.single()
         assertThat(todo.title).isEqualTo("From friend")
         assertThat(todo.sourceLabel).isEqualTo("@monday")
+        assertThat(todo.assignmentMode).isEqualTo(AssignmentMode.REQUEST)
         assertThat(viewModel.uiState.value.summariesByDate[selectedDate]?.indicatorCount).isEqualTo(1)
+    }
+
+    @Test
+    fun selectedDateTodos_includeDirectAssignedTodosWithMode() = runTest {
+        val selectedDate = YearMonth.now().atDay(10)
+        val assignmentRepository = FakeAssignmentRepository(
+            receivedItems = listOf(
+                assignedTodo(
+                    id = "assigned-direct",
+                    title = "Direct from friend",
+                    dueDate = selectedDate,
+                    assignmentMode = AssignmentMode.DIRECT
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            assignmentRepository = assignmentRepository
+        )
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+
+        val todo = viewModel.uiState.value.selectedDateTodos.single()
+        assertThat(todo.title).isEqualTo("Direct from friend")
+        assertThat(todo.sourceLabel).isEqualTo("@monday")
+        assertThat(todo.assignmentMode).isEqualTo(AssignmentMode.DIRECT)
+        assertThat(viewModel.uiState.value.summariesByDate[selectedDate]?.indicatorCount).isEqualTo(1)
+    }
+
+    @Test
+    fun selectedDateTodos_excludePendingAssignedTodos() = runTest {
+        val selectedDate = YearMonth.now().atDay(11)
+        val assignmentRepository = FakeAssignmentRepository(
+            receivedItems = listOf(
+                assignedTodo(
+                    id = "assigned-pending",
+                    title = "Pending request",
+                    dueDate = selectedDate,
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            assignmentRepository = assignmentRepository
+        )
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedDateTodos).isEmpty()
+        assertThat(viewModel.uiState.value.summariesByDate[selectedDate]).isNull()
     }
 
     @Test
@@ -616,7 +671,8 @@ class CalendarViewModelTest {
 
         override suspend fun createBundle(
             receiverUserId: String,
-            items: List<AssignmentDraftItem>
+            items: List<AssignmentDraftItem>,
+            assignmentMode: AssignmentMode
         ): Result<AssignmentBundle> = Result.failure(UnsupportedOperationException())
 
         override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
@@ -708,7 +764,8 @@ private fun assignedTodo(
     id: String = "assigned-1",
     title: String = "Shared todo",
     dueDate: LocalDate? = null,
-    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+    status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
+    assignmentMode: AssignmentMode = AssignmentMode.REQUEST
 ) = AssignedTodo(
     id = id,
     bundleId = "bundle-1",
@@ -722,6 +779,7 @@ private fun assignedTodo(
     progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
     sender = AssignedTodoUser(id = "friend-1", nickname = "monday"),
     receiver = AssignedTodoUser(id = "me", nickname = "tester"),
+    assignmentMode = assignmentMode,
     reminder = null,
     checklist = emptyList()
 )

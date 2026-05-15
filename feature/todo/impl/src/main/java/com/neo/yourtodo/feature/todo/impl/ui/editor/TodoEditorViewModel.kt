@@ -15,6 +15,7 @@ import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.ui.DEFAULT_REMINDER_LEAD_MINUTES
 import com.neo.yourtodo.feature.todo.impl.ui.dueDateTimeToEpochMillis
@@ -254,6 +255,7 @@ data class TodoEditorUiState(
     val reminderEnabled: Boolean = false,
     val reminderLeadMinutes: Int = DEFAULT_REMINDER_LEAD_MINUTES,
     val priority: TodoPriority = TodoPriority.MEDIUM,
+    val assignmentMode: AssignmentMode = AssignmentMode.REQUEST,
     @StringRes val errorMessageRes: Int? = null
 ) {
     val isAssignedEdit: Boolean
@@ -262,6 +264,7 @@ data class TodoEditorUiState(
         get() = editingTodoId != null && !isAssignedEdit
     val sheetTitleRes: Int
         get() = when {
+            isAssignedEdit && assignmentMode == AssignmentMode.DIRECT -> R.string.todo_editor_title_direct_assigned_task
             isAssignedEdit -> R.string.todo_editor_title_received_task
             editingTodoId == null -> R.string.todo_editor_title_new_task
             else -> R.string.todo_editor_title_edit_task
@@ -287,7 +290,8 @@ data class TodoEditorUiState(
             dueTimeInput = todo.dueTimeMinutes?.let(::minutesToDueTimeText).orEmpty(),
             reminderEnabled = todo.reminder?.enabled == true,
             reminderLeadMinutes = todo.assignedReminderLeadMinutes(),
-            priority = todo.priority
+            priority = todo.priority,
+            assignmentMode = todo.assignmentMode
         )
     }
 }

@@ -211,6 +211,7 @@ class AssignedTodoDaoTest {
         senderNickname = null,
         receiverUserId = receiverUserId,
         receiverNickname = null,
+        assignmentMode = "REQUEST",
         reminderAt = null,
         reminderEnabled = null,
         createdAtEpochMillis = createdAtEpochMillis,

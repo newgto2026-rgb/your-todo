@@ -44,6 +44,11 @@ data class AssignmentDraftItem(
     val category: String?
 )
 
+enum class AssignmentMode {
+    REQUEST,
+    DIRECT
+}
+
 enum class AssignmentDecision {
     ACCEPT,
     REJECT

@@ -12,6 +12,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
+import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.google.common.truth.Truth.assertThat
 import java.time.Clock
@@ -236,6 +237,52 @@ class CalendarMonthWidgetPresenterTest {
     }
 
     @Test
+    fun present_includesDirectAssignedTodos() = runTest {
+        val targetDate = LocalDate.of(2026, 5, 8)
+        val presenter = presenter(
+            summarySource = FakeCalendarMonthSummarySource(),
+            assignedTodos = listOf(
+                assignedTodo(
+                    id = "assigned-direct",
+                    title = "Direct from friend",
+                    dueDate = targetDate,
+                    assignmentMode = AssignmentMode.DIRECT
+                )
+            ),
+            clock = fixedClock("2026-05-07T00:00:00Z")
+        )
+
+        val state = presenter.present(Locale.US)
+        val day = state.weeks.flatten().single { it.date == targetDate }
+
+        assertThat(day.taskCountLabel).isEqualTo("1")
+        assertThat(day.todoChips.map { it.label }).containsExactly("Direct from friend")
+    }
+
+    @Test
+    fun present_excludesPendingAssignedTodos() = runTest {
+        val targetDate = LocalDate.of(2026, 5, 8)
+        val presenter = presenter(
+            summarySource = FakeCalendarMonthSummarySource(),
+            assignedTodos = listOf(
+                assignedTodo(
+                    id = "assigned-pending",
+                    title = "Pending request",
+                    dueDate = targetDate,
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE
+                )
+            ),
+            clock = fixedClock("2026-05-07T00:00:00Z")
+        )
+
+        val state = presenter.present(Locale.US)
+        val day = state.weeks.flatten().single { it.date == targetDate }
+
+        assertThat(day.taskCountLabel).isNull()
+        assertThat(day.todoChips).isEmpty()
+    }
+
+    @Test
     fun present_includesCompletedReceivedAssignedTodosFromHistoryFeed() = runTest {
         val targetDate = LocalDate.of(2026, 5, 8)
         val presenter = presenter(
@@ -307,7 +354,8 @@ class CalendarMonthWidgetPresenterTest {
         id: String,
         title: String,
         dueDate: LocalDate,
-        status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+        status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
+        assignmentMode: AssignmentMode = AssignmentMode.REQUEST
     ): AssignedTodo =
         AssignedTodo(
             id = id,
@@ -323,6 +371,7 @@ class CalendarMonthWidgetPresenterTest {
             progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
             sender = null,
             receiver = null,
+            assignmentMode = assignmentMode,
             reminder = null,
             createdAt = Instant.parse("2026-05-07T00:00:00Z"),
             completedAt = null
@@ -333,7 +382,8 @@ class CalendarMonthWidgetPresenterTest {
     ) : AssignmentRepository {
         override suspend fun createBundle(
             receiverUserId: String,
-            items: List<AssignmentDraftItem>
+            items: List<AssignmentDraftItem>,
+            assignmentMode: AssignmentMode
         ): Result<AssignmentBundle> = error("unused")
 
         override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
