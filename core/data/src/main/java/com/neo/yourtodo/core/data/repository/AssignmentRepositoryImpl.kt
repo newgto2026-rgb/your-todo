@@ -66,12 +66,6 @@ class AssignmentRepositoryImpl @Inject constructor(
 ) : AssignmentRepository {
     override suspend fun createBundle(
         receiverUserId: String,
-        items: List<AssignmentDraftItem>
-    ): Result<AssignmentBundle> =
-        createBundle(receiverUserId, items, AssignmentMode.REQUEST)
-
-    override suspend fun createBundle(
-        receiverUserId: String,
         items: List<AssignmentDraftItem>,
         assignmentMode: AssignmentMode
     ): Result<AssignmentBundle> =
