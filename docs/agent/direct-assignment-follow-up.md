@@ -26,16 +26,19 @@ Last updated: 2026-05-15
 - Todo row and Calendar agenda must use the same source/mode label.
 - Calendar month grid and widget do not need mode colors, but they must include direct due-date items and exclude pending request items.
 - Pending decision UI must show only `REQUEST + PENDING_ACCEPTANCE`.
-- Round 5 added by user: profile and friends tab must both support auto-assignment allow/cancel, and notifications must exist.
-- Profile role: global management of friends who can add tasks directly to my list.
-- Friends role: relationship-specific permission state and assignment execution.
+- Round 6 user correction: Profile/popup auto-assignment permissions are awkward and malfunctioning; remove them.
+- New UX direction: Friends list is the only auto-accept permission surface.
+- Receiver-driven permission: I turn `자동수락` on/off per friend; that friend can then add tasks to my list without per-task acceptance.
+- No request/allow/decline permission UX. Android should use `setDirectAssignmentOptIn(friendUserId, enabled)` only.
+- Friends role: relationship-specific auto-accept permission state and assignment execution.
 - Push role: separate permission events from direct assigned todo arrival.
 - Keep using agents for implementation review; do not treat this as a solo implementation task.
-- Final review decision: direct consent request notifications must open the Profile permission surface, not only the Friends tab.
+- Superseded decision: direct consent request notifications opening Profile are no longer valid because Profile no longer owns this UX.
 - Final review decision: server must dedupe DIRECT create retries by idempotency and semantic duplicate policy; Android does not persist a stable manual-retry operation id in this MVP.
-- Final review decision: consent request/accept/reject/revoke endpoints must also define idempotent replay and conflict semantics because Android sends per-action `Idempotency-Key` values.
+- Revised server decision: consent opt-in endpoint must define idempotent replay and conflict semantics because Android sends per-action `Idempotency-Key` values.
 - Final review decision: `AssignmentRepository` implementers must handle the mode-aware create method directly so DIRECT cannot silently fall back to REQUEST.
 - Final review decision: Friends copy must use neutral sent/received wording because those sections contain both REQUEST and DIRECT items.
+- 2026-05-15 server correction: Android default debug server is `https://stainable-sulphate-grading.ngrok-free.dev/`; this ngrok forwards to local Docker `yourtodo-server-1` on port 8080. The old container was 5 days stale and returned 404 for the opt-in endpoint. It was rebuilt/restarted from the server worktree and now returns `401 AUTH_REQUIRED` for `PUT /api/friends/{friendUserId}/direct-assignment-opt-in`, proving the route exists.
 
 ## Current implementation scope
 - `core:model`
@@ -44,17 +47,17 @@ Last updated: 2026-05-15
   - Added `Friend.directAssignment`.
 - `core:domain`
   - Added `assignmentMode` path to create assignment.
-  - Added `ManageDirectAssignmentConsentUseCase`.
+  - Added `SetDirectAssignmentOptInUseCase`.
 - `core:network`
-  - Added create request mode, assigned todo mode, friend consent summary, consent action endpoints.
+  - Added create request mode, assigned todo mode, friend consent summary, and direct-assignment opt-in endpoint.
 - `core:data`
   - Maps mode and consent summary.
   - Preserves existing mode for partial mutation responses.
 - `core:database`
   - Version 11 with `assigned_todo.assignmentMode`.
 - `feature:friends:impl`
-  - Friend detail permission controls.
-  - Send sheet mode selection.
+  - Friend list auto-accept controls.
+  - Send sheet infers mode from `grantedToMe`; no manual mode selection.
   - Directional direct send guard.
   - Mode chip in assignment cards.
   - Pending list excludes direct items.
@@ -67,32 +70,47 @@ Last updated: 2026-05-15
 - `feature:calendar:widget`
   - Tests should cover direct inclusion and pending exclusion.
 - `app`
-  - Profile menu shows incoming direct-assignment permission requests and active permissions.
-  - Profile menu can allow, decline, and turn off permission using the same consent use case as Friends.
-  - Push local formatting includes direct-assignment consent and direct-received events.
+  - Profile menu must not show direct-assignment permission requests or active permissions.
+  - Profile menu must not mutate direct consent.
+  - Push local formatting includes direct-received events.
   - Push routing sends DIRECT received events to Todo, not incoming assignment decision.
-  - Push routing opens Profile permissions for DIRECT consent request events.
+  - Direct opt-in request/accept/reject push flows are superseded; do not route them to Profile.
+
+## Server implementation scope
+- Server worktree: `/Users/kimtaenyun/.codex/worktrees/direct-assignment-server/server`
+- Server branch: `codex/direct-assignment-opt-in`, based on `origin/main` at `14f1784`.
+- Added Prisma `AssignmentMode` and `DIRECT_ASSIGNMENT_RECEIVED`.
+- Added directional auto-accept booleans to `Friendship`:
+  - `userAAllowsUserBDirectAssignment`
+  - `userBAllowsUserADirectAssignment`
+- Added migration `prisma/migrations/20260515010000_direct_assignment_opt_in/migration.sql`.
+- Added `PUT /api/friends/{friendUserId}/direct-assignment-opt-in` with body `{ "enabled": true|false }`.
+- `GET /api/friends` returns `directAssignment.canFriendDirectAssignToMe` and `canDirectAssignToFriend`.
+- `POST /api/assignment-bundles` accepts `assignmentMode`.
+  - `REQUEST` keeps existing `SENT + PENDING_ACCEPTANCE` behavior.
+  - `DIRECT` requires receiver opt-in, creates `ACCEPTED` bundle/items immediately, and emits `DIRECT_ASSIGNMENT_RECEIVED`.
+- Friend removal clears both direct-assignment opt-in directions.
 
 ## Strict cross-surface review required
 Before final PR, review with agents and locally check:
 - Todo, Calendar, Calendar widget all use the same visible received assigned todo policy.
 - REQUEST pending is excluded from all task surfaces.
 - DIRECT received is included as accepted and never opens decision UI.
-- Friends and Profile use the same server-backed consent state and action use case.
-- Permission direction is not inverted between profile, friends detail, and send sheet.
-- Profile permission changes must make Friends direct-send state stale-safe after refresh.
+- Friends is the only consent mutation surface; Profile should not read or display consent state.
+- Permission direction is not inverted between Friends list and send sheet.
+- Friends list permission changes must make send sheet mode stale-safe after refresh.
 - Push events must not reuse REQUEST semantics for DIRECT.
 - Implementation must not add a tangled app-shell dependency on feature internals; shared behavior belongs in `core:domain`/`core:model`.
 - Any temporary Android-side assumption about server APIs must be documented as contract, not silently inferred.
 - Server contract to preserve: DIRECT create replay must be idempotent and duplicate-safe. If backend behavior changes, re-check Todo/Calendar/Widget duplicate exposure.
-- Server contract to preserve: consent actions replay same-key/same-action safely, conflict same-key/different-action, and return latest summary for already-converged states.
+- Server contract to preserve: opt-in actions replay same-key/same-enabled safely, conflict same-key/different-enabled, and return latest summary for already-converged states.
 
-## Final review fixes tracked in code
-- DIRECT received push with an assignment-bundle deep link routes to Todo and has an instrumentation regression test.
-- DIRECT consent request push sets `openProfileMenuOnLaunch` so the user can allow/decline from Profile immediately.
-- Cold-start consent push keeps Profile drawer open until signed-in permission state is loaded, instead of closing on the first unauthenticated placeholder state.
-- Profile menu has allow, reject, and revoke ViewModel tests.
-- Friends ViewModel has request, accept, reject, and revoke consent refresh tests.
+## Current correction work tracked in code
+- Remove Profile direct assignment section, ViewModel dependencies, and tests.
+- Remove `openProfileMenuOnLaunch` routing for direct consent.
+- Replace request/accept/reject/revoke UX with opt-in enabled/disabled.
+- Add Friends list tests for auto-accept enabled/disabled.
+- Keep DIRECT received push routing to Todo and notification copy.
 - Friends detail copy uses neutral sent/received wording so DIRECT and REQUEST history do not contradict each other.
 - Todo clear-completed now refreshes Calendar widget when only completed assigned todos are hidden.
 - REQUEST vs DIRECT user copy is separated across Friends, Todo, Calendar, and push text.
@@ -105,11 +123,24 @@ Before final PR, review with agents and locally check:
 - PR template: `.github/pull_request_template.md`
 
 ## Required checks before PR
-- Completed: `./gradlew :core:domain:test :core:network:testDebugUnitTest :core:database:testDebugUnitTest :core:data:testDebugUnitTest :feature:friends:impl:testDebugUnitTest :feature:todo:impl:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :feature:calendar:widget:testDebugUnitTest :app:testDebugUnitTest`
-- Completed: `./gradlew :app:lintDebug :core:network:lintDebug :core:database:lintDebug :core:data:lintDebug :feature:friends:impl:lintDebug :feature:todo:impl:lintDebug :feature:calendar:impl:lintDebug :feature:calendar:widget:lintDebug`
-- Completed: `./gradlew assembleDebug :app:assembleDebugAndroidTest`
-- Completed on `Medium_Phone_API_36(AVD) - 16`: `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.neo.yourtodo.PushNotificationLaunchUiTest`
-- Completed after final cold-start/Profile drawer and Friends copy fixes: `./gradlew :app:testDebugUnitTest :feature:friends:impl:testDebugUnitTest :app:lintDebug :feature:friends:impl:lintDebug assembleDebug`
+- Android passed:
+  - `./gradlew :core:domain:test :core:network:testDebugUnitTest :core:database:testDebugUnitTest :core:data:testDebugUnitTest :feature:friends:impl:testDebugUnitTest :feature:todo:impl:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :feature:calendar:widget:testDebugUnitTest :app:testDebugUnitTest`
+  - `./gradlew :app:lintDebug :core:network:lintDebug :core:database:lintDebug :core:data:lintDebug :feature:friends:impl:lintDebug :feature:todo:impl:lintDebug :feature:calendar:impl:lintDebug :feature:calendar:widget:lintDebug`
+  - `./gradlew assembleDebug :app:assembleDebugAndroidTest`
+  - Galaxy `SM-S906N`: full `connectedDebugAndroidTest` 69/69 passed.
+  - Emulator: full `connectedDebugAndroidTest` had one Todo UI timeout, then `TodoUiTest#detailAdd_highPriorityAppearsOnlyInHighPriorityFilter` passed when rerun alone.
+- Server passed:
+  - `npm run db:generate`
+  - `npx vitest run src/lib/friends/service.test.ts src/lib/assignments/service.test.ts src/lib/push/service.test.ts 'src/app/api/friends/[id]/direct-assignment-opt-in/route.test.ts'`
+  - `DATABASE_URL=postgresql://user:pass@localhost:5432/yourtodo npm run db:validate`
+  - `npm test`
+  - `npm run build`
+  - `npm audit --omit=dev`
+- Deployment/test server status:
+  - `docker compose -f infra/compose.yaml up --build -d` completed.
+  - `yourtodo-server-1` is healthy on port 8080.
+  - ngrok opt-in route now returns `401 AUTH_REQUIRED`, not stale 404.
+  - Latest Android debug APK installed on Galaxy and emulator.
 
 ## PR acceptance checklist
 - PRD/TRD included.
@@ -120,6 +151,6 @@ Before final PR, review with agents and locally check:
 - DIRECT never appears in received request decision UI.
 - REQUEST pending never appears in Todo, Calendar, or Widget.
 - Todo/Calendar/Friends all show compatible labels.
-- Profile and Friends both expose permission allow/cancel where relevant.
+- Friends list exposes permission allow/cancel; Profile exposes none.
 - Direct-assignment notification types and click routing are tested.
 - User-visible strings are in `values` and `values-ko`.

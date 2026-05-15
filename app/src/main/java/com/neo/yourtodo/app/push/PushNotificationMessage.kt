@@ -21,9 +21,7 @@ object PushNotificationMessage {
         PushNotificationContract.TYPE_ASSIGNED_TODO_REOPENED,
         PushNotificationContract.TYPE_ASSIGNED_TODO_CANCELED,
         PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_RECEIVED,
-        PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED,
         PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED,
-        PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REJECTED,
         PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REVOKED
     )
 
@@ -42,12 +40,8 @@ object PushNotificationMessage {
             PushNotificationContract.TYPE_FRIEND_REQUEST_RECEIVED -> R.string.push_friend_request_title
             PushNotificationContract.TYPE_ASSIGNMENT_BUNDLE_RECEIVED -> R.string.push_assignment_received_title
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_RECEIVED -> R.string.push_direct_assignment_received_title
-            PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED ->
-                R.string.push_direct_assignment_consent_requested_title
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED ->
                 R.string.push_direct_assignment_consent_accepted_title
-            PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REJECTED ->
-                R.string.push_direct_assignment_consent_rejected_title
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REVOKED ->
                 R.string.push_direct_assignment_consent_revoked_title
             PushNotificationContract.TYPE_ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED,
@@ -64,12 +58,8 @@ object PushNotificationMessage {
             PushNotificationContract.TYPE_FRIEND_REQUEST_RECEIVED -> R.string.push_friend_request_body
             PushNotificationContract.TYPE_ASSIGNMENT_BUNDLE_RECEIVED -> R.string.push_assignment_received_body
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_RECEIVED -> R.string.push_direct_assignment_received_body
-            PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED ->
-                R.string.push_direct_assignment_consent_requested_body
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED ->
                 R.string.push_direct_assignment_consent_accepted_body
-            PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REJECTED ->
-                R.string.push_direct_assignment_consent_rejected_body
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REVOKED ->
                 R.string.push_direct_assignment_consent_revoked_body
             PushNotificationContract.TYPE_ASSIGNMENT_BUNDLE_PARTIALLY_DECIDED,
@@ -103,14 +93,8 @@ object PushNotificationMessage {
                     }
                 }
             }
-            PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED -> actorNickname?.let {
-                PushNotificationText(R.string.push_direct_assignment_consent_requested_by_friend_body, listOf(it))
-            }
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED -> actorNickname?.let {
                 PushNotificationText(R.string.push_direct_assignment_consent_accepted_by_friend_body, listOf(it))
-            }
-            PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REJECTED -> actorNickname?.let {
-                PushNotificationText(R.string.push_direct_assignment_consent_rejected_by_friend_body, listOf(it))
             }
             PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REVOKED -> actorNickname?.let {
                 PushNotificationText(R.string.push_direct_assignment_consent_revoked_by_friend_body, listOf(it))

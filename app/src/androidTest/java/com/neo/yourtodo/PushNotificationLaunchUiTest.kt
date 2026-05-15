@@ -131,13 +131,12 @@ class PushNotificationLaunchUiTest {
     }
 
     @Test
-    fun foregroundDirectConsentRequestPushClick_opensProfilePermissionSurface() {
-        sendForegroundDirectConsentRequestPushClick()
+    fun foregroundDirectConsentAcceptedPushClick_opensFriendsWithoutProfilePermissionSurface() {
+        sendForegroundDirectConsentAcceptedPushClick()
 
         composeTestRule.onNodeWithTag("app_tab_friends").assertIsSelected()
-        composeTestRule.waitUntilNodeExists("profile_menu_direct_assignment_section")
-        composeTestRule.onNodeWithTag("profile_menu_direct_assignment_section")
-            .assertIsDisplayed()
+        composeTestRule.waitUntilNodeExists("friends_screen")
+        composeTestRule.assertNodeDoesNotExist("profile_menu_direct_assignment_section")
         composeTestRule.assertNodeDoesNotExist("friends_assignment_monitor_dialog")
     }
 
@@ -193,14 +192,14 @@ class PushNotificationLaunchUiTest {
         composeTestRule.waitForIdle()
     }
 
-    private fun sendForegroundDirectConsentRequestPushClick() {
+    private fun sendForegroundDirectConsentAcceptedPushClick() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val intent = Intent(context, MainActivity::class.java).apply {
             action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(
                 PushNotificationContract.EXTRA_TYPE,
-                PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED
+                PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED
             )
             putExtra(PushNotificationContract.EXTRA_NOTIFICATION_EVENT_ID, "event-direct-consent")
             putExtra(PushNotificationContract.EXTRA_ACTOR_USER_ID, FRIEND_USER_ID)

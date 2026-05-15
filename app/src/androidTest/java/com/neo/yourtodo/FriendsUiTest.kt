@@ -97,12 +97,17 @@ class FriendsUiTest {
         composeTestRule.onNodeWithTag("app_tab_friends").performClick()
         composeTestRule.waitUntilNodeExists("friends_screen")
 
+        composeTestRule.onNodeWithTag("friends_auto_accept_friend-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_send_todo_friend-1").performClick()
 
         composeTestRule.waitUntilNodeExists("friends_assignment_editor_sheet")
         composeTestRule.onNodeWithTag("friends_assignment_title").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_assignment_due_date").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_assignment_due_time").assertIsDisplayed()
+        composeTestRule.onAllNodes(hasTestTag("friends_assignment_mode_request"))
+            .assertCountEquals(0)
+        composeTestRule.onAllNodes(hasTestTag("friends_assignment_mode_direct"))
+            .assertCountEquals(0)
         composeTestRule.onAllNodes(hasTestTag("friends_assignment_description"))
             .assertCountEquals(0)
     }

@@ -53,40 +53,14 @@ internal class RetrofitAssignmentNetworkDataSource @Inject constructor(
             api.decideItems(accessToken.authorizationHeader(), idempotencyKey, bundleId, request)
         }
 
-    override suspend fun requestDirectAssignmentConsent(
+    override suspend fun setDirectAssignmentOptIn(
         accessToken: String,
         idempotencyKey: String,
-        friendUserId: String
+        friendUserId: String,
+        request: NetworkSetDirectAssignmentOptInRequest
     ): NetworkDirectAssignmentConsentSummaryResponse =
         runAssignmentRequest {
-            api.requestDirectAssignmentConsent(accessToken.authorizationHeader(), idempotencyKey, friendUserId)
-        }
-
-    override suspend fun acceptDirectAssignmentConsent(
-        accessToken: String,
-        idempotencyKey: String,
-        friendUserId: String
-    ): NetworkDirectAssignmentConsentSummaryResponse =
-        runAssignmentRequest {
-            api.acceptDirectAssignmentConsent(accessToken.authorizationHeader(), idempotencyKey, friendUserId)
-        }
-
-    override suspend fun rejectDirectAssignmentConsent(
-        accessToken: String,
-        idempotencyKey: String,
-        friendUserId: String
-    ): NetworkDirectAssignmentConsentSummaryResponse =
-        runAssignmentRequest {
-            api.rejectDirectAssignmentConsent(accessToken.authorizationHeader(), idempotencyKey, friendUserId)
-        }
-
-    override suspend fun revokeDirectAssignmentConsent(
-        accessToken: String,
-        idempotencyKey: String,
-        friendUserId: String
-    ): NetworkDirectAssignmentConsentSummaryResponse =
-        runAssignmentRequest {
-            api.revokeDirectAssignmentConsent(accessToken.authorizationHeader(), idempotencyKey, friendUserId)
+            api.setDirectAssignmentOptIn(accessToken.authorizationHeader(), idempotencyKey, friendUserId, request)
         }
 
     override suspend fun completeAssignedTodo(

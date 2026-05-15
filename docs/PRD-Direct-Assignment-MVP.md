@@ -5,10 +5,10 @@
 - 대상 프로젝트: `YourTodo` Android 앱 + `yourtodo-server`
 - Android 기준 브랜치: `codex/force-assignment`
 - 작성일: 2026-05-15
-- 상태: 에이전트 논쟁, 최종 엄격 리뷰, Android 구현 검증 완료
+- 상태: 구현/검증 중 - Profile 권한 UX 제거, Friends 목록 중심 자동수락 UX로 재설계
 
 ## 2. 제품 한 줄 정의
-친구가 사전에 허용한 경우, 보낸 사람이 수락 단계를 건너뛰고 친구의 Todo에 할 일을 바로 추가할 수 있는 동의 기반 자동 할당 기능.
+할당받을 사람이 친구별로 `자동수락`을 켜면, 그 친구가 보낸 할 일이 별도 수락 없이 내 Todo에 바로 추가되는 자동 할당 기능.
 
 ## 3. 사용자 문제
 기존 shared todo는 받은 사람이 항목별로 수락해야 안전하다. 그러나 가족, 팀원, 반복적인 협업 관계처럼 이미 신뢰가 형성된 관계에서는 매번 수락하는 절차가 번거롭다.
@@ -19,13 +19,13 @@
 - 사용자 노출명은 `강제 할당`이 아니라 `자동 할당`으로 한다.
 - 서버/코드 용어는 `DIRECT` assignment mode를 사용한다.
 - `REQUEST`: 기존처럼 받은 사람이 수락해야 Todo에 들어가는 요청 방식.
-- `DIRECT`: 사전 동의가 있어 수락 단계를 건너뛰고 Todo에 바로 들어가는 자동 할당 방식.
+- `DIRECT`: 할당받을 사람이 친구별 자동수락을 켜 두어 수락 단계를 건너뛰고 Todo에 바로 들어가는 자동 할당 방식.
 - `DIRECT + ACCEPTED`는 화면에서 `수락됨`이 아니라 `할당됨` 또는 `자동 할당`으로 표현한다.
 
 ## 5. 목표
-- 친구별 자동 할당 권한 상태를 확인할 수 있다.
-- 사용자는 친구에게 자동 할당 권한을 요청할 수 있다.
-- 받은 사람은 권한 요청을 허용, 거절, 철회할 수 있다.
+- Friends 목록에서 친구별 자동수락 상태를 확인할 수 있다.
+- 할당받을 사람은 친구별로 `자동수락 허용`을 켜거나 끌 수 있다.
+- 자동수락 권한 요청/허용/거절 대기 UX는 제거한다.
 - 권한이 있는 방향에서만 할 일을 자동 할당할 수 있다.
 - 자동 할당된 할 일은 Todo, Calendar, Widget, Friends 상세에서 일관되게 보인다.
 - 자동 할당된 항목은 받은 요청 수락/거절 블록에 섞이지 않는다.
@@ -35,7 +35,7 @@
 - abuse rate limit, 감사 로그 상세 화면, 관리자 도구.
 - 푸시 문구 세분화와 알림 채널 확장.
 - 서버 권한 정책의 Android 단독 대체. 서버가 최종 판정한다.
-- 자동 할당 권한 만료 정책의 상세 UX. `EXPIRED` 표시는 가능하지만 만료 계산은 서버 정책이다.
+- 자동수락 권한 만료 정책의 상세 UX. `EXPIRED` 표시는 가능하지만 만료 계산은 서버 정책이다.
 
 ## 7. 권한 방향
 자동 할당 권한은 방향성이 있다.
@@ -53,34 +53,30 @@ REVOKED
 EXPIRED
 ```
 
+Android 신규 UX에서는 `PENDING`을 만들지 않는다. 서버 하위 호환 response에 `PENDING`이 내려오더라도 Friends UI는 요청/거절 대기 흐름을 노출하지 않고 `꺼짐` 계열로 수렴한다.
+
 ## 8. 핵심 사용자 플로우
-### 8.0 프로필 전역 권한 관리
-1. 사용자가 프로필 메뉴를 연다.
-2. `자동 할당 권한` 섹션에서 내 Todo에 바로 할당할 수 있는 친구와 받은 권한 요청을 본다.
-3. 요청 대기 상태인 친구는 `허용` 또는 `거절`할 수 있다.
-4. 이미 허용한 친구는 `끄기`로 취소할 수 있다.
-5. 성공하면 친구 탭 상세와 전송 sheet도 같은 권한 상태로 갱신되어야 한다.
+### 8.1 Friends 목록 자동수락 설정
+1. 사용자가 Friends 탭을 연다.
+2. 친구 목록의 각 친구 행에서 `할 일 추가`와 `자동수락` 상태를 함께 본다.
+3. `자동수락`을 켜면 그 친구가 내게 보낸 DIRECT 할 일은 수락 없이 내 Todo에 바로 추가된다.
+4. `자동수락`을 끄면 이후 그 친구가 보내는 할 일은 기존 요청 방식으로만 처리된다.
+5. 성공/실패는 snackbar로 피드백하고, 목록/상세는 같은 서버 상태로 갱신한다.
 
-### 8.1 권한 요청
-1. 사용자가 친구 상세를 연다.
-2. `할당 권한` 영역에서 `@친구에게 바로 할당` 상태를 본다.
-3. 권한이 없으면 `허용 요청`을 누른다.
-4. 서버가 권한 요청을 생성하고 친구 summary가 갱신된다.
-5. 사용자는 `친구의 허용을 기다리는 중` 상태를 본다.
-
-### 8.2 권한 허용/거절/철회
-1. 받은 사람은 친구 상세에서 `@친구가 나에게 바로 할당` 요청을 본다.
-2. `허용` 또는 `거절`을 선택한다.
-3. 허용 후에는 언제든 `끄기`로 철회할 수 있다.
-4. 철회되면 이후 새 할 일은 다시 요청 방식으로 받아야 한다.
+### 8.2 Friends 상세 모니터링
+1. 사용자가 친구 행을 눌러 상세를 연다.
+2. 상세는 보낸/받은 할 일, pending decision, history를 모니터링하는 표면이다.
+3. 자동수락 설정은 팝업/상세 action이 아니라 친구 목록 행의 스위치에서 처리한다.
+4. 권한 요청/거절/대기 UI는 노출하지 않는다.
 
 ### 8.3 자동 할당 전송
 1. 사용자가 `할 일 보내기` sheet를 연다.
-2. 권한이 있으면 기본 전송 방식은 `자동 할당`이다.
-3. 권한이 없으면 `요청`만 가능하고 `자동 할당`은 설명과 함께 막힌다.
-4. `바로 할당하기`를 누르면 서버에 `assignmentMode=DIRECT`로 bundle을 생성한다.
-5. 서버 성공 응답은 item status를 `ACCEPTED`로 내려준다.
-6. 성공한 항목은 상대방 Todo/Calendar/Widget에 즉시 표시된다.
+2. 친구가 나에게 자동수락을 허용한 상태면 전송 방식은 자동으로 `DIRECT`가 된다.
+3. 친구가 자동수락을 허용하지 않았으면 기존처럼 `REQUEST`로 전송된다.
+4. 사용자는 전송 방식 선택 UI를 보지 않고 `할 일 보내기`만 실행한다.
+5. `DIRECT`이면 서버에 `assignmentMode=DIRECT`로 bundle을 생성한다.
+6. 서버 성공 응답은 item status를 `ACCEPTED`로 내려준다.
+7. 성공한 항목은 상대방 Todo/Calendar/Widget에 즉시 표시된다.
 
 ### 8.4 받은 자동 할당 확인
 1. 받은 사람 Todo row에는 `자동 할당 · @nickname`이 표시된다.
@@ -91,21 +87,24 @@ EXPIRED
 ## 9. 표면별 표시 정책
 | 표면 | REQUEST | DIRECT |
 |---|---|---|
-| Profile | 받은 권한 요청/허용 목록 관리 | 친구별 허용/거절/끄기 |
+| Profile | 자동수락 권한 UX 없음 | 자동수락 권한 UX 없음 |
 | Todo row | `요청 수락 · @nickname` | `자동 할당 · @nickname` |
 | Calendar agenda | `요청 수락 · @nickname` | `자동 할당 · @nickname` |
 | Calendar month grid | count/indicator에 포함 | count/indicator에 포함 |
 | Calendar widget | due date가 있으면 chip/count 포함 | due date가 있으면 chip/count 포함 |
 | 받은 요청 블록 | `PENDING_ACCEPTANCE`만 표시 | 표시하지 않음 |
-| Friends 전송 sheet | `요청 보내기` | `바로 할당하기` |
+| Friends 목록 | 친구별 `자동수락` 끄기 | 친구별 `자동수락` 켜짐 |
+| Friends 상세 | 할당 모니터링만 제공 | 할당 모니터링만 제공 |
+| Friends 전송 sheet | `할 일 보내기` 후 요청으로 전송 | `할 일 보내기` 후 바로 추가 |
 | Friends 상세 카드 | mode chip `요청` | mode chip `자동 할당`, status `할당됨` |
 | 받은 일 편집 제목 | `요청받은 할 일` | `할당받은 할 일` |
 
 ## 10. 수용 기준
 - [x] `assignmentMode`가 Android model, network DTO, data mapper, Room cache에 보존된다.
-- [x] 프로필에서 받은 자동 할당 권한 요청을 허용/거절할 수 있다.
-- [x] 프로필에서 이미 허용한 친구의 자동 할당 권한을 취소할 수 있다.
-- [x] 프로필과 친구 탭은 같은 서버 권한 상태를 사용하고 성공 후 새로고침한다.
+- [x] Profile 메뉴에서 자동수락 권한 섹션과 권한 mutation을 제거한다.
+- [x] Friends 목록에서 친구별 자동수락을 켜고 끌 수 있다.
+- [x] Friends 상세에서 자동수락 action UI를 제거하고 할당 모니터링만 제공한다.
+- [x] 자동수락 mutation은 `set opt-in enabled/disabled`만 사용하고 요청/허용/거절 대기 UX를 노출하지 않는다.
 - [x] 기존 REQUEST 전송은 회귀 없이 `PENDING_ACCEPTANCE`로 동작한다.
 - [x] DIRECT 전송은 권한이 있는 방향에서만 가능하고 create request에 `DIRECT`를 보낸다.
 - [x] DIRECT 서버 실패 시 editor를 닫거나 성공 snackbar를 보여주지 않는다.
@@ -114,25 +113,22 @@ EXPIRED
 - [x] DIRECT due date 항목은 Calendar widget count/chip에 반영된다.
 - [x] REQUEST pending은 Todo list, Calendar, Widget에 노출되지 않는다.
 - [x] DIRECT 항목은 받은 요청 수락/거절 블록에 노출되지 않는다.
-- [x] Friends 상세에서 권한 상태와 요청/허용/거절/철회 action을 볼 수 있다.
-- [x] 자동 할당 권한 요청/허용/거절/취소와 DIRECT 할 일 도착 노티 타입이 정의된다.
+- [x] Friends 상세에서 요청/허용/거절 action UI가 제거된다.
+- [x] 자동수락 허용/취소와 DIRECT 할 일 도착 노티 타입이 정의된다.
 - [x] DIRECT 할 일 도착 노티는 받은 요청 수락 화면으로 이동하지 않는다.
 - [x] 사용자 노출 문구는 `values`, `values-ko` 리소스에 있다.
 
 ## 10.1 Notification 수용 기준
-- 권한 요청 수신: `DIRECT_ASSIGNMENT_CONSENT_REQUESTED`, 클릭 시 Friends/Profile 권한 관리 표면으로 진입한다.
-- 권한 허용 결과: `DIRECT_ASSIGNMENT_CONSENT_ACCEPTED`, 클릭 시 Friends로 진입해 최신 상태를 동기화한다.
-- 권한 거절 결과: `DIRECT_ASSIGNMENT_CONSENT_REJECTED`, 클릭 시 Friends로 진입해 최신 상태를 동기화한다.
-- 권한 취소 결과: `DIRECT_ASSIGNMENT_CONSENT_REVOKED`, 클릭 시 Friends/Profile 권한 상태를 다시 확인한다.
+- 자동수락 허용 결과: `DIRECT_ASSIGNMENT_CONSENT_ACCEPTED`, 클릭 시 Friends로 진입해 최신 상태를 동기화한다.
+- 자동수락 취소 결과: `DIRECT_ASSIGNMENT_CONSENT_REVOKED`, 클릭 시 Friends 권한 상태를 다시 확인한다.
 - DIRECT 할 일 도착: `DIRECT_ASSIGNMENT_RECEIVED`, 클릭 시 Todo surface로 진입하고 수락/거절 dialog를 열지 않는다.
 - 노티는 정합성 원천이 아니며 앱 진입 시 서버 동기화가 항상 최신 상태를 확인한다.
 
 ## 10.2 최종 에이전트 리뷰 반영 사항
-- Planner: 자동 할당 권한 요청 노티는 단순 Friends 탭이 아니라 Profile 권한 관리 표면을 바로 열어야 한다.
-- Server/Data: Android repository contract는 `assignmentMode`를 구현체가 반드시 처리하게 만들어야 하며, 서버는 DIRECT 생성의 idempotency와 중복 방지를 최종 보장해야 한다.
-- Design: Friends 상세의 `요청한 일` 카피는 DIRECT까지 포괄하도록 `보낸 할 일/받은 할 일`로 바꾸고, REQUEST CTA는 즉시 전송처럼 보이지 않게 `할 일 요청 보내기` 계열로 구분한다.
-- QA: DIRECT push 클릭, Profile reject, Friends accept/reject/revoke, 완료 DIRECT/REQUEST 정리 후 Calendar widget 갱신 회귀 테스트를 추가한다.
-- Cold-start 보강: DIRECT 권한 요청 push가 앱 시작 직후 Profile drawer를 열 때 세션/권한 로딩 순서 때문에 drawer가 닫히지 않도록 signed-in 관찰 이후에만 sign-out close 처리를 한다.
+- Planner: 사용자가 불편하다고 지적한 Profile/popup 권한 관리는 제거하고 Friends 맥락에서 친구별 자동수락을 관리한다.
+- Server/Data: Android repository contract는 `assignmentMode`를 구현체가 반드시 처리하게 만들고, consent mutation은 `setDirectAssignmentOptIn(friendUserId, enabled)`로 단순화한다.
+- Design: 친구 목록에는 `할 일 추가`와 `자동수락` 토글을 함께 두고, 친구 상세는 할당 모니터링에 집중한다.
+- QA: Profile에 자동수락 섹션이 남지 않는지, Friends 목록 토글 방향이 뒤집히지 않는지, DIRECT 받은 할 일이 자동수락되어 Todo/Calendar/Widget에 보이는지 회귀 테스트한다.
 
 ## 11. 리스크
 - 서버가 DIRECT 성공을 `ACCEPTED`로 내려주지 않으면 Android에서 pending 요청처럼 보일 수 있다.

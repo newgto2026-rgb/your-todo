@@ -21,16 +21,10 @@ interface AssignmentRepository {
         assignmentMode: AssignmentMode = AssignmentMode.REQUEST
     ): Result<AssignmentBundle>
 
-    suspend fun requestDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
-        Result.failure(UnsupportedOperationException())
-
-    suspend fun acceptDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
-        Result.failure(UnsupportedOperationException())
-
-    suspend fun rejectDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
-        Result.failure(UnsupportedOperationException())
-
-    suspend fun revokeDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
+    suspend fun setDirectAssignmentOptIn(
+        friendUserId: String,
+        enabled: Boolean
+    ): Result<DirectAssignmentConsentSummary> =
         Result.failure(UnsupportedOperationException())
 
     suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary>

@@ -19,9 +19,7 @@ private val FriendRelatedPushTypes = setOf(
     PushNotificationContract.TYPE_ASSIGNED_TODO_COMPLETED,
     PushNotificationContract.TYPE_ASSIGNED_TODO_REOPENED,
     PushNotificationContract.TYPE_ASSIGNED_TODO_CANCELED,
-    PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED,
     PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED,
-    PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REJECTED,
     PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REVOKED
 )
 
@@ -29,8 +27,7 @@ data class AppLaunchNavigationRequest(
     val id: Long,
     val topLevelRoute: NavKey,
     val contentRoute: NavKey? = null,
-    val syncOnOpen: Boolean = false,
-    val openProfileMenuOnLaunch: Boolean = false
+    val syncOnOpen: Boolean = false
 )
 
 fun parseAppLaunchNavigationRequest(
@@ -154,13 +151,6 @@ private fun parsePushNavigationRequest(
                 id = requestId,
                 topLevelRoute = TodoAllRoute,
                 syncOnOpen = true
-            )
-        pushType == PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED ->
-            AppLaunchNavigationRequest(
-                id = requestId,
-                topLevelRoute = FriendsRoute,
-                syncOnOpen = true,
-                openProfileMenuOnLaunch = true
             )
         isFriendRelatedPush(pushType = pushType, actorUserId = actorUserId, actorNickname = actorNickname) ->
             AppLaunchNavigationRequest(

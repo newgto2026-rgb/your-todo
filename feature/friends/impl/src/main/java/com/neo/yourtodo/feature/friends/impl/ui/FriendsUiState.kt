@@ -7,7 +7,6 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
-import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.feature.friends.impl.R
@@ -217,15 +216,11 @@ sealed interface FriendsAction {
     data class OnAssignmentDueDateChanged(val value: String) : FriendsAction
     data class OnAssignmentDueTimeChanged(val value: String) : FriendsAction
     data class OnAssignmentPriorityChanged(val value: TodoPriority) : FriendsAction
-    data class OnAssignmentModeChanged(val value: AssignmentMode) : FriendsAction
     data object OnAddAssignmentDraft : FriendsAction
     data class OnRemoveAssignmentDraft(val index: Int) : FriendsAction
     data object OnSendAssignmentNow : FriendsAction
     data object OnSendAssignmentDrafts : FriendsAction
-    data class OnRequestDirectAssignmentConsent(val friend: Friend) : FriendsAction
-    data class OnAcceptDirectAssignmentConsent(val friend: Friend) : FriendsAction
-    data class OnRejectDirectAssignmentConsent(val friend: Friend) : FriendsAction
-    data class OnRevokeDirectAssignmentConsent(val friend: Friend) : FriendsAction
+    data class OnSetDirectAssignmentOptIn(val friend: Friend, val enabled: Boolean) : FriendsAction
     data object OnErrorShown : FriendsAction
 }
 
@@ -247,14 +242,12 @@ enum class FriendsMessage(@StringRes val messageRes: Int) {
     ASSIGNMENT_DIRECT_SENT(R.string.friends_assignment_direct_sent),
     ASSIGNMENT_ACCEPTED(R.string.friends_assignment_accepted),
     ASSIGNMENT_REJECTED(R.string.friends_assignment_rejected),
-    DIRECT_ASSIGNMENT_CONSENT_REQUESTED(R.string.friends_direct_assignment_consent_requested),
-    DIRECT_ASSIGNMENT_CONSENT_ACCEPTED(R.string.friends_direct_assignment_consent_accepted),
-    DIRECT_ASSIGNMENT_CONSENT_REJECTED(R.string.friends_direct_assignment_consent_rejected),
-    DIRECT_ASSIGNMENT_CONSENT_REVOKED(R.string.friends_direct_assignment_consent_revoked)
+    DIRECT_ASSIGNMENT_OPT_IN_ENABLED(R.string.friends_direct_assignment_opt_in_enabled),
+    DIRECT_ASSIGNMENT_OPT_IN_DISABLED(R.string.friends_direct_assignment_opt_in_disabled)
 }
 
 internal fun Friend.canDirectAssignToFriend(): Boolean =
-    directAssignment.grantedToMe == DirectAssignmentConsentState.ACTIVE
+    directAssignment.canDirectAssignToFriend
 
-internal fun Friend.hasIncomingDirectAssignmentConsentRequest(): Boolean =
-    directAssignment.grantedByMe == DirectAssignmentConsentState.PENDING
+internal fun Friend.isAutoAcceptEnabledForMe(): Boolean =
+    directAssignment.canFriendDirectAssignToMe

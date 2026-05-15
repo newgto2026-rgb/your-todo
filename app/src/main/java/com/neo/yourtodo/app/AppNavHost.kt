@@ -66,10 +66,8 @@ fun AppNavHost(
     val snackbarHostState = remember { SnackbarHostState() }
     val profileMenuUiState by profileMenuViewModel.uiState.collectAsStateWithLifecycle()
     var isProfileMenuOpen by rememberSaveable { mutableStateOf(false) }
-    var hasObservedSignedInProfile by rememberSaveable { mutableStateOf(false) }
     val profileNicknameCopiedMessage = stringResource(R.string.profile_menu_copy_success)
     val profileLogoutFailedMessage = stringResource(R.string.profile_menu_logout_failed)
-    val profileDirectAssignmentFailedMessage = stringResource(R.string.profile_menu_direct_assignment_failed)
     val profileLinkUnavailableMessage = stringResource(R.string.profile_menu_link_unavailable)
     val privacyPolicyUrl = stringResource(R.string.profile_menu_privacy_policy_url)
     val termsUrl = stringResource(R.string.profile_menu_terms_url)
@@ -117,7 +115,6 @@ fun AppNavHost(
 
             override fun openProfileMenu() {
                 isProfileMenuOpen = true
-                profileMenuViewModel.refreshDirectAssignmentPermissions()
             }
 
             override fun closeCurrentEntry() {
@@ -141,10 +138,6 @@ fun AppNavHost(
     val navEntries = navigationState.toEntries(
         entryProvider = appEntryProvider
     )
-    fun openProfileMenuFromLaunchRequest() {
-        isProfileMenuOpen = true
-        profileMenuViewModel.refreshDirectAssignmentPermissions()
-    }
     LaunchedEffect(launchNavigationRequest?.id) {
         val request = launchNavigationRequest ?: return@LaunchedEffect
         if (request.syncOnOpen) {
@@ -156,9 +149,6 @@ fun AppNavHost(
         request.stackedContentRouteOrNull()?.let { route ->
             navigator.replaceTopLevelContent(route)
         }
-        if (request.openProfileMenuOnLaunch) {
-            openProfileMenuFromLaunchRequest()
-        }
     }
     LaunchedEffect(initialLaunchNavigationRequest?.id) {
         val request = initialLaunchNavigationRequest ?: return@LaunchedEffect
@@ -166,9 +156,6 @@ fun AppNavHost(
             syncViewModel.syncWorkspace(notifyUser = false)
         }
         launchContentRouteState.value = request.contentRoute
-        if (request.openProfileMenuOnLaunch) {
-            openProfileMenuFromLaunchRequest()
-        }
     }
     LaunchedEffect(Unit) {
         syncViewModel.sideEffect.collect { sideEffect ->
@@ -187,24 +174,11 @@ fun AppNavHost(
 
                 AppProfileMenuSideEffect.LogoutFailed ->
                     snackbarHostState.showSnackbar(profileLogoutFailedMessage)
-
-                AppProfileMenuSideEffect.DirectAssignmentPermissionFailed ->
-                    snackbarHostState.showSnackbar(profileDirectAssignmentFailedMessage)
-
-                is AppProfileMenuSideEffect.DirectAssignmentPermissionUpdated ->
-                    snackbarHostState.showSnackbar(resources.getString(sideEffect.messageRes))
             }
         }
     }
-    LaunchedEffect(isProfileMenuOpen, profileMenuUiState.isSignedIn) {
-        if (isProfileMenuOpen && profileMenuUiState.isSignedIn) {
-            profileMenuViewModel.refreshDirectAssignmentPermissions()
-        }
-    }
     LaunchedEffect(profileMenuUiState.isSignedIn) {
-        if (profileMenuUiState.isSignedIn) {
-            hasObservedSignedInProfile = true
-        } else if (hasObservedSignedInProfile) {
+        if (!profileMenuUiState.isSignedIn) {
             isProfileMenuOpen = false
         }
     }
@@ -280,9 +254,6 @@ fun AppNavHost(
                     }
                 )
             },
-            onAcceptDirectAssignment = profileMenuViewModel::acceptDirectAssignment,
-            onRejectDirectAssignment = profileMenuViewModel::rejectDirectAssignment,
-            onRevokeDirectAssignment = profileMenuViewModel::revokeDirectAssignment,
             onLogoutConfirm = profileMenuViewModel::signOut
         )
     }

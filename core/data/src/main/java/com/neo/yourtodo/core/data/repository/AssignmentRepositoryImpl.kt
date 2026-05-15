@@ -40,6 +40,7 @@ import com.neo.yourtodo.core.network.assignments.NetworkAssignmentUser
 import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentBundleRequest
 import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentItem
 import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsRequest
+import com.neo.yourtodo.core.network.assignments.NetworkSetDirectAssignmentOptInRequest
 import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import java.time.Instant
@@ -105,39 +106,16 @@ class AssignmentRepositoryImpl @Inject constructor(
                 }
         }
 
-    override suspend fun requestDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
+    override suspend fun setDirectAssignmentOptIn(
+        friendUserId: String,
+        enabled: Boolean
+    ): Result<DirectAssignmentConsentSummary> =
         authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.requestDirectAssignmentConsent(
+            assignmentNetworkDataSource.setDirectAssignmentOptIn(
                 accessToken = accessToken,
                 idempotencyKey = UUID.randomUUID().toString(),
-                friendUserId = friendUserId
-            ).directAssignment.toDomain()
-        }
-
-    override suspend fun acceptDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
-        authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.acceptDirectAssignmentConsent(
-                accessToken = accessToken,
-                idempotencyKey = UUID.randomUUID().toString(),
-                friendUserId = friendUserId
-            ).directAssignment.toDomain()
-        }
-
-    override suspend fun rejectDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
-        authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.rejectDirectAssignmentConsent(
-                accessToken = accessToken,
-                idempotencyKey = UUID.randomUUID().toString(),
-                friendUserId = friendUserId
-            ).directAssignment.toDomain()
-        }
-
-    override suspend fun revokeDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> =
-        authenticatedRequest { accessToken ->
-            assignmentNetworkDataSource.revokeDirectAssignmentConsent(
-                accessToken = accessToken,
-                idempotencyKey = UUID.randomUUID().toString(),
-                friendUserId = friendUserId
+                friendUserId = friendUserId,
+                request = NetworkSetDirectAssignmentOptInRequest(enabled = enabled)
             ).directAssignment.toDomain()
         }
 
@@ -717,8 +695,10 @@ class AssignmentRepositoryImpl @Inject constructor(
 
     private fun NetworkDirectAssignmentConsentSummary.toDomain() =
         DirectAssignmentConsentSummary(
-            grantedByMe = enumValueOrDefault(grantedByMe, DirectAssignmentConsentState.NONE),
-            grantedToMe = enumValueOrDefault(grantedToMe, DirectAssignmentConsentState.NONE)
+            grantedByMe = canFriendDirectAssignToMe?.toConsentState()
+                ?: enumValueOrDefault(grantedByMe, DirectAssignmentConsentState.NONE),
+            grantedToMe = canDirectAssignToFriend?.toConsentState()
+                ?: enumValueOrDefault(grantedToMe, DirectAssignmentConsentState.NONE)
         )
 
     private fun String?.toLocalDateOrNull(): LocalDate? =
@@ -730,8 +710,11 @@ class AssignmentRepositoryImpl @Inject constructor(
     private inline fun <reified T : Enum<T>> enumValueOf(value: String): T =
         enumValues<T>().firstOrNull { it.name == value } ?: error("Unknown enum value: $value")
 
-    private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =
+    private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String?, default: T): T =
         enumValues<T>().firstOrNull { it.name == value } ?: default
+
+    private fun Boolean.toConsentState(): DirectAssignmentConsentState =
+        if (this) DirectAssignmentConsentState.ACTIVE else DirectAssignmentConsentState.NONE
 
     private fun userOrNull(id: String?, nickname: String?): AssignedTodoUser? =
         if (id != null && nickname != null) {

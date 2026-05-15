@@ -55,6 +55,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -89,7 +90,6 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentSummary
-import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
 import com.neo.yourtodo.core.ui.YourTodoAppHeader
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
@@ -252,8 +252,13 @@ private fun FriendsScreen(
                             FriendRow(
                                 friend = friend,
                                 removing = uiState.runningActionKey == "remove:${friend.friendshipId}",
+                                togglingAutoAccept =
+                                    uiState.runningActionKey == "direct_assignment_opt_in:${friend.userId}",
                                 onClick = { onAction(FriendsAction.OnFriendClick(friend)) },
                                 onSendTodo = { onAction(FriendsAction.OnOpenAssignmentEditor(friend)) },
+                                onAutoAcceptChanged = { enabled ->
+                                    onAction(FriendsAction.OnSetDirectAssignmentOptIn(friend, enabled))
+                                },
                                 onRemove = { onAction(FriendsAction.OnRemoveFriend(friend.friendshipId)) }
                             )
                         }
@@ -441,8 +446,10 @@ private fun IncomingRequestRow(
 private fun FriendRow(
     friend: Friend,
     removing: Boolean,
+    togglingAutoAccept: Boolean,
     onClick: () -> Unit,
     onSendTodo: () -> Unit,
+    onAutoAcceptChanged: (Boolean) -> Unit,
     onRemove: () -> Unit
 ) {
     var showRemoveDialog by remember(friend.friendshipId) { mutableStateOf(false) }
@@ -475,34 +482,77 @@ private fun FriendRow(
         testTag = "friends_friend_${friend.userId}",
         modifier = Modifier.clickable(onClick = onClick)
     ) {
-        FriendIdentity(
-            initial = friend.initial,
-            nickname = friend.nickname,
-            subtitle = null,
-            modifier = Modifier.weight(1f)
-        )
-        TextButton(
-            onClick = onSendTodo,
-            enabled = !removing,
-            modifier = Modifier.testTag("friends_send_todo_${friend.userId}")
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-            Text(
-                text = stringResource(R.string.friends_assignment_open_editor),
-                modifier = Modifier.padding(start = 4.dp)
+            FriendIdentity(
+                initial = friend.initial,
+                nickname = friend.nickname,
+                subtitle = stringResource(
+                    if (friend.isAutoAcceptEnabledForMe()) {
+                        R.string.friends_auto_accept_enabled_subtitle
+                    } else {
+                        R.string.friends_auto_accept_disabled_subtitle
+                    }
+                )
+            )
+            AutoAcceptSwitchRow(
+                checked = friend.isAutoAcceptEnabledForMe(),
+                enabled = !removing && !togglingAutoAccept,
+                onCheckedChange = onAutoAcceptChanged,
+                testTag = "friends_auto_accept_${friend.userId}"
             )
         }
-        IconButton(
-            onClick = { showRemoveDialog = true },
-            enabled = !removing,
-            modifier = Modifier.testTag("friends_remove_${friend.friendshipId}")
-        ) {
-            if (removing) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.friends_remove_confirm))
+        Column(horizontalAlignment = Alignment.End) {
+            TextButton(
+                onClick = onSendTodo,
+                enabled = !removing,
+                modifier = Modifier.testTag("friends_send_todo_${friend.userId}")
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                Text(
+                    text = stringResource(R.string.friends_assignment_open_editor),
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+            IconButton(
+                onClick = { showRemoveDialog = true },
+                enabled = !removing,
+                modifier = Modifier.testTag("friends_remove_${friend.friendshipId}")
+            ) {
+                if (removing) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.friends_remove_confirm))
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AutoAcceptSwitchRow(
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    testTag: String
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            modifier = Modifier.testTag(testTag)
+        )
+        Text(
+            text = stringResource(R.string.friends_auto_accept_label),
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+            color = if (enabled) Color(0xFF4E5D73) else Color(0xFF9AA2AE)
+        )
     }
 }
 
@@ -557,11 +607,6 @@ private fun FriendAssignmentMonitorDialog(
                     AssignmentSummaryBlock(
                         sent = uiState.friendAssignmentSummary?.sent,
                         received = uiState.friendAssignmentSummary?.received
-                    )
-                    DirectAssignmentPermissionBlock(
-                        friend = friend,
-                        runningActionKey = uiState.runningActionKey,
-                        onAction = onAction
                     )
                     AssignmentHistoryToggle(
                         showHistory = detail.showHistory,
@@ -1191,11 +1236,7 @@ private fun FriendAssignmentEditorSheet(
 
             AssignmentEditorForm(uiState = uiState, onAction = onAction)
 
-            AssignmentModeBlock(
-                selectedMode = uiState.assignmentMode,
-                canDirectAssign = uiState.canSendDirectAssignment,
-                onModeChanged = { onAction(FriendsAction.OnAssignmentModeChanged(it)) }
-            )
+            AssignmentSendModeHint(assignmentMode = uiState.assignmentMode)
 
             DraftItemsRow(
                 items = uiState.assignmentDraftItems,
@@ -1265,161 +1306,8 @@ private fun FriendAssignmentEditorSheet(
 }
 
 @Composable
-private fun DirectAssignmentPermissionBlock(
-    friend: Friend,
-    runningActionKey: String?,
-    onAction: (FriendsAction) -> Unit
-) {
-    val incomingState = friend.directAssignment.grantedByMe
-    val outgoingState = friend.directAssignment.grantedToMe
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = Color.White.copy(alpha = 0.76f),
-        border = BorderStroke(1.dp, Color(0xFFE1E7F0)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("friends_direct_assignment_permission")
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.friends_direct_assignment_title),
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF303440)
-            )
-            Text(
-                text = stringResource(R.string.friends_direct_assignment_description),
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF647286)
-            )
-            DirectAssignmentPermissionRow(
-                title = stringResource(R.string.friends_direct_assignment_to_friend_title, friend.nickname),
-                description = stringResource(outgoingState.outgoingDescriptionRes()),
-                actionLabel = when (outgoingState) {
-                    DirectAssignmentConsentState.NONE,
-                    DirectAssignmentConsentState.REVOKED,
-                    DirectAssignmentConsentState.EXPIRED -> stringResource(R.string.friends_direct_assignment_request_permission)
-                    DirectAssignmentConsentState.PENDING,
-                    DirectAssignmentConsentState.ACTIVE -> null
-                },
-                running = runningActionKey == "direct_assignment_request:${friend.userId}",
-                actionTestTag = "friends_direct_assignment_request",
-                onAction = { onAction(FriendsAction.OnRequestDirectAssignmentConsent(friend)) }
-            )
-            DirectAssignmentPermissionRow(
-                title = stringResource(R.string.friends_direct_assignment_to_me_title, friend.nickname),
-                description = stringResource(incomingState.incomingDescriptionRes()),
-                actionLabel = when (incomingState) {
-                    DirectAssignmentConsentState.PENDING -> stringResource(R.string.friends_direct_assignment_allow)
-                    DirectAssignmentConsentState.ACTIVE -> stringResource(R.string.friends_direct_assignment_revoke)
-                    DirectAssignmentConsentState.NONE,
-                    DirectAssignmentConsentState.REVOKED,
-                    DirectAssignmentConsentState.EXPIRED -> null
-                },
-                secondaryActionLabel = if (incomingState == DirectAssignmentConsentState.PENDING) {
-                    stringResource(R.string.friends_decline)
-                } else {
-                    null
-                },
-                running = runningActionKey in setOf(
-                    "direct_assignment_accept:${friend.userId}",
-                    "direct_assignment_reject:${friend.userId}",
-                    "direct_assignment_revoke:${friend.userId}"
-                ),
-                actionTestTag = "friends_direct_assignment_primary",
-                secondaryActionTestTag = "friends_direct_assignment_secondary",
-                onAction = {
-                    when (incomingState) {
-                        DirectAssignmentConsentState.PENDING ->
-                            onAction(FriendsAction.OnAcceptDirectAssignmentConsent(friend))
-                        DirectAssignmentConsentState.ACTIVE ->
-                            onAction(FriendsAction.OnRevokeDirectAssignmentConsent(friend))
-                        DirectAssignmentConsentState.NONE,
-                        DirectAssignmentConsentState.REVOKED,
-                        DirectAssignmentConsentState.EXPIRED -> Unit
-                    }
-                },
-                onSecondaryAction = {
-                    onAction(FriendsAction.OnRejectDirectAssignmentConsent(friend))
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun DirectAssignmentPermissionRow(
-    title: String,
-    description: String,
-    actionLabel: String?,
-    running: Boolean,
-    actionTestTag: String,
-    onAction: () -> Unit,
-    secondaryActionLabel: String? = null,
-    secondaryActionTestTag: String? = null,
-    onSecondaryAction: () -> Unit = {}
-) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = Color(0xFFF4F7FC)
-    ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF303440)
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF647286)
-            )
-            if (actionLabel != null || secondaryActionLabel != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (secondaryActionLabel != null && secondaryActionTestTag != null) {
-                        TextButton(
-                            onClick = onSecondaryAction,
-                            enabled = !running,
-                            modifier = Modifier.testTag(secondaryActionTestTag)
-                        ) {
-                            Text(secondaryActionLabel)
-                        }
-                    }
-                    if (actionLabel != null) {
-                        Button(
-                            onClick = onAction,
-                            enabled = !running,
-                            modifier = Modifier.testTag(actionTestTag),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF676CB4))
-                        ) {
-                            if (running) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Color.White
-                                )
-                            } else {
-                                Text(actionLabel)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AssignmentModeBlock(
-    selectedMode: AssignmentMode,
-    canDirectAssign: Boolean,
-    onModeChanged: (AssignmentMode) -> Unit
+private fun AssignmentSendModeHint(
+    assignmentMode: AssignmentMode
 ) {
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -1429,75 +1317,29 @@ private fun AssignmentModeBlock(
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.friends_assignment_mode_title),
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF7A7F8C)
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssignmentModeChoice(
-                    title = stringResource(R.string.friends_assignment_mode_request_title),
-                    description = stringResource(R.string.friends_assignment_mode_request_description),
-                    selected = selectedMode == AssignmentMode.REQUEST,
-                    enabled = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("friends_assignment_mode_request"),
-                    onClick = { onModeChanged(AssignmentMode.REQUEST) }
-                )
-                AssignmentModeChoice(
-                    title = stringResource(R.string.friends_assignment_mode_direct_title),
-                    description = stringResource(
-                        if (canDirectAssign) {
-                            R.string.friends_assignment_mode_direct_description
-                        } else {
-                            R.string.friends_assignment_mode_direct_disabled_description
-                        }
-                    ),
-                    selected = selectedMode == AssignmentMode.DIRECT,
-                    enabled = canDirectAssign,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("friends_assignment_mode_direct"),
-                    onClick = { onModeChanged(AssignmentMode.DIRECT) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AssignmentModeChoice(
-    title: String,
-    description: String,
-    selected: Boolean,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(14.dp),
-        color = if (selected) Color(0xFFEFF3FF) else Color(0xFFF4F7FC),
-        border = BorderStroke(1.dp, if (selected) Color(0xFF676CB4) else Color(0xFFE2E8F2)),
-        modifier = modifier
-    ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = if (enabled) Color(0xFF303440) else Color(0xFF9AA2AE)
+                text = stringResource(
+                    if (assignmentMode == AssignmentMode.DIRECT) {
+                        R.string.friends_assignment_mode_direct_title
+                    } else {
+                        R.string.friends_assignment_mode_request_title
+                    }
+                ),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color(0xFF7A7F8C)
             )
             Text(
-                text = description,
+                text = stringResource(
+                    if (assignmentMode == AssignmentMode.DIRECT) {
+                        R.string.friends_assignment_mode_direct_description
+                    } else {
+                        R.string.friends_assignment_mode_request_description
+                    }
+                ),
                 style = MaterialTheme.typography.bodySmall,
-                color = if (enabled) Color(0xFF647286) else Color(0xFF9AA2AE)
+                color = Color(0xFF647286)
             )
         }
     }
@@ -1760,24 +1602,6 @@ private fun AssignmentTodoStatusStyle.statusChipColor(): Color = when (this) {
     AssignmentTodoStatusStyle.DONE -> Color(0xFFE5F6EF)
     AssignmentTodoStatusStyle.REJECTED -> Color(0xFFFCE7EA)
     AssignmentTodoStatusStyle.CANCELED -> Color(0xFFE9ECF2)
-}
-
-@StringRes
-private fun DirectAssignmentConsentState.outgoingDescriptionRes(): Int = when (this) {
-    DirectAssignmentConsentState.NONE -> R.string.friends_direct_assignment_outgoing_none
-    DirectAssignmentConsentState.PENDING -> R.string.friends_direct_assignment_outgoing_pending
-    DirectAssignmentConsentState.ACTIVE -> R.string.friends_direct_assignment_outgoing_active
-    DirectAssignmentConsentState.REVOKED -> R.string.friends_direct_assignment_outgoing_revoked
-    DirectAssignmentConsentState.EXPIRED -> R.string.friends_direct_assignment_outgoing_expired
-}
-
-@StringRes
-private fun DirectAssignmentConsentState.incomingDescriptionRes(): Int = when (this) {
-    DirectAssignmentConsentState.NONE -> R.string.friends_direct_assignment_incoming_none
-    DirectAssignmentConsentState.PENDING -> R.string.friends_direct_assignment_incoming_pending
-    DirectAssignmentConsentState.ACTIVE -> R.string.friends_direct_assignment_incoming_active
-    DirectAssignmentConsentState.REVOKED -> R.string.friends_direct_assignment_incoming_revoked
-    DirectAssignmentConsentState.EXPIRED -> R.string.friends_direct_assignment_incoming_expired
 }
 
 @Composable

@@ -122,12 +122,17 @@ class FriendRepositoryImpl @Inject constructor(
 
     private fun NetworkDirectAssignmentConsentSummary?.toDomain() =
         DirectAssignmentConsentSummary(
-            grantedByMe = this?.grantedByMe?.let { enumValueOrDefault(it, DirectAssignmentConsentState.NONE) }
+            grantedByMe = this?.canFriendDirectAssignToMe?.toConsentState()
+                ?: this?.grantedByMe?.let { enumValueOrDefault(it, DirectAssignmentConsentState.NONE) }
                 ?: DirectAssignmentConsentState.NONE,
-            grantedToMe = this?.grantedToMe?.let { enumValueOrDefault(it, DirectAssignmentConsentState.NONE) }
+            grantedToMe = this?.canDirectAssignToFriend?.toConsentState()
+                ?: this?.grantedToMe?.let { enumValueOrDefault(it, DirectAssignmentConsentState.NONE) }
                 ?: DirectAssignmentConsentState.NONE
         )
 
     private inline fun <reified T : Enum<T>> enumValueOrDefault(value: String, default: T): T =
         enumValues<T>().firstOrNull { it.name == value } ?: default
+
+    private fun Boolean.toConsentState(): DirectAssignmentConsentState =
+        if (this) DirectAssignmentConsentState.ACTIVE else DirectAssignmentConsentState.NONE
 }

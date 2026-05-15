@@ -9,13 +9,13 @@ import com.neo.yourtodo.core.domain.usecase.CreateAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
-import com.neo.yourtodo.core.domain.usecase.ManageDirectAssignmentConsentUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.domain.usecase.SetDirectAssignmentOptInUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
@@ -49,7 +49,7 @@ class FriendsViewModel @Inject constructor(
     private val respondFriendRequest: RespondFriendRequestUseCase,
     private val removeFriend: RemoveFriendUseCase,
     private val createAssignmentBundle: CreateAssignmentBundleUseCase,
-    private val manageDirectAssignmentConsent: ManageDirectAssignmentConsentUseCase,
+    private val setDirectAssignmentOptIn: SetDirectAssignmentOptInUseCase,
     private val getAssignedTodos: GetAssignedTodosUseCase,
     private val respondAssignmentBundle: RespondAssignmentBundleUseCase,
     private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
@@ -201,7 +201,6 @@ class FriendsViewModel @Inject constructor(
             is FriendsAction.OnAssignmentPriorityChanged -> mutableUiState.update {
                 it.copy(assignmentPriority = action.value)
             }
-            is FriendsAction.OnAssignmentModeChanged -> changeAssignmentMode(action.value)
             FriendsAction.OnAddAssignmentDraft -> addAssignmentDraft()
             is FriendsAction.OnRemoveAssignmentDraft -> mutableUiState.update {
                 it.copy(assignmentDraftItems = it.assignmentDraftItems.filterIndexed { index, _ ->
@@ -210,26 +209,10 @@ class FriendsViewModel @Inject constructor(
             }
             FriendsAction.OnSendAssignmentNow -> sendAssignment(includeDrafts = false)
             FriendsAction.OnSendAssignmentDrafts -> sendAssignment(includeDrafts = true)
-            is FriendsAction.OnRequestDirectAssignmentConsent -> runDirectAssignmentConsentMutation(
+            is FriendsAction.OnSetDirectAssignmentOptIn -> runDirectAssignmentOptInMutation(
                 friend = action.friend,
-                key = "direct_assignment_request:${action.friend.userId}",
-                successMessage = FriendsMessage.DIRECT_ASSIGNMENT_CONSENT_REQUESTED
-            ) { manageDirectAssignmentConsent.request(action.friend.userId).map { Unit } }
-            is FriendsAction.OnAcceptDirectAssignmentConsent -> runDirectAssignmentConsentMutation(
-                friend = action.friend,
-                key = "direct_assignment_accept:${action.friend.userId}",
-                successMessage = FriendsMessage.DIRECT_ASSIGNMENT_CONSENT_ACCEPTED
-            ) { manageDirectAssignmentConsent.accept(action.friend.userId).map { Unit } }
-            is FriendsAction.OnRejectDirectAssignmentConsent -> runDirectAssignmentConsentMutation(
-                friend = action.friend,
-                key = "direct_assignment_reject:${action.friend.userId}",
-                successMessage = FriendsMessage.DIRECT_ASSIGNMENT_CONSENT_REJECTED
-            ) { manageDirectAssignmentConsent.reject(action.friend.userId).map { Unit } }
-            is FriendsAction.OnRevokeDirectAssignmentConsent -> runDirectAssignmentConsentMutation(
-                friend = action.friend,
-                key = "direct_assignment_revoke:${action.friend.userId}",
-                successMessage = FriendsMessage.DIRECT_ASSIGNMENT_CONSENT_REVOKED
-            ) { manageDirectAssignmentConsent.revoke(action.friend.userId).map { Unit } }
+                enabled = action.enabled
+            )
             FriendsAction.OnErrorShown -> mutableUiState.update { it.copy(error = null) }
         }
     }
@@ -649,22 +632,6 @@ class FriendsViewModel @Inject constructor(
         }
     }
 
-    private fun changeAssignmentMode(mode: AssignmentMode) {
-        mutableUiState.update { state ->
-            if (mode == AssignmentMode.DIRECT && !state.canSendDirectAssignment) {
-                state.copy(
-                    assignmentInputErrorMessageRes = R.string.friends_assignment_error_direct_consent_required
-                )
-            } else {
-                state.copy(
-                    assignmentMode = mode,
-                    assignmentInputErrorMessageRes = null,
-                    error = null
-                )
-            }
-        }
-    }
-
     private fun sendAssignment(includeDrafts: Boolean) {
         val state = uiState.value
         val friend = state.assignmentTargetFriend ?: return
@@ -675,13 +642,11 @@ class FriendsViewModel @Inject constructor(
             listOfNotNull(currentDraft)
         }
         if (items.isEmpty() || state.runningActionKey != null) return
-        if (state.assignmentMode == AssignmentMode.DIRECT && !friend.canDirectAssignToFriend()) {
-            mutableUiState.update {
-                it.copy(assignmentInputErrorMessageRes = R.string.friends_assignment_error_direct_consent_required)
-            }
-            return
+        val assignmentMode = if (friend.canDirectAssignToFriend()) {
+            AssignmentMode.DIRECT
+        } else {
+            AssignmentMode.REQUEST
         }
-        val assignmentMode = state.assignmentMode
 
         runMutation(
             key = "assignment:${friend.userId}",
@@ -713,23 +678,26 @@ class FriendsViewModel @Inject constructor(
         }
     }
 
-    private fun runDirectAssignmentConsentMutation(
+    private fun runDirectAssignmentOptInMutation(
         friend: Friend,
-        key: String,
-        successMessage: FriendsMessage,
-        block: suspend () -> Result<Unit>
+        enabled: Boolean
     ) {
         runMutation(
-            key = key,
-            successMessage = successMessage,
+            key = "direct_assignment_opt_in:${friend.userId}",
+            successMessage = if (enabled) {
+                FriendsMessage.DIRECT_ASSIGNMENT_OPT_IN_ENABLED
+            } else {
+                FriendsMessage.DIRECT_ASSIGNMENT_OPT_IN_DISABLED
+            },
             onSuccess = {
                 val selectedFriend = uiState.value.selectedFriend
                 if (selectedFriend?.userId == friend.userId) {
                     viewModelScope.launch { refreshFriendDetail(selectedFriend) }
                 }
             },
-            block = block
-        )
+        ) {
+            setDirectAssignmentOptIn(friend.userId, enabled).map { Unit }
+        }
     }
 
     private fun currentAssignmentDraftOrNull(): AssignmentDraftItem? {
@@ -784,16 +752,21 @@ class FriendsViewModel @Inject constructor(
         val outgoing = getFriendRequests.outgoing()
         mutableUiState.update {
             if (friends.isSuccess && incoming.isSuccess && outgoing.isSuccess) {
+                val refreshedFriends = friends.getOrThrow()
+                val refreshedAssignmentTarget = it.assignmentTargetFriend?.let { target ->
+                    refreshedFriends.firstOrNull { friend -> friend.userId == target.userId } ?: target
+                }
                 it.copy(
-                    friends = friends.getOrThrow(),
+                    friends = refreshedFriends,
                     incomingRequests = incoming.getOrThrow(),
                     outgoingRequests = outgoing.getOrThrow(),
                     selectedFriend = it.selectedFriend?.let { selected ->
-                        friends.getOrThrow().firstOrNull { friend -> friend.userId == selected.userId } ?: selected
+                        refreshedFriends.firstOrNull { friend -> friend.userId == selected.userId } ?: selected
                     },
-                    assignmentTargetFriend = it.assignmentTargetFriend?.let { target ->
-                        friends.getOrThrow().firstOrNull { friend -> friend.userId == target.userId } ?: target
-                    },
+                    assignmentTargetFriend = refreshedAssignmentTarget,
+                    assignmentMode = refreshedAssignmentTarget?.let { target ->
+                        if (target.canDirectAssignToFriend()) AssignmentMode.DIRECT else AssignmentMode.REQUEST
+                    } ?: it.assignmentMode,
                     runningActionKey = null,
                     error = null
                 )

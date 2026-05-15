@@ -5,13 +5,14 @@
 - 대상 프로젝트: `YourTodo` Android 앱 + `yourtodo-server`
 - Android 기준 브랜치: `codex/force-assignment`
 - 작성일: 2026-05-15
-- 상태: PRD 및 최종 에이전트 리뷰 반영, Android 구현 검증 완료
+- 상태: 구현/검증 중 - Profile 권한 UX 제거, Friends 목록 중심 자동수락 UX로 재설계
 
 ## 2. 기술 목표
 - 기존 shared todo bundle 생성 계약에 `assignmentMode`를 추가한다.
 - `REQUEST`와 `DIRECT`를 상태가 아니라 생성 방식으로 분리한다.
 - `DIRECT` 성공 항목은 `status=ACCEPTED`로 내려오며, Android는 `assignmentMode=DIRECT`를 함께 보존한다.
-- 자동 할당 권한 summary는 Friend model에서 소비한다.
+- 자동수락 권한 summary는 Friend model에서 소비한다.
+- Android 신규 UX는 권한 요청 대기 플로우를 만들지 않고 친구별 opt-in `enabled` 값만 갱신한다.
 - Todo, Calendar, Widget, Friends detail이 같은 cache/model을 보고 일관되게 렌더링한다.
 
 ## 3. 모델 계약
@@ -37,6 +38,8 @@ DirectAssignmentConsentSummary
 ```
 
 권한 판단은 Android UI에서 편의를 위해 표시하지만, 서버가 항상 최종 판정한다.
+
+Android 신규 UX에서는 `PENDING` 상태를 만들지 않는다. 하위 호환 response로 `PENDING`이 내려올 수 있으므로 enum은 유지하지만, 사용자에게 요청/거절 대기 UI를 노출하지 않는다.
 
 ## 4. 서버 API 계약
 ### 4.1 Bundle 생성
@@ -77,33 +80,39 @@ Request:
 - 같은 `Idempotency-Key`에 다른 payload가 오면 서버는 기존 생성 결과를 재사용하지 말고 conflict로 처리해야 한다.
 - semantic duplicate 판정에는 `assignmentMode`가 포함되어야 한다. 같은 item이라도 `REQUEST`와 `DIRECT`는 서로 다른 사용자 의미를 가진다.
 
-### 4.2 권한 action
+### 4.2 자동수락 권한 action
 ```http
-POST /api/friends/{friendUserId}/direct-assignment-consent/request
-POST /api/friends/{friendUserId}/direct-assignment-consent/accept
-POST /api/friends/{friendUserId}/direct-assignment-consent/reject
-POST /api/friends/{friendUserId}/direct-assignment-consent/revoke
+PUT /api/friends/{friendUserId}/direct-assignment-opt-in
+Idempotency-Key: <uuid>
+Authorization: Bearer <accessToken>
+```
+
+Request:
+```json
+{
+  "enabled": true
+}
 ```
 
 Response:
 ```json
 {
   "directAssignment": {
-    "grantedByMe": "ACTIVE",
-    "grantedToMe": "PENDING"
+    "canFriendDirectAssignToMe": true,
+    "canDirectAssignToFriend": false
   }
 }
 ```
 
 Idempotency/상태 전이 정책:
 - Android는 consent action마다 `Idempotency-Key`를 보낸다.
-- 같은 key와 같은 friend/action replay는 같은 결과 summary를 반환한다.
-- 같은 key로 다른 friend/action이 오면 서버는 conflict로 처리한다.
-- `request`: 이미 `PENDING`이면 같은 summary를 반환하고, 이미 `ACTIVE`면 성공 summary로 수렴한다.
-- `accept`: 이미 `ACTIVE`면 성공 summary로 수렴한다.
-- `reject`: 이미 `REVOKED`이거나 요청이 사라진 경우에도 최신 summary를 반환해 UI가 새 상태로 수렴하게 한다.
-- `revoke`: 이미 `REVOKED/NONE`이어도 최신 summary를 반환한다.
+- 같은 key와 같은 friend/enabled replay는 같은 결과 summary를 반환한다.
+- 같은 key로 다른 friend/enabled가 오면 서버는 conflict로 처리한다.
+- `enabled=true`: `grantedByMe=ACTIVE`로 수렴한다. 이미 `ACTIVE`이면 성공 summary를 반환한다.
+- `enabled=false`: `grantedByMe=REVOKED` 또는 `NONE`으로 수렴한다. 이미 꺼져 있어도 최신 summary를 반환한다.
 - 모든 consent action은 권한 방향을 서버에서 재검증한다.
+- Android는 `request/accept/reject` endpoint를 더 이상 호출하지 않는다.
+- Android mapper는 서버 전환 기간을 위해 boolean 필드를 우선 사용하고, 없으면 legacy `grantedByMe/grantedToMe` 문자열을 fallback으로 읽는다.
 
 ### 4.3 Friend response
 Friend list/detail response는 다음 summary를 포함한다.
@@ -115,8 +124,8 @@ Friend list/detail response는 다음 summary를 포함한다.
   "nickname": "monday",
   "status": "ACTIVE",
   "directAssignment": {
-    "grantedByMe": "NONE",
-    "grantedToMe": "ACTIVE"
+    "canFriendDirectAssignToMe": false,
+    "canDirectAssignToFriend": true
   }
 }
 ```
@@ -138,9 +147,7 @@ Mutation response가 `assignmentMode`를 생략하면 Android는 기존 cache의
 권한 변경과 할 일 도착은 별도 이벤트로 분리한다. `ASSIGNMENT_BUNDLE_RECEIVED`는 REQUEST 수락 플로우 전용 의미가 있으므로 DIRECT에는 재사용하지 않는다.
 
 ```text
-DIRECT_ASSIGNMENT_CONSENT_REQUESTED
 DIRECT_ASSIGNMENT_CONSENT_ACCEPTED
-DIRECT_ASSIGNMENT_CONSENT_REJECTED
 DIRECT_ASSIGNMENT_CONSENT_REVOKED
 DIRECT_ASSIGNMENT_RECEIVED
 ```
@@ -148,7 +155,7 @@ DIRECT_ASSIGNMENT_RECEIVED
 공통 payload:
 ```json
 {
-  "type": "DIRECT_ASSIGNMENT_CONSENT_REQUESTED",
+  "type": "DIRECT_ASSIGNMENT_CONSENT_ACCEPTED",
   "notificationEventId": "event-id",
   "actorUserId": "friend-user-id",
   "actorNickname": "monday",
@@ -172,8 +179,7 @@ DIRECT 할 일 도착 payload:
 
 Android 라우팅:
 - `DIRECT_ASSIGNMENT_RECEIVED`는 Todo surface로 이동하고 workspace sync를 요청한다.
-- `DIRECT_ASSIGNMENT_CONSENT_REQUESTED`는 Friends top-level로 이동한 뒤 Profile 권한 관리 drawer를 열고 workspace sync를 요청한다.
-- 다른 consent 결과 이벤트는 Friends/Profile 권한 상태를 다시 확인할 수 있도록 Friends surface로 이동하고 workspace sync를 요청한다.
+- consent 결과 이벤트는 Friends 권한 상태를 다시 확인할 수 있도록 Friends surface로 이동하고 workspace sync를 요청한다.
 - `ASSIGNMENT_BUNDLE_RECEIVED`만 incoming assignment decision route를 연다.
 
 ## 5. Android 계층별 변경
@@ -184,17 +190,17 @@ Android 라우팅:
 
 ### 5.2 core:domain
 - `CreateAssignmentBundleUseCase`가 `assignmentMode`를 받는다.
-- `ManageDirectAssignmentConsentUseCase` 추가.
-- `AssignmentRepository`에 direct consent action을 추가한다.
+- `SetDirectAssignmentOptInUseCase(friendUserId, enabled)`를 제공한다.
+- `AssignmentRepository`에 `setDirectAssignmentOptIn(friendUserId, enabled)`를 추가한다.
 - 기존 호출 편의를 위해 `REQUEST` 기본 create helper는 유지하되, repository 구현체와 test fake는 mode-aware `createBundle(receiverUserId, items, assignmentMode)`를 반드시 구현한다.
 - 이렇게 하지 않으면 DIRECT 호출이 default `REQUEST`로 조용히 떨어지는 회귀가 생긴다.
-- 프로필과 친구 탭은 같은 direct consent use case를 사용한다.
+- Profile은 direct consent use case를 사용하지 않는다. Friends가 자동수락 설정의 단일 UX 표면이다.
 
 ### 5.3 core:network
 - create bundle request에 `assignmentMode` 추가.
 - assigned todo DTO와 mutation DTO에 `assignmentMode` 추가.
 - friend DTO에 direct consent summary 추가.
-- direct consent action endpoint 추가.
+- direct-assignment opt-in endpoint 추가.
 
 ### 5.4 core:data
 - network DTO를 domain `AssignmentMode`로 매핑한다.
@@ -207,17 +213,17 @@ Android 라우팅:
 - migration test로 기존 row default를 검증한다.
 
 ### 5.6 feature:friends:impl
-- 친구 상세에 자동 할당 권한 상태와 action을 노출한다.
-- 할 일 전송 sheet에서 `REQUEST`/`DIRECT` mode를 선택한다.
-- 권한이 없는 방향의 `DIRECT` 전송은 UI에서 차단하고, 서버 실패도 성공 처리하지 않는다.
+- 친구 목록에 `grantedByMe` 기반 자동수락 토글을 노출한다.
+- 할 일 전송 sheet에서 `REQUEST`/`DIRECT` mode 선택 UI를 제거한다.
+- 친구가 나에게 자동수락을 허용한 경우(`grantedToMe=ACTIVE`)에만 자동으로 `DIRECT`를 사용한다.
+- 권한이 없는 방향에서는 기존 `REQUEST`로 전송한다.
+- detail dialog는 자동수락 action을 갖지 않고 할당 모니터링에 집중한다.
 - detail 카드에는 mode chip과 status chip을 함께 보여준다.
 - pending decision list는 `REQUEST + PENDING_ACCEPTANCE`만 포함한다.
 
 ### 5.6.1 app profile menu
-- 프로필 메뉴는 내 Todo에 바로 할당할 수 있는 친구와 받은 권한 요청을 전역으로 보여준다.
-- 프로필에서 요청 허용/거절/권한 끄기를 할 수 있다.
-- 프로필 권한 목록은 서버 friend summary를 읽고 direct consent action은 친구 탭과 같은 use case를 사용한다.
-- 로그아웃/세션 없음 상태에서는 권한 목록을 노출하지 않는다.
+- 프로필 메뉴에서 자동수락 권한 섹션과 direct consent mutation을 제거한다.
+- 프로필은 계정/닉네임/알림/앱 설정/약관/로그아웃만 담당한다.
 
 ### 5.7 feature:todo:impl
 - 받은 assigned todo row에 mode별 source label을 보여준다.
@@ -239,12 +245,12 @@ Android 라우팅:
 - network: `assignmentMode` serialization/deserialization.
 - data: direct create request, cache round-trip, mutation partial response mode preservation, consent action mapping.
 - database: 10->11 migration default.
-- friends: directional consent, direct send success/failure, direct pending exclusion.
+- friends: 목록 자동수락 enabled/disabled, direct send inference, request fallback, direct pending exclusion.
 - todo: direct row/editor mode 유지.
 - calendar: direct selected-date agenda/month summary 포함, pending 제외.
 - widget: direct due date 포함, pending 제외.
-- app profile: incoming direct consent 목록, 허용/거절/끄기 action, 로그아웃 노출 차단.
-- push: direct consent/direct received title/body, direct received click routing이 decision route로 가지 않는지, consent request click이 Profile 권한 관리 표면을 여는지.
+- app profile: 자동수락 섹션이 제거되어 direct consent 상태가 profile drawer에 노출되지 않는지.
+- push: direct consent/direct received title/body, direct received click routing이 decision route로 가지 않는지, consent result click이 Friends로 가는지.
 
 ## 6.1 Android 검증 결과
 - `./gradlew :core:domain:test :core:network:testDebugUnitTest :core:database:testDebugUnitTest :core:data:testDebugUnitTest :feature:friends:impl:testDebugUnitTest :feature:todo:impl:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :feature:calendar:widget:testDebugUnitTest :app:testDebugUnitTest`
@@ -255,15 +261,15 @@ Android 라우팅:
 
 ## 7. 구조 점검 기준
 - Todo/Calendar/Widget은 `GetAssignedTodosUseCase.observeVisibleReceived()` 결과를 공유해 pending 제외 정책이 갈라지지 않아야 한다.
-- Friends/Profile은 같은 consent action use case를 사용해 권한 mutation path가 갈라지지 않아야 한다.
+- 자동수락 권한 mutation은 Friends ViewModel에서만 호출되어 Profile과 Friends 간 중복 상태가 생기지 않아야 한다.
 - `AssignmentMode`는 lifecycle status와 섞지 않는다. 새 status를 추가하지 않고 mode chip/source label로 표현한다.
-- Push routing은 이벤트 의미를 기준으로 분기한다. REQUEST received는 decision route, DIRECT received는 Todo surface, DIRECT consent request는 Profile permission surface다.
-- 프로필 메뉴는 전역 권한 관리만 담당하고 할 일 전송/할당 정책 판단은 Friends/ViewModel/use case에 둔다.
+- Push routing은 이벤트 의미를 기준으로 분기한다. REQUEST received는 decision route, DIRECT received는 Todo surface, DIRECT consent 결과는 Friends surface다.
+- 프로필 메뉴는 자동수락 권한 관리를 담당하지 않는다. 할 일 전송/할당 정책 판단은 Friends/ViewModel/use case에 둔다.
 
 ## 8. 서버 후속 조건
 - 서버는 `DIRECT` 권한 판정을 Android보다 우선한다.
 - received active feed, sent active feed, friend active feed에 direct accepted item을 포함한다.
 - refresh workspace가 pending/active/history received feed를 모두 당겨 Todo/Calendar/Widget이 같은 snapshot에 수렴하게 한다.
-- 권한 action은 audit/rate limit 후속 보강 대상이다.
+- 권한 opt-in action은 audit/rate limit 후속 보강 대상이다.
 - DIRECT bundle 생성은 `Idempotency-Key` replay와 semantic duplicate를 모두 고려해 중복 생성을 막아야 한다.
-- 권한 action repository가 MVP에서는 AssignmentRepository에 있지만, 친구 권한 도메인이 커지면 `FriendPermissionRepository` 등으로 분리할 수 있다.
+- 권한 opt-in repository가 MVP에서는 AssignmentRepository에 있지만, 친구 권한 도메인이 커지면 `FriendPermissionRepository` 등으로 분리할 수 있다.

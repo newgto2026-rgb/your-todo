@@ -43,6 +43,11 @@ data class NetworkUpsertAssignedTodoReminderRequest(
 )
 
 @Serializable
+data class NetworkSetDirectAssignmentOptInRequest(
+    val enabled: Boolean
+)
+
+@Serializable
 data class NetworkAssignmentBundleResponse(
     val bundle: NetworkAssignmentBundle,
     val items: List<NetworkAssignedTodo>
@@ -177,6 +182,8 @@ data class NetworkDirectAssignmentConsentSummaryResponse(
 
 @Serializable
 data class NetworkDirectAssignmentConsentSummary(
-    val grantedByMe: String = "NONE",
-    val grantedToMe: String = "NONE"
+    val grantedByMe: String? = null,
+    val grantedToMe: String? = null,
+    val canFriendDirectAssignToMe: Boolean? = null,
+    val canDirectAssignToFriend: Boolean? = null
 )

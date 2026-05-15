@@ -65,23 +65,20 @@ class AssignmentUseCasesTest {
     }
 
     @Test
-    fun manageDirectAssignmentConsentDelegatesActions() = runTest {
+    fun setDirectAssignmentOptInDelegatesEnabledState() = runTest {
         val summary = DirectAssignmentConsentSummary(
             grantedByMe = DirectAssignmentConsentState.ACTIVE,
-            grantedToMe = DirectAssignmentConsentState.PENDING
+            grantedToMe = DirectAssignmentConsentState.NONE
         )
         val repository = FakeAssignmentRepository(consentResult = Result.success(summary))
-        val useCase = ManageDirectAssignmentConsentUseCase(repository)
+        val useCase = SetDirectAssignmentOptInUseCase(repository)
 
-        assertThat(useCase.request("friend-1").getOrThrow()).isEqualTo(summary)
-        assertThat(useCase.accept("friend-2").getOrThrow()).isEqualTo(summary)
-        assertThat(useCase.reject("friend-3").getOrThrow()).isEqualTo(summary)
-        assertThat(useCase.revoke("friend-4").getOrThrow()).isEqualTo(summary)
+        assertThat(useCase("friend-1", true).getOrThrow()).isEqualTo(summary)
+        assertThat(useCase("friend-2", false).getOrThrow()).isEqualTo(summary)
 
-        assertThat(repository.requestedConsentFriendIds).containsExactly("friend-1")
-        assertThat(repository.acceptedConsentFriendIds).containsExactly("friend-2")
-        assertThat(repository.rejectedConsentFriendIds).containsExactly("friend-3")
-        assertThat(repository.revokedConsentFriendIds).containsExactly("friend-4")
+        assertThat(repository.directAssignmentOptInRequests)
+            .containsExactly("friend-1" to true, "friend-2" to false)
+            .inOrder()
     }
 
     @Test
@@ -665,10 +662,7 @@ class AssignmentUseCasesTest {
         val createdReceiverUserIds = mutableListOf<String>()
         val createdItems = mutableListOf<List<AssignmentDraftItem>>()
         val createdModes = mutableListOf<AssignmentMode>()
-        val requestedConsentFriendIds = mutableListOf<String>()
-        val acceptedConsentFriendIds = mutableListOf<String>()
-        val rejectedConsentFriendIds = mutableListOf<String>()
-        val revokedConsentFriendIds = mutableListOf<String>()
+        val directAssignmentOptInRequests = mutableListOf<Pair<String, Boolean>>()
         val summaryFriendUserIds = mutableListOf<String>()
         val friendFeedRequests = mutableListOf<FriendFeedRequest>()
         val receivedStatuses = mutableListOf<AssignmentFeedStatus>()
@@ -707,23 +701,11 @@ class AssignmentUseCasesTest {
             return createResult
         }
 
-        override suspend fun requestDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            requestedConsentFriendIds += friendUserId
-            return consentResult
-        }
-
-        override suspend fun acceptDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            acceptedConsentFriendIds += friendUserId
-            return consentResult
-        }
-
-        override suspend fun rejectDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            rejectedConsentFriendIds += friendUserId
-            return consentResult
-        }
-
-        override suspend fun revokeDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            revokedConsentFriendIds += friendUserId
+        override suspend fun setDirectAssignmentOptIn(
+            friendUserId: String,
+            enabled: Boolean
+        ): Result<DirectAssignmentConsentSummary> {
+            directAssignmentOptInRequests += friendUserId to enabled
             return consentResult
         }
 

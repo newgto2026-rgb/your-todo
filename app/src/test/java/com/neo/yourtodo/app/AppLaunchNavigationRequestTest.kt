@@ -266,11 +266,11 @@ class AppLaunchNavigationRequestTest {
     }
 
     @Test
-    fun parseDirectAssignmentConsentRequestedPushOpensProfilePermissionSurface() {
+    fun parseDirectAssignmentConsentAcceptedPushOpensFriends() {
         val request = parseAppLaunchNavigationRequest(
             action = PushNotificationContract.ACTION_OPEN_PUSH_NOTIFICATION,
             selectedDate = null,
-            pushType = PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED,
+            pushType = PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED,
             deepLink = null,
             bundleId = null,
             actorUserId = "friend-user-id",
@@ -284,8 +284,7 @@ class AppLaunchNavigationRequestTest {
                 id = 29L,
                 topLevelRoute = FriendsRoute,
                 contentRoute = null,
-                syncOnOpen = true,
-                openProfileMenuOnLaunch = true
+                syncOnOpen = true
             )
         )
     }

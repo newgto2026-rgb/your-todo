@@ -35,6 +35,7 @@ import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsReq
 import com.neo.yourtodo.core.network.assignments.NetworkDirectAssignmentConsentSummary
 import com.neo.yourtodo.core.network.assignments.NetworkDirectAssignmentConsentSummaryResponse
 import com.neo.yourtodo.core.network.assignments.NetworkFriendAssignmentSummaryResponse
+import com.neo.yourtodo.core.network.assignments.NetworkSetDirectAssignmentOptInRequest
 import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession
@@ -123,24 +124,19 @@ class AssignmentRepositoryImplTest {
     }
 
     @Test
-    fun directAssignmentConsentActionsMapSummary() = runTest {
+    fun directAssignmentOptInMapsSummary() = runTest {
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
         val network = FakeAssignmentNetworkDataSource()
         val repository = repository(prefs = prefs, network = network)
 
-        val requested = repository.requestDirectAssignmentConsent("friend-1").getOrThrow()
-        val accepted = repository.acceptDirectAssignmentConsent("friend-2").getOrThrow()
-        val rejected = repository.rejectDirectAssignmentConsent("friend-3").getOrThrow()
-        val revoked = repository.revokeDirectAssignmentConsent("friend-4").getOrThrow()
+        val enabled = repository.setDirectAssignmentOptIn("friend-1", true).getOrThrow()
+        val disabled = repository.setDirectAssignmentOptIn("friend-1", false).getOrThrow()
 
-        assertThat(requested.grantedToMe.name).isEqualTo("PENDING")
-        assertThat(accepted.grantedByMe.name).isEqualTo("ACTIVE")
-        assertThat(rejected.grantedByMe.name).isEqualTo("NONE")
-        assertThat(revoked.grantedByMe.name).isEqualTo("REVOKED")
-        assertThat(network.requestedConsentFriendIds).containsExactly("friend-1")
-        assertThat(network.acceptedConsentFriendIds).containsExactly("friend-2")
-        assertThat(network.rejectedConsentFriendIds).containsExactly("friend-3")
-        assertThat(network.revokedConsentFriendIds).containsExactly("friend-4")
+        assertThat(enabled.grantedByMe.name).isEqualTo("ACTIVE")
+        assertThat(disabled.grantedByMe.name).isEqualTo("NONE")
+        assertThat(network.directAssignmentOptInRequests)
+            .containsExactly("friend-1" to true, "friend-1" to false)
+            .inOrder()
     }
 
     @Test
@@ -642,10 +638,7 @@ class AssignmentRepositoryImplTest {
         var deletedReminderTodoId: String? = null
         var mutationItem: NetworkAssignedTodoMutationItem? = null
         var bundleItem: NetworkAssignedTodo? = null
-        val requestedConsentFriendIds = mutableListOf<String>()
-        val acceptedConsentFriendIds = mutableListOf<String>()
-        val rejectedConsentFriendIds = mutableListOf<String>()
-        val revokedConsentFriendIds = mutableListOf<String>()
+        val directAssignmentOptInRequests = mutableListOf<Pair<String, Boolean>>()
 
         override suspend fun createBundle(
             accessToken: String,
@@ -712,59 +705,18 @@ class AssignmentRepositoryImplTest {
             return bundleResponse()
         }
 
-        override suspend fun requestDirectAssignmentConsent(
+        override suspend fun setDirectAssignmentOptIn(
             accessToken: String,
             idempotencyKey: String,
-            friendUserId: String
+            friendUserId: String,
+            request: NetworkSetDirectAssignmentOptInRequest
         ): NetworkDirectAssignmentConsentSummaryResponse {
             failAuthIfNeeded()
-            requestedConsentFriendIds += friendUserId
+            directAssignmentOptInRequests += friendUserId to request.enabled
             return NetworkDirectAssignmentConsentSummaryResponse(
                 directAssignment = NetworkDirectAssignmentConsentSummary(
-                    grantedByMe = "NONE",
-                    grantedToMe = "PENDING"
-                )
-            )
-        }
-
-        override suspend fun acceptDirectAssignmentConsent(
-            accessToken: String,
-            idempotencyKey: String,
-            friendUserId: String
-        ): NetworkDirectAssignmentConsentSummaryResponse {
-            failAuthIfNeeded()
-            acceptedConsentFriendIds += friendUserId
-            return NetworkDirectAssignmentConsentSummaryResponse(
-                directAssignment = NetworkDirectAssignmentConsentSummary(
-                    grantedByMe = "ACTIVE",
-                    grantedToMe = "NONE"
-                )
-            )
-        }
-
-        override suspend fun rejectDirectAssignmentConsent(
-            accessToken: String,
-            idempotencyKey: String,
-            friendUserId: String
-        ): NetworkDirectAssignmentConsentSummaryResponse {
-            failAuthIfNeeded()
-            rejectedConsentFriendIds += friendUserId
-            return NetworkDirectAssignmentConsentSummaryResponse(
-                directAssignment = NetworkDirectAssignmentConsentSummary()
-            )
-        }
-
-        override suspend fun revokeDirectAssignmentConsent(
-            accessToken: String,
-            idempotencyKey: String,
-            friendUserId: String
-        ): NetworkDirectAssignmentConsentSummaryResponse {
-            failAuthIfNeeded()
-            revokedConsentFriendIds += friendUserId
-            return NetworkDirectAssignmentConsentSummaryResponse(
-                directAssignment = NetworkDirectAssignmentConsentSummary(
-                    grantedByMe = "REVOKED",
-                    grantedToMe = "NONE"
+                    canFriendDirectAssignToMe = request.enabled,
+                    canDirectAssignToFriend = false
                 )
             )
         }

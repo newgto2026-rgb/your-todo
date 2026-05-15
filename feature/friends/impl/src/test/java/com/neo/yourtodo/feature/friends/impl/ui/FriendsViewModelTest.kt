@@ -14,13 +14,13 @@ import com.neo.yourtodo.core.domain.usecase.CreateAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
-import com.neo.yourtodo.core.domain.usecase.ManageDirectAssignmentConsentUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
+import com.neo.yourtodo.core.domain.usecase.SetDirectAssignmentOptInUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
@@ -1104,7 +1104,7 @@ class FriendsViewModelTest {
     }
 
     @Test
-    fun directAssignmentModeRequiresDirectionalPermission() = runTest {
+    fun sendAssignmentFallsBackToRequestWhenOnlyIAllowFriend() = runTest {
         val assignmentRepository = FakeAssignmentRepository()
         val inversePermissionFriend = friend(
             directAssignment = DirectAssignmentConsentSummary(
@@ -1120,12 +1120,14 @@ class FriendsViewModelTest {
             viewModel.onAction(FriendsAction.OnOpenAssignmentEditor(inversePermissionFriend))
             assertThat(awaitItem().assignmentMode).isEqualTo(AssignmentMode.REQUEST)
 
-            viewModel.onAction(FriendsAction.OnAssignmentModeChanged(AssignmentMode.DIRECT))
-            val blocked = awaitItem()
-            assertThat(blocked.assignmentMode).isEqualTo(AssignmentMode.REQUEST)
-            assertThat(blocked.assignmentInputErrorMessageRes)
-                .isEqualTo(R.string.friends_assignment_error_direct_consent_required)
-            assertThat(assignmentRepository.lastItems).isEmpty()
+            viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Request task"))
+            assertThat(awaitItem().assignmentTitleInput).isEqualTo("Request task")
+            viewModel.onAction(FriendsAction.OnSendAssignmentNow)
+            assertThat(awaitItem().runningActionKey).isEqualTo("assignment:friend-1")
+
+            awaitItem()
+            assertThat(assignmentRepository.lastAssignmentMode).isEqualTo(AssignmentMode.REQUEST)
+            assertThat(assignmentRepository.lastItems.single().title).isEqualTo("Request task")
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -1150,38 +1152,7 @@ class FriendsViewModelTest {
     }
 
     @Test
-    fun directAssignmentConsentActionsRefreshFriendState() = runTest {
-        val assignmentRepository = FakeAssignmentRepository().apply {
-            consentSummary = DirectAssignmentConsentSummary(grantedToMe = DirectAssignmentConsentState.PENDING)
-        }
-        val repository = FakeFriendRepository().apply {
-            friends = listOf(friend())
-        }
-        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
-
-        viewModel.uiState.test {
-            skipItems(2)
-
-            repository.friends = listOf(
-                friend(
-                    directAssignment = DirectAssignmentConsentSummary(
-                        grantedToMe = DirectAssignmentConsentState.PENDING
-                    )
-                )
-            )
-            viewModel.onAction(FriendsAction.OnRequestDirectAssignmentConsent(friend()))
-            assertThat(awaitItem().runningActionKey).isEqualTo("direct_assignment_request:friend-1")
-
-            val refreshed = awaitItem()
-            assertThat(assignmentRepository.requestedConsentFriendIds).containsExactly("friend-1")
-            assertThat(refreshed.friends.single().directAssignment.grantedToMe)
-                .isEqualTo(DirectAssignmentConsentState.PENDING)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun acceptDirectAssignmentConsentRefreshesFriendState() = runTest {
+    fun enablingAutoAcceptRefreshesFriendState() = runTest {
         val assignmentRepository = FakeAssignmentRepository()
         val repository = FakeFriendRepository().apply {
             friends = listOf(friend())
@@ -1198,11 +1169,12 @@ class FriendsViewModelTest {
                     )
                 )
             )
-            viewModel.onAction(FriendsAction.OnAcceptDirectAssignmentConsent(friend()))
-            assertThat(awaitItem().runningActionKey).isEqualTo("direct_assignment_accept:friend-1")
+            viewModel.onAction(FriendsAction.OnSetDirectAssignmentOptIn(friend(), true))
+            assertThat(awaitItem().runningActionKey).isEqualTo("direct_assignment_opt_in:friend-1")
 
             val refreshed = awaitItem()
-            assertThat(assignmentRepository.acceptedConsentFriendIds).containsExactly("friend-1")
+            assertThat(assignmentRepository.directAssignmentOptInRequests)
+                .containsExactly("friend-1" to true)
             assertThat(refreshed.friends.single().directAssignment.grantedByMe)
                 .isEqualTo(DirectAssignmentConsentState.ACTIVE)
             cancelAndIgnoreRemainingEvents()
@@ -1210,10 +1182,12 @@ class FriendsViewModelTest {
     }
 
     @Test
-    fun rejectDirectAssignmentConsentRefreshesFriendState() = runTest {
+    fun disablingAutoAcceptRefreshesFriendState() = runTest {
         val assignmentRepository = FakeAssignmentRepository()
         val repository = FakeFriendRepository().apply {
-            friends = listOf(friend(directAssignment = DirectAssignmentConsentSummary(grantedByMe = DirectAssignmentConsentState.PENDING)))
+            friends = listOf(
+                friend(directAssignment = DirectAssignmentConsentSummary(grantedByMe = DirectAssignmentConsentState.ACTIVE))
+            )
         }
         val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
 
@@ -1227,40 +1201,12 @@ class FriendsViewModelTest {
                     )
                 )
             )
-            viewModel.onAction(FriendsAction.OnRejectDirectAssignmentConsent(friend()))
-            assertThat(awaitItem().runningActionKey).isEqualTo("direct_assignment_reject:friend-1")
+            viewModel.onAction(FriendsAction.OnSetDirectAssignmentOptIn(friend(), false))
+            assertThat(awaitItem().runningActionKey).isEqualTo("direct_assignment_opt_in:friend-1")
 
             val refreshed = awaitItem()
-            assertThat(assignmentRepository.rejectedConsentFriendIds).containsExactly("friend-1")
-            assertThat(refreshed.friends.single().directAssignment.grantedByMe)
-                .isEqualTo(DirectAssignmentConsentState.REVOKED)
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
-    fun revokeDirectAssignmentConsentRefreshesFriendState() = runTest {
-        val assignmentRepository = FakeAssignmentRepository()
-        val repository = FakeFriendRepository().apply {
-            friends = listOf(friend(directAssignment = DirectAssignmentConsentSummary(grantedByMe = DirectAssignmentConsentState.ACTIVE)))
-        }
-        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
-
-        viewModel.uiState.test {
-            skipItems(2)
-
-            repository.friends = listOf(
-                friend(
-                    directAssignment = DirectAssignmentConsentSummary(
-                        grantedByMe = DirectAssignmentConsentState.REVOKED
-                    )
-                )
-            )
-            viewModel.onAction(FriendsAction.OnRevokeDirectAssignmentConsent(friend()))
-            assertThat(awaitItem().runningActionKey).isEqualTo("direct_assignment_revoke:friend-1")
-
-            val refreshed = awaitItem()
-            assertThat(assignmentRepository.revokedConsentFriendIds).containsExactly("friend-1")
+            assertThat(assignmentRepository.directAssignmentOptInRequests)
+                .containsExactly("friend-1" to false)
             assertThat(refreshed.friends.single().directAssignment.grantedByMe)
                 .isEqualTo(DirectAssignmentConsentState.REVOKED)
             cancelAndIgnoreRemainingEvents()
@@ -1375,7 +1321,7 @@ class FriendsViewModelTest {
             respondFriendRequest = RespondFriendRequestUseCase(this),
             removeFriend = RemoveFriendUseCase(this),
             createAssignmentBundle = CreateAssignmentBundleUseCase(assignmentRepository),
-            manageDirectAssignmentConsent = ManageDirectAssignmentConsentUseCase(assignmentRepository),
+            setDirectAssignmentOptIn = SetDirectAssignmentOptInUseCase(assignmentRepository),
             getAssignedTodos = GetAssignedTodosUseCase(assignmentRepository),
             respondAssignmentBundle = RespondAssignmentBundleUseCase(assignmentRepository),
             refreshWorkspaceUseCase = RefreshWorkspaceUseCase(
@@ -1542,10 +1488,7 @@ class FriendsViewModelTest {
         var lastItems: List<AssignmentDraftItem> = emptyList()
         var lastAssignmentMode: AssignmentMode = AssignmentMode.REQUEST
         var consentSummary = DirectAssignmentConsentSummary()
-        val requestedConsentFriendIds = mutableListOf<String>()
-        val acceptedConsentFriendIds = mutableListOf<String>()
-        val rejectedConsentFriendIds = mutableListOf<String>()
-        val revokedConsentFriendIds = mutableListOf<String>()
+        val directAssignmentOptInRequests = mutableListOf<Pair<String, Boolean>>()
         var failedBundleIds = emptySet<String>()
         var friendSummaryCalls = 0
         var friendSummaryResult: Result<FriendAssignmentSummary>? = null
@@ -1573,23 +1516,11 @@ class FriendsViewModelTest {
             return Result.success(assignmentBundle(items))
         }
 
-        override suspend fun requestDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            requestedConsentFriendIds += friendUserId
-            return Result.success(consentSummary)
-        }
-
-        override suspend fun acceptDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            acceptedConsentFriendIds += friendUserId
-            return Result.success(consentSummary)
-        }
-
-        override suspend fun rejectDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            rejectedConsentFriendIds += friendUserId
-            return Result.success(consentSummary)
-        }
-
-        override suspend fun revokeDirectAssignmentConsent(friendUserId: String): Result<DirectAssignmentConsentSummary> {
-            revokedConsentFriendIds += friendUserId
+        override suspend fun setDirectAssignmentOptIn(
+            friendUserId: String,
+            enabled: Boolean
+        ): Result<DirectAssignmentConsentSummary> {
+            directAssignmentOptInRequests += friendUserId to enabled
             return Result.success(consentSummary)
         }
 

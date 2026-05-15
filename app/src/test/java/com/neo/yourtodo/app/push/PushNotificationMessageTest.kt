@@ -50,8 +50,8 @@ class PushNotificationMessageTest {
 
     @Test
     fun directAssignmentConsentPayloadsUsePermissionCopy() {
-        val requested = mapOf(
-            PushNotificationContract.EXTRA_TYPE to PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_REQUESTED,
+        val accepted = mapOf(
+            PushNotificationContract.EXTRA_TYPE to PushNotificationContract.TYPE_DIRECT_ASSIGNMENT_CONSENT_ACCEPTED,
             PushNotificationContract.EXTRA_ACTOR_NICKNAME to "monday"
         )
         val revoked = mapOf(
@@ -59,10 +59,10 @@ class PushNotificationMessageTest {
             PushNotificationContract.EXTRA_ACTOR_NICKNAME to "monday"
         )
 
-        assertThat(PushNotificationMessage.defaultTitle(requested))
-            .isEqualTo(R.string.push_direct_assignment_consent_requested_title)
-        assertThat(PushNotificationMessage.body(requested).resId)
-            .isEqualTo(R.string.push_direct_assignment_consent_requested_by_friend_body)
+        assertThat(PushNotificationMessage.defaultTitle(accepted))
+            .isEqualTo(R.string.push_direct_assignment_consent_accepted_title)
+        assertThat(PushNotificationMessage.body(accepted).resId)
+            .isEqualTo(R.string.push_direct_assignment_consent_accepted_by_friend_body)
         assertThat(PushNotificationMessage.defaultTitle(revoked))
             .isEqualTo(R.string.push_direct_assignment_consent_revoked_title)
         assertThat(PushNotificationMessage.body(revoked).resId)
