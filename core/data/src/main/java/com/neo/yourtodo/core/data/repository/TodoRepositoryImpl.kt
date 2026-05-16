@@ -328,14 +328,12 @@ class TodoRepositoryImpl @Inject constructor(
             TodoSyncStatus.SYNCED,
             TodoSyncStatus.PENDING_UPDATE,
             TodoSyncStatus.FAILED -> {
-                val ownerUserId = existing.ownerUserId
-                val serverId = existing.serverId
-                if (ownerUserId.isNullOrBlank() || serverId.isNullOrBlank()) {
+                if (!existing.hasRemoteIdentity()) {
                     todoDao.update(updated.copy(syncStatus = TodoSyncStatus.LOCAL_ONLY.name))
                 } else {
                     val pending = updated.copy(syncStatus = TodoSyncStatus.PENDING_UPDATE.name, lastSyncError = null)
                     todoDao.update(pending)
-                    upsertUpdateOutbox(ownerUserId, pending)
+                    upsertUpdateOutbox(existing.ownerUserId.orEmpty(), pending)
                 }
             }
         }
@@ -352,9 +350,7 @@ class TodoRepositoryImpl @Inject constructor(
             TodoSyncStatus.SYNCED,
             TodoSyncStatus.PENDING_UPDATE,
             TodoSyncStatus.FAILED -> {
-                val ownerUserId = existing.ownerUserId
-                val serverId = existing.serverId
-                if (ownerUserId.isNullOrBlank() || serverId.isNullOrBlank()) {
+                if (!existing.hasRemoteIdentity()) {
                     todoDao.delete(existing)
                 } else {
                     val pending = existing.copy(
@@ -365,48 +361,32 @@ class TodoRepositoryImpl @Inject constructor(
                     )
                     todoDao.update(pending)
                     todoOutboxDao.deleteByTodoLocalId(existing.id)
-                    todoOutboxDao.insert(
-                        TodoOutboxEntity(
-                            ownerUserId = ownerUserId,
-                            clientMutationId = UUID.randomUUID().toString(),
-                            todoLocalId = existing.id,
-                            serverId = serverId,
-                            clientId = existing.clientId,
-                            type = MUTATION_DELETE,
-                            payloadJson = "{}",
-                            createdAt = System.currentTimeMillis()
-                        )
-                    )
+                    enqueueDeleteOutbox(existing)
                 }
             }
         }
     }
 
-    private suspend fun upsertCreateOutbox(ownerUserId: String, todo: TodoEntity) {
-        val existingOutbox = todoOutboxDao.getByTodoLocalId(todo.id)
-        val outbox = TodoOutboxEntity(
-            id = existingOutbox?.id ?: 0L,
-            ownerUserId = ownerUserId,
-            clientMutationId = existingOutbox?.clientMutationId ?: UUID.randomUUID().toString(),
-            todoLocalId = todo.id,
-            serverId = todo.serverId,
-            clientId = todo.clientId,
-            type = MUTATION_CREATE,
-            payloadJson = json.encodeToString(todo.toSyncPayload()),
-            createdAt = existingOutbox?.createdAt ?: System.currentTimeMillis(),
-            retryCount = existingOutbox?.retryCount ?: 0,
-            lastError = null
-        )
-        if (existingOutbox == null) {
-            todoOutboxDao.insert(outbox)
-        } else {
-            todoOutboxDao.update(outbox)
-        }
-    }
+    private fun TodoEntity.hasRemoteIdentity(): Boolean =
+        !ownerUserId.isNullOrBlank() && !serverId.isNullOrBlank()
 
-    private suspend fun upsertUpdateOutbox(ownerUserId: String, todo: TodoEntity) {
+    private suspend fun upsertCreateOutbox(ownerUserId: String, todo: TodoEntity) =
+        upsertMutationOutbox(ownerUserId, todo, MUTATION_CREATE)
+
+    private suspend fun upsertUpdateOutbox(ownerUserId: String, todo: TodoEntity) =
+        upsertMutationOutbox(ownerUserId, todo, MUTATION_UPDATE)
+
+    private suspend fun upsertMutationOutbox(
+        ownerUserId: String,
+        todo: TodoEntity,
+        mutationType: String
+    ) {
         val existingOutbox = todoOutboxDao.getByTodoLocalId(todo.id)
-        val type = if (existingOutbox?.type == MUTATION_CREATE) MUTATION_CREATE else MUTATION_UPDATE
+        val type = if (mutationType == MUTATION_UPDATE && existingOutbox?.type == MUTATION_CREATE) {
+            MUTATION_CREATE
+        } else {
+            mutationType
+        }
         val outbox = TodoOutboxEntity(
             id = existingOutbox?.id ?: 0L,
             ownerUserId = ownerUserId,
@@ -425,6 +405,21 @@ class TodoRepositoryImpl @Inject constructor(
         } else {
             todoOutboxDao.update(outbox)
         }
+    }
+
+    private suspend fun enqueueDeleteOutbox(todo: TodoEntity) {
+        todoOutboxDao.insert(
+            TodoOutboxEntity(
+                ownerUserId = todo.ownerUserId.orEmpty(),
+                clientMutationId = UUID.randomUUID().toString(),
+                todoLocalId = todo.id,
+                serverId = todo.serverId,
+                clientId = todo.clientId,
+                type = MUTATION_DELETE,
+                payloadJson = "{}",
+                createdAt = System.currentTimeMillis()
+            )
+        )
     }
 
     private suspend fun pullTodos(accessToken: String, ownerUserId: String) {
