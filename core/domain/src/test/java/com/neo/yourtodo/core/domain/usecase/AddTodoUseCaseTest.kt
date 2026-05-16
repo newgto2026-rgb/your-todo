@@ -1,7 +1,9 @@
 package com.neo.yourtodo.core.domain.usecase
 
-import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.google.common.truth.Truth.assertThat
+import com.neo.yourtodo.core.domain.error.AppError
+import com.neo.yourtodo.core.domain.error.appErrorOrNull
+import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -15,6 +17,7 @@ class AddTodoUseCaseTest {
         val result = useCase("   ", null, null)
 
         assertThat(result.isFailure).isTrue()
+        assertThat(result.appErrorOrNull()).isEqualTo(AppError.ValidationError("Title must not be blank"))
     }
 
     @Test
@@ -23,5 +26,13 @@ class AddTodoUseCaseTest {
 
         assertThat(result.isSuccess).isTrue()
         assertThat(result.getOrNull()).isEqualTo(1L)
+    }
+
+    @Test
+    fun `repository missing local data failure maps to app error`() = runTest {
+        val result = useCase("todo", null, 999L)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.appErrorOrNull()).isEqualTo(AppError.LocalDataMissing("Category not found"))
     }
 }
