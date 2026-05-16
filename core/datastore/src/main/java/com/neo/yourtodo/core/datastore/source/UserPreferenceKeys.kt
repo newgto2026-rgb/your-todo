@@ -8,6 +8,8 @@ internal object UserPreferenceKeys {
     val SCHEMA_VERSION = intPreferencesKey("user_preferences_schema_version")
     val AUTH_ACCESS_TOKEN = stringPreferencesKey("auth_access_token")
     val AUTH_REFRESH_TOKEN = stringPreferencesKey("auth_refresh_token")
+    val AUTH_ENCRYPTED_ACCESS_TOKEN = stringPreferencesKey("auth_access_token_encrypted")
+    val AUTH_ENCRYPTED_REFRESH_TOKEN = stringPreferencesKey("auth_refresh_token_encrypted")
     val AUTH_USER_ID = stringPreferencesKey("auth_user_id")
     val AUTH_USER_NICKNAME = stringPreferencesKey("auth_user_nickname")
     val AUTH_USER_EMAIL = stringPreferencesKey("auth_user_email")

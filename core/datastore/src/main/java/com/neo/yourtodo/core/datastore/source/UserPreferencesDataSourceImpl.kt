@@ -4,6 +4,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ACCESS_TOKEN
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_ACCESS_TOKEN
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_REFRESH_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ONBOARDING_REQUIRED
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_EMAIL
@@ -21,37 +23,20 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSortOption
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class UserPreferencesDataSourceImpl @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    private val authTokenStoragePolicy: AuthTokenStoragePolicy
 ) : UserPreferencesDataSource {
 
     override val authSession: Flow<AuthSessionData?> =
-        dataStore.data.map { prefs ->
-            val accessToken = prefs[AUTH_ACCESS_TOKEN]
-            val refreshToken = prefs[AUTH_REFRESH_TOKEN]
-            val userId = prefs[AUTH_USER_ID]
-            val email = prefs[AUTH_USER_EMAIL]
-            if (
-                accessToken.isNullOrBlank() ||
-                refreshToken.isNullOrBlank() ||
-                userId.isNullOrBlank() ||
-                email.isNullOrBlank()
-            ) {
-                null
-            } else {
-                AuthSessionData(
-                    accessToken = accessToken,
-                    refreshToken = refreshToken,
-                    userId = userId,
-                    nickname = prefs[AUTH_USER_NICKNAME],
-                    email = email,
-                    onboardingRequired = prefs[AUTH_ONBOARDING_REQUIRED] == 1
-                )
-            }
-        }
+        dataStore.data
+            .map { prefs -> AuthPreferencesSnapshot.from(prefs) }
+            .distinctUntilChanged()
+            .map { authPreferences -> authPreferences.toAuthSession(authTokenStoragePolicy) }
 
     override val selectedTodoFilter: Flow<TodoFilter> =
         dataStore.data.map { prefs ->
@@ -90,8 +75,13 @@ class UserPreferencesDataSourceImpl @Inject constructor(
 
     override suspend fun saveAuthSession(session: AuthSessionData) {
         dataStore.edit { prefs ->
-            prefs[AUTH_ACCESS_TOKEN] = session.accessToken
-            prefs[AUTH_REFRESH_TOKEN] = session.refreshToken
+            authTokenStoragePolicy.saveTokens(
+                preferences = prefs,
+                tokens = AuthTokenPair(
+                    accessToken = session.accessToken,
+                    refreshToken = session.refreshToken
+                )
+            )
             prefs[AUTH_USER_ID] = session.userId
             if (session.nickname.isNullOrBlank()) {
                 prefs.remove(AUTH_USER_NICKNAME)
@@ -105,8 +95,7 @@ class UserPreferencesDataSourceImpl @Inject constructor(
 
     override suspend fun clearAuthSession() {
         dataStore.edit { prefs ->
-            prefs.remove(AUTH_ACCESS_TOKEN)
-            prefs.remove(AUTH_REFRESH_TOKEN)
+            authTokenStoragePolicy.clearTokens(prefs)
             prefs.remove(AUTH_USER_ID)
             prefs.remove(AUTH_USER_NICKNAME)
             prefs.remove(AUTH_USER_EMAIL)
@@ -189,4 +178,51 @@ class UserPreferencesDataSourceImpl @Inject constructor(
         }
     }
 
+}
+
+private data class AuthPreferencesSnapshot(
+    val encryptedAccessToken: String?,
+    val encryptedRefreshToken: String?,
+    val legacyAccessToken: String?,
+    val legacyRefreshToken: String?,
+    val userId: String?,
+    val nickname: String?,
+    val email: String?,
+    val onboardingRequired: Int?
+) {
+    fun toAuthSession(authTokenStoragePolicy: AuthTokenStoragePolicy): AuthSessionData? {
+        val tokens = authTokenStoragePolicy.readTokens(
+            encryptedAccessToken = encryptedAccessToken,
+            encryptedRefreshToken = encryptedRefreshToken,
+            legacyAccessToken = legacyAccessToken,
+            legacyRefreshToken = legacyRefreshToken
+        )
+
+        return if (tokens == null || userId.isNullOrBlank() || email.isNullOrBlank()) {
+            null
+        } else {
+            AuthSessionData(
+                accessToken = tokens.accessToken,
+                refreshToken = tokens.refreshToken,
+                userId = userId,
+                nickname = nickname,
+                email = email,
+                onboardingRequired = onboardingRequired == 1
+            )
+        }
+    }
+
+    companion object {
+        fun from(preferences: Preferences): AuthPreferencesSnapshot =
+            AuthPreferencesSnapshot(
+                encryptedAccessToken = preferences[AUTH_ENCRYPTED_ACCESS_TOKEN],
+                encryptedRefreshToken = preferences[AUTH_ENCRYPTED_REFRESH_TOKEN],
+                legacyAccessToken = preferences[AUTH_ACCESS_TOKEN],
+                legacyRefreshToken = preferences[AUTH_REFRESH_TOKEN],
+                userId = preferences[AUTH_USER_ID],
+                nickname = preferences[AUTH_USER_NICKNAME],
+                email = preferences[AUTH_USER_EMAIL],
+                onboardingRequired = preferences[AUTH_ONBOARDING_REQUIRED]
+            )
+    }
 }
