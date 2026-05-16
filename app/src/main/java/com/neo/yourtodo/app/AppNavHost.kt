@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -56,6 +57,7 @@ fun AppNavHost(
     launchNavigationRequest: AppLaunchNavigationRequest? = null,
     syncViewModel: AppSyncViewModel = hiltViewModel(),
     profileMenuViewModel: AppProfileMenuViewModel = hiltViewModel(),
+    navigationPreferencesViewModel: AppNavigationPreferencesViewModel = hiltViewModel(),
     pushTokenRegistrationViewModel: PushTokenRegistrationViewModel = hiltViewModel()
 ) {
     pushTokenRegistrationViewModel.keepActive()
@@ -65,10 +67,14 @@ fun AppNavHost(
     val backPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
     val profileMenuUiState by profileMenuViewModel.uiState.collectAsStateWithLifecycle()
+    val restoredTodoFilter by navigationPreferencesViewModel.selectedTodoFilter.collectAsStateWithLifecycle()
     var isProfileMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var isExitConfirmationPending by rememberSaveable { mutableStateOf(false) }
+    var hasRestoredTodoFilter by rememberSaveable { mutableStateOf(launchNavigationRequest != null) }
     val profileNicknameCopiedMessage = stringResource(R.string.profile_menu_copy_success)
     val profileLogoutFailedMessage = stringResource(R.string.profile_menu_logout_failed)
     val profileLinkUnavailableMessage = stringResource(R.string.profile_menu_link_unavailable)
+    val appExitConfirmationMessage = stringResource(R.string.app_exit_confirmation)
     val privacyPolicyUrl = stringResource(R.string.profile_menu_privacy_policy_url)
     val termsUrl = stringResource(R.string.profile_menu_terms_url)
     val appVersion = remember(context) { context.appVersionName() }
@@ -150,6 +156,16 @@ fun AppNavHost(
             navigator.replaceTopLevelContent(route)
         }
     }
+    LaunchedEffect(restoredTodoFilter, initialLaunchNavigationRequest?.id) {
+        if (hasRestoredTodoFilter || initialLaunchNavigationRequest != null) return@LaunchedEffect
+        val restoredFilter = restoredTodoFilter ?: return@LaunchedEffect
+        AppTabDestination.fromTodoFilter(restoredFilter)?.route?.let { route ->
+            if (route != navigationState.topLevelRoute) {
+                navigator.navigate(route)
+            }
+        }
+        hasRestoredTodoFilter = true
+    }
     LaunchedEffect(initialLaunchNavigationRequest?.id) {
         val request = initialLaunchNavigationRequest ?: return@LaunchedEffect
         if (request.syncOnOpen) {
@@ -188,6 +204,10 @@ fun AppNavHost(
             AppBottomBar(
                 selectedTab = currentTab,
                 onTabSelected = { tab ->
+                    isExitConfirmationPending = false
+                    hasRestoredTodoFilter = true
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    tab.todoFilter?.let(navigationPreferencesViewModel::rememberSelectedTodoFilter)
                     navigator.navigate(tab.route)
                 }
             )
@@ -205,9 +225,22 @@ fun AppNavHost(
             entries = navEntries,
             activeContentKey = activeContentKey,
             onBack = {
-                if (!navigator.goBack()) {
+                if (navigator.goBack()) {
+                    isExitConfirmationPending = false
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                } else if (isExitConfirmationPending) {
                     (context as? android.app.Activity)?.finish()
                         ?: backPressedDispatcherOwner?.onBackPressedDispatcher?.onBackPressed()
+                } else {
+                    isExitConfirmationPending = true
+                    coroutineScope.launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        snackbarHostState.showSnackbar(
+                            message = appExitConfirmationMessage,
+                            duration = SnackbarDuration.Short
+                        )
+                        isExitConfirmationPending = false
+                    }
                 }
             },
             modifier = Modifier

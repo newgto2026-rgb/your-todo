@@ -13,11 +13,14 @@ import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveSelectedTodoPriorityFilterUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveSelectedTodoSortOptionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
+import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoSortOptionUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
@@ -25,6 +28,7 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoReminder
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
@@ -104,7 +108,10 @@ class TodoListViewModelTest {
                     syncNotifier = workspaceSyncNotifier
                 )
             ),
+            observeSelectedTodoPriorityFilterUseCase = ObserveSelectedTodoPriorityFilterUseCase(repository),
             updateSelectedTodoPriorityFilterUseCase = UpdateSelectedTodoPriorityFilterUseCase(repository),
+            observeSelectedTodoSortOptionUseCase = ObserveSelectedTodoSortOptionUseCase(repository),
+            updateSelectedTodoSortOptionUseCase = UpdateSelectedTodoSortOptionUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
             todoReminderScheduler = reminderScheduler,
             calendarWidgetUpdater = calendarWidgetUpdater
@@ -338,9 +345,10 @@ class TodoListViewModelTest {
     }
 
     @Test
-    fun persistedPriorityFilterDoesNotHideItemsOnFreshTodoScreen() = runTest {
+    fun persistedPriorityFilterAndSortOptionRestoreOnTodoScreen() = runTest {
         val today = LocalDate.now()
         repository.setSelectedPriorityFilter(TodoPriorityFilter.MEDIUM)
+        repository.setSelectedSortOption(TodoSortOption.DUE_DATE)
         repository.addTodo(
             title = "Today medium",
             dueDate = today,
@@ -365,9 +373,9 @@ class TodoListViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertThat(state.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.ALL)
+        assertThat(state.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.MEDIUM)
+        assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
         assertThat(state.items.map { it.title }).containsExactly(
-            "Future high",
             "Today medium",
             "Completed medium"
         ).inOrder()
@@ -590,12 +598,51 @@ class TodoListViewModelTest {
         val state = viewModel.uiState.value
         assertThat(state.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.ALL)
         assertThat(state.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
+        assertThat(repository.observeSelectedSortOption().first()).isEqualTo(TodoSortOption.DUE_DATE)
         assertThat(state.items.map { it.title }).containsExactly(
             "High today",
             "Medium today",
             "Low tomorrow",
             "High future"
         ).inOrder()
+    }
+
+    @Test
+    fun sortOptionChangeUpdatesUiOptimisticallyAndIgnoresDuplicateTriggers() = runTest {
+        val sortWriteGate = CompletableDeferred<Unit>()
+        repository.beforeSetSelectedSortOption = { sortWriteGate.await() }
+
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.uiState.value.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
+        assertThat(repository.setSelectedSortOptionCallCount).isEqualTo(1)
+
+        sortWriteGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertThat(repository.observeSelectedSortOption().first()).isEqualTo(TodoSortOption.DUE_DATE)
+        assertThat(viewModel.uiState.value.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
+    }
+
+    @Test
+    fun sortOptionChangeFailureKeepsPriorityFilterUnchanged() = runTest {
+        repository.setSelectedSortOptionResult = Result.failure(IllegalStateException("disk full"))
+        viewModel.onAction(TodoListAction.OnPriorityFilterChange(TodoPriorityFilter.HIGH))
+        advanceUntilIdle()
+        val sideEffect = async { viewModel.sideEffect.first() }
+
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        advanceUntilIdle()
+
+        assertThat(sideEffect.await()).isEqualTo(
+            TodoListSideEffect.ShowSnackbar(R.string.todo_error_sort_change_failed)
+        )
+        assertThat(viewModel.uiState.value.selectedSortOption).isEqualTo(TodoSortOption.DEFAULT)
+        assertThat(viewModel.uiState.value.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.HIGH)
+        assertThat(repository.observeSelectedPriorityFilter().first()).isEqualTo(TodoPriorityFilter.HIGH)
     }
 
     @Test

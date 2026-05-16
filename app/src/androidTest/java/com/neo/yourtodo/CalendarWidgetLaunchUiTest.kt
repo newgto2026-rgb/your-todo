@@ -14,7 +14,6 @@ import androidx.compose.ui.test.performClick
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.espresso.Espresso.pressBackUnconditionally
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.neo.yourtodo.app.MainActivity
@@ -24,6 +23,7 @@ import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.feature.calendar.api.CalendarWidgetIntentContract
 import com.neo.yourtodo.feature.calendar.impl.R as CalendarImplR
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -67,6 +67,7 @@ class CalendarWidgetLaunchUiTest {
             userPreferencesDataSource.setSelectedTodoFilter(TodoFilter.ALL)
             userPreferencesDataSource.setSelectedTodoCategoryFilter(null)
             userPreferencesDataSource.setSelectedTodoPriorityFilter(TodoPriorityFilter.ALL)
+            userPreferencesDataSource.setSelectedTodoSortOption(TodoSortOption.DEFAULT)
         }
         AppNavigationIdentityProbe.start()
     }
@@ -120,9 +121,15 @@ class CalendarWidgetLaunchUiTest {
             .assertIsDisplayed()
         assertCalendarRouteIdentityRetained(selectedDate)
 
-        pressBackUnconditionally()
+        val exitConfirmationText = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.app_exit_confirmation)
+        performActivityBack()
+        composeTestRule.onNodeWithText(exitConfirmationText).assertIsDisplayed()
+
+        performActivityBack()
         assertTrue(
-            "Widget launch back should leave the foreground instead of popping to the default calendar.",
+            "Widget launch second back should leave the foreground instead of popping to the default calendar.",
             activityScenario.state < Lifecycle.State.RESUMED
         )
     }
@@ -185,6 +192,13 @@ class CalendarWidgetLaunchUiTest {
                 .fetchSemanticsNodes()
                 .isNotEmpty()
         }
+    }
+
+    private fun performActivityBack() {
+        activityScenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeTestRule.waitForIdle()
     }
 
     private fun assertCalendarRouteIdentityRetained(selectedDate: LocalDate) {

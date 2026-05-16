@@ -15,7 +15,7 @@ import org.junit.Test
 class AppNavigatorTest {
 
     @Test
-    fun goBack_fromTopLevelRoute_returnsToPreviousTopLevelRoute() {
+    fun goBack_fromTopLevelRoute_returnsFalseWithoutChangingCurrentTab() {
         val state = testNavigationState()
         val navigator = AppNavigator(state)
 
@@ -23,8 +23,9 @@ class AppNavigatorTest {
         navigator.navigate(TodoCompletedRoute)
 
         assertThat(state.topLevelRoute).isEqualTo(TodoCompletedRoute)
-        assertThat(navigator.goBack()).isTrue()
-        assertThat(state.topLevelRoute).isEqualTo(TodoTodayRoute)
+        assertThat(navigator.goBack()).isFalse()
+        assertThat(state.topLevelRoute).isEqualTo(TodoCompletedRoute)
+        assertThat(state.topLevelStack).containsExactly(TodoCompletedRoute)
     }
 
     @Test

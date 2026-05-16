@@ -46,10 +46,6 @@ class AppNavigator(
             currentStack.removeLastOrNull()
             return true
         }
-        if (state.topLevelRoute != state.startRoute) {
-            state.topLevelStack.removeLastOrNull()
-            return true
-        }
         return false
     }
 

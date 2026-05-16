@@ -48,6 +48,7 @@ import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.feature.todo.impl.R as TodoImplR
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -119,6 +120,7 @@ class TodoUiTest {
             userPreferencesDataSource.setSelectedTodoFilter(TodoFilter.ALL)
             userPreferencesDataSource.setSelectedTodoCategoryFilter(null)
             userPreferencesDataSource.setSelectedTodoPriorityFilter(TodoPriorityFilter.ALL)
+            userPreferencesDataSource.setSelectedTodoSortOption(TodoSortOption.DEFAULT)
         }
         grantNotificationPermissionIfNeeded()
         activityScenario = ActivityScenario.launch(MainActivity::class.java)
@@ -141,6 +143,34 @@ class TodoUiTest {
         tabNode("completed").assertIsNotSelected()
         tabNode("calendar").assertIsNotSelected()
         composeTestRule.onNodeWithTag("todo_sync_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun launch_restoresLastTodoFilterTab() {
+        activityScenario.close()
+        runBlocking {
+            userPreferencesDataSource.setSelectedTodoFilter(TodoFilter.TODAY)
+        }
+
+        activityScenario = ActivityScenario.launch(MainActivity::class.java)
+        composeTestRule.waitUntilNodeExists("app_tab_today")
+
+        tabNode("today").assertIsSelected()
+        composeTestRule.waitUntilNodeExists("todo_screen_today")
+    }
+
+    @Test
+    fun selectedTodoFilterTab_restoresAfterRelaunch() {
+        tabNode("today").performClick()
+        tabNode("today").assertIsSelected()
+        composeTestRule.waitUntilNodeExists("todo_screen_today")
+
+        activityScenario.close()
+        activityScenario = ActivityScenario.launch(MainActivity::class.java)
+        composeTestRule.waitUntilNodeExists("app_tab_today")
+
+        tabNode("today").assertIsSelected()
+        composeTestRule.waitUntilNodeExists("todo_screen_today")
     }
 
     @Test
@@ -654,32 +684,47 @@ class TodoUiTest {
     }
 
     @Test
-    fun backPress_onTopLevelTab_returnsToPreviousTab() {
+    fun backPress_onTopLevelTabDoesNotReturnToPreviousTab() {
+        val exitConfirmationText = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.app_exit_confirmation)
         tabNode("today").performClick()
         tabNode("today").assertIsSelected()
 
         tabNode("completed").performClick()
         tabNode("completed").assertIsSelected()
 
-        pressBackUnconditionally()
-        tabNode("today").assertIsSelected()
+        performActivityBack()
+        tabNode("completed").assertIsSelected()
+        composeTestRule.onNodeWithText(exitConfirmationText).assertIsDisplayed()
     }
 
     @Test
-    fun backPress_fromSecondTab_returnsToStartTab() {
+    fun backPress_fromSecondTabDoesNotReturnToStartTab() {
+        val exitConfirmationText = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.app_exit_confirmation)
         tabNode("all").assertIsSelected()
         tabNode("today").performClick()
         tabNode("today").assertIsSelected()
 
-        pressBackUnconditionally()
-        tabNode("all").assertIsSelected()
+        performActivityBack()
+        tabNode("today").assertIsSelected()
+        composeTestRule.onNodeWithText(exitConfirmationText).assertIsDisplayed()
     }
 
     @Test
-    fun backPress_onStartTab_finishesActivity() {
+    fun backPress_onStartTabAsksBeforeFinishingActivity() {
+        val exitConfirmationText = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.app_exit_confirmation)
         tabNode("all").assertIsSelected()
 
-        pressBackUnconditionally()
+        performActivityBack()
+        composeTestRule.onNodeWithText(exitConfirmationText).assertIsDisplayed()
+        tabNode("all").assertIsSelected()
+
+        performActivityBack()
         composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             activityScenario.state == Lifecycle.State.DESTROYED
         }
@@ -1473,10 +1518,16 @@ class TodoUiTest {
     }
 
     @Test
-    fun backPress_onFirstTab_finishesActivity() {
+    fun backPress_onFirstTabAsksBeforeFinishingActivity() {
+        val exitConfirmationText = InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.app_exit_confirmation)
         tabNode("all").assertIsSelected()
 
-        pressBackUnconditionally()
+        performActivityBack()
+        composeTestRule.onNodeWithText(exitConfirmationText).assertIsDisplayed()
+
+        performActivityBack()
         composeTestRule.waitUntil(timeoutMillis = UiTimeoutMillis) {
             activityScenario.state == Lifecycle.State.DESTROYED
         }
@@ -1926,6 +1977,13 @@ class TodoUiTest {
             rowMatcher and hasAnyAncestor(hasTestTag("todo_screen_$filterName")),
             useUnmergedTree = false
         ).assertCountEquals(expectedCount)
+    }
+
+    private fun performActivityBack() {
+        activityScenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeTestRule.waitForIdle()
     }
 
 }

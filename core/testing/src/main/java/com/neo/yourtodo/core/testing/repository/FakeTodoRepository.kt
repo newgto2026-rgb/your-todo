@@ -10,6 +10,7 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,9 +28,15 @@ class FakeTodoRepository :
     private val selectedFilter = MutableStateFlow(TodoFilter.ALL)
     private val selectedCategoryFilter = MutableStateFlow<Long?>(null)
     private val selectedPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private val selectedSortOption = MutableStateFlow(TodoSortOption.DEFAULT)
     private var idSeed = 1L
     private var categoryIdSeed = 1L
     var syncCount: Int = 0
+        private set
+    var setSelectedPriorityFilterResult: Result<Unit>? = null
+    var setSelectedSortOptionResult: Result<Unit>? = null
+    var beforeSetSelectedSortOption: (suspend (TodoSortOption) -> Unit)? = null
+    var setSelectedSortOptionCallCount: Int = 0
         private set
 
     override fun observeTodos(): Flow<List<TodoItem>> = todos.asStateFlow()
@@ -207,8 +214,21 @@ class FakeTodoRepository :
     override fun observeSelectedPriorityFilter(): Flow<TodoPriorityFilter> =
         selectedPriorityFilter.asStateFlow()
 
-    override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> = runCatching {
+    override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> {
+        setSelectedPriorityFilterResult?.let { return it }
         selectedPriorityFilter.value = filter
+        return Result.success(Unit)
+    }
+
+    override fun observeSelectedSortOption(): Flow<TodoSortOption> =
+        selectedSortOption.asStateFlow()
+
+    override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> {
+        setSelectedSortOptionCallCount += 1
+        beforeSetSelectedSortOption?.invoke(option)
+        setSelectedSortOptionResult?.let { return it }
+        selectedSortOption.value = option
+        return Result.success(Unit)
     }
 
     private fun validateCategoryId(categoryId: Long?) {

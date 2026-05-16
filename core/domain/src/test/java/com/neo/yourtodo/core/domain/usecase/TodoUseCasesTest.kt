@@ -3,6 +3,7 @@ package com.neo.yourtodo.core.domain.usecase
 import app.cash.turbine.test
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.model.TodoFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
@@ -110,6 +111,23 @@ class TodoUseCasesTest {
             val result = updateFilterUseCase(TodoFilter.COMPLETED)
             assertThat(result.isSuccess).isTrue()
             assertThat(awaitItem()).isEqualTo(TodoFilter.COMPLETED)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `observe selected sort option and update selected sort option work together`() = runTest {
+        val repository = FakeTodoRepository()
+        val observeSortOptionUseCase = ObserveSelectedTodoSortOptionUseCase(repository)
+        val updateSortOptionUseCase = UpdateSelectedTodoSortOptionUseCase(repository)
+
+        observeSortOptionUseCase().test {
+            assertThat(awaitItem()).isEqualTo(TodoSortOption.DEFAULT)
+
+            val result = updateSortOptionUseCase(TodoSortOption.DUE_DATE)
+            assertThat(result.isSuccess).isTrue()
+            assertThat(awaitItem()).isEqualTo(TodoSortOption.DUE_DATE)
 
             cancelAndIgnoreRemainingEvents()
         }
