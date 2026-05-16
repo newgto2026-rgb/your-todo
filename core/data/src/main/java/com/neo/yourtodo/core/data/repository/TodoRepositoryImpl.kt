@@ -19,9 +19,11 @@ import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSortOption
 import java.time.LocalDate
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 
+@Singleton
 class TodoRepositoryImpl @Inject internal constructor(
     private val todos: TodoLocalTodoStore,
     private val categoryStore: TodoCategoryStore,

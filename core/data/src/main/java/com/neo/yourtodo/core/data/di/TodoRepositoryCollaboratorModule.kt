@@ -1,5 +1,9 @@
 package com.neo.yourtodo.core.data.di
 
+import androidx.room.withTransaction
+import com.neo.yourtodo.core.data.repository.todo.TodoTimeProvider
+import com.neo.yourtodo.core.data.repository.todo.TodoTransactionRunner
+import com.neo.yourtodo.core.database.AppDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,4 +26,17 @@ internal object TodoRepositoryCollaboratorModule {
         ignoreUnknownKeys = true
         explicitNulls = false
     }
+
+    @Provides
+    @Singleton
+    internal fun provideTodoTimeProvider(): TodoTimeProvider =
+        TodoTimeProvider { System.currentTimeMillis() }
+
+    @Provides
+    @Singleton
+    internal fun provideTodoTransactionRunner(database: AppDatabase): TodoTransactionRunner =
+        object : TodoTransactionRunner {
+            override suspend fun <T> runInTransaction(block: suspend () -> T): T =
+                database.withTransaction(block)
+        }
 }

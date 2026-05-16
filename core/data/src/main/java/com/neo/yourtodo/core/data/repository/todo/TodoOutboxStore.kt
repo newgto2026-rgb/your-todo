@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
 @Singleton
 internal class TodoOutboxStore @Inject constructor(
     private val todoOutboxDao: TodoOutboxDao,
+    private val timeProvider: TodoTimeProvider,
     @TodoSyncPayloadJson
     private val json: Json
 ) {
@@ -38,7 +39,7 @@ internal class TodoOutboxStore @Inject constructor(
                 clientId = todo.clientId,
                 type = MUTATION_DELETE,
                 payloadJson = "{}",
-                createdAt = System.currentTimeMillis()
+                createdAt = timeProvider.currentTimeMillis()
             )
         )
     }
@@ -71,7 +72,7 @@ internal class TodoOutboxStore @Inject constructor(
             clientId = todo.clientId,
             type = type,
             payloadJson = json.encodeToString(todo.toSyncPayload()),
-            createdAt = existingOutbox?.createdAt ?: System.currentTimeMillis(),
+            createdAt = existingOutbox?.createdAt ?: timeProvider.currentTimeMillis(),
             retryCount = existingOutbox?.retryCount ?: 0,
             lastError = null
         )
