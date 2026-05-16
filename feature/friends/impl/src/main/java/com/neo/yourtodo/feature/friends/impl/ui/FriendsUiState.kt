@@ -249,5 +249,8 @@ enum class FriendsMessage(@StringRes val messageRes: Int) {
 internal fun Friend.canDirectAssignToFriend(): Boolean =
     directAssignment.canDirectAssignToFriend
 
+internal fun Friend.assignmentModeForNewBundle(): AssignmentMode =
+    if (canDirectAssignToFriend()) AssignmentMode.DIRECT else AssignmentMode.REQUEST
+
 internal fun Friend.isAutoAcceptEnabledForMe(): Boolean =
     directAssignment.canFriendDirectAssignToMe

@@ -49,28 +49,20 @@ class AuthGateViewModel @Inject constructor(
     )
 
     fun signInWithGoogleIdToken(idToken: String) {
-        if (signInInProgress.value) return
-        viewModelScope.launch {
-            signInInProgress.value = true
-            error.value = null
-            val result = signInWithGoogle(idToken)
-            signInInProgress.value = false
-            if (result.isFailure) {
-                error.value = AuthGateError.SERVER_SIGN_IN_FAILED
-            }
+        runAuthMutation(
+            inProgress = signInInProgress,
+            failureError = AuthGateError.SERVER_SIGN_IN_FAILED
+        ) {
+            signInWithGoogle(idToken).map { Unit }
         }
     }
 
     fun completeNicknameOnboarding(nickname: String) {
-        if (nicknameSaveInProgress.value) return
-        viewModelScope.launch {
-            nicknameSaveInProgress.value = true
-            error.value = null
-            val result = completeNicknameOnboardingUseCase(nickname)
-            nicknameSaveInProgress.value = false
-            if (result.isFailure) {
-                error.value = AuthGateError.NICKNAME_ONBOARDING_FAILED
-            }
+        runAuthMutation(
+            inProgress = nicknameSaveInProgress,
+            failureError = AuthGateError.NICKNAME_ONBOARDING_FAILED
+        ) {
+            completeNicknameOnboardingUseCase(nickname).map { Unit }
         }
     }
 
@@ -85,6 +77,23 @@ class AuthGateViewModel @Inject constructor(
     fun signOutForRetry() {
         viewModelScope.launch {
             signOut()
+        }
+    }
+
+    private fun runAuthMutation(
+        inProgress: MutableStateFlow<Boolean>,
+        failureError: AuthGateError,
+        block: suspend () -> Result<Unit>
+    ) {
+        if (inProgress.value) return
+        viewModelScope.launch {
+            inProgress.value = true
+            error.value = null
+            val result = block()
+            inProgress.value = false
+            if (result.isFailure) {
+                error.value = failureError
+            }
         }
     }
 }
