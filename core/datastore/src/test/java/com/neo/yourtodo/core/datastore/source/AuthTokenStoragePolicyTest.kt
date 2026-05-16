@@ -6,6 +6,7 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ACCESS_TOK
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_ACCESS_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_REFRESH_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TOKEN
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class AuthTokenStoragePolicyTest {
@@ -68,6 +69,101 @@ class AuthTokenStoragePolicyTest {
     }
 
     @Test
+    fun readTokensResultFallsBackToLegacyPlaintextAndPreservesEncryptedFailure() {
+        val failingPolicy = AuthTokenStoragePolicy(
+            FakeAuthTokenCipher(decryptFailure = AuthTokenCipherFailure(
+                operation = AuthTokenCipherOperation.DECRYPT,
+                type = AuthTokenCipherFailureType.DECRYPTION,
+                message = "Stored access token could not be decrypted"
+            ))
+        )
+        val preferences = preferencesOf(
+            AUTH_ENCRYPTED_ACCESS_TOKEN to "encrypted:access-token",
+            AUTH_ENCRYPTED_REFRESH_TOKEN to "encrypted:refresh-token",
+            AUTH_ACCESS_TOKEN to "legacy-access-token",
+            AUTH_REFRESH_TOKEN to "legacy-refresh-token"
+        )
+
+        val result = failingPolicy.readTokensResult(preferences)
+
+        assertThat(result).isEqualTo(
+            AuthTokenReadResult.LegacyFallback(
+                tokens = AuthTokenPair(
+                    accessToken = "legacy-access-token",
+                    refreshToken = "legacy-refresh-token"
+                ),
+                encryptedFailure = AuthTokenReadFailure(
+                    field = AuthTokenField.ACCESS,
+                    failure = AuthTokenCipherFailure(
+                        operation = AuthTokenCipherOperation.DECRYPT,
+                        type = AuthTokenCipherFailureType.DECRYPTION,
+                        message = "Stored access token could not be decrypted"
+                    )
+                )
+            )
+        )
+        assertThat(failingPolicy.readTokens(preferences)).isEqualTo(
+            AuthTokenPair(
+                accessToken = "legacy-access-token",
+                refreshToken = "legacy-refresh-token"
+            )
+        )
+    }
+
+    @Test
+    fun readTokensResultReturnsFailureWhenEncryptedTokensCannotDecryptWithoutFallback() {
+        val failingPolicy = AuthTokenStoragePolicy(
+            FakeAuthTokenCipher(decryptFailure = AuthTokenCipherFailure(
+                operation = AuthTokenCipherOperation.DECRYPT,
+                type = AuthTokenCipherFailureType.INVALID_FORMAT,
+                message = "Stored token format is not recognized"
+            ))
+        )
+        val preferences = preferencesOf(
+            AUTH_ENCRYPTED_ACCESS_TOKEN to "not-encrypted",
+            AUTH_ENCRYPTED_REFRESH_TOKEN to "encrypted:refresh-token"
+        )
+
+        assertThat(failingPolicy.readTokensResult(preferences)).isEqualTo(
+            AuthTokenReadResult.Failure(
+                AuthTokenReadFailure(
+                    field = AuthTokenField.ACCESS,
+                    failure = AuthTokenCipherFailure(
+                        operation = AuthTokenCipherOperation.DECRYPT,
+                        type = AuthTokenCipherFailureType.INVALID_FORMAT,
+                        message = "Stored token format is not recognized"
+                    )
+                )
+            )
+        )
+        assertThat(failingPolicy.readTokens(preferences)).isNull()
+    }
+
+    @Test
+    fun saveTokensPropagatesTypedEncryptionFailure() {
+        val failure = AuthTokenCipherFailure(
+            operation = AuthTokenCipherOperation.ENCRYPT,
+            type = AuthTokenCipherFailureType.ENCRYPTION,
+            message = "Auth token encryption failed"
+        )
+        val failingPolicy = AuthTokenStoragePolicy(FakeAuthTokenCipher(encryptFailure = failure))
+        val preferences = preferencesOf().toMutablePreferences()
+
+        val thrown = assertThrows(AuthTokenCipherException::class.java) {
+            failingPolicy.saveTokens(
+                preferences = preferences,
+                tokens = AuthTokenPair(
+                    accessToken = "access-token",
+                    refreshToken = "refresh-token"
+                )
+            )
+        }
+
+        assertThat(thrown.failure).isEqualTo(failure)
+        assertThat(preferences.toPreferences().asMap()).isEmpty()
+    }
+
+    @Test
     fun migrateLegacyPlaintextTokensEncryptsAndClearsPlaintext() {
         val preferences = preferencesOf(
             AUTH_ACCESS_TOKEN to "legacy-access-token",
@@ -84,7 +180,12 @@ class AuthTokenStoragePolicyTest {
 
     @Test
     fun migrateLegacyPlaintextTokensKeepsLegacyWhenEncryptionFails() {
-        val failingPolicy = AuthTokenStoragePolicy(FakeAuthTokenCipher(failEncrypt = true))
+        val failure = AuthTokenCipherFailure(
+            operation = AuthTokenCipherOperation.ENCRYPT,
+            type = AuthTokenCipherFailureType.ENCRYPTION,
+            message = "Auth token encryption failed"
+        )
+        val failingPolicy = AuthTokenStoragePolicy(FakeAuthTokenCipher(encryptFailure = failure))
         val preferences = preferencesOf(
             AUTH_ACCESS_TOKEN to "legacy-access-token",
             AUTH_REFRESH_TOKEN to "legacy-refresh-token"
@@ -96,6 +197,29 @@ class AuthTokenStoragePolicyTest {
         assertThat(migrated[AUTH_REFRESH_TOKEN]).isEqualTo("legacy-refresh-token")
         assertThat(migrated[AUTH_ENCRYPTED_ACCESS_TOKEN]).isNull()
         assertThat(migrated[AUTH_ENCRYPTED_REFRESH_TOKEN]).isNull()
+    }
+
+    @Test
+    fun migrateLegacyPlaintextTokensResultPreservesEncryptionFailure() {
+        val failure = AuthTokenCipherFailure(
+            operation = AuthTokenCipherOperation.ENCRYPT,
+            type = AuthTokenCipherFailureType.KEY_GENERATION,
+            message = "Android Keystore key generation failed for auth token storage"
+        )
+        val failingPolicy = AuthTokenStoragePolicy(FakeAuthTokenCipher(encryptFailure = failure))
+        val preferences = preferencesOf(
+            AUTH_ACCESS_TOKEN to "legacy-access-token",
+            AUTH_REFRESH_TOKEN to "legacy-refresh-token"
+        )
+
+        val result = failingPolicy.migrateLegacyPlaintextTokensResult(preferences)
+
+        assertThat(result).isEqualTo(
+            AuthTokenMigrationResult(
+                preferences = preferences,
+                failure = failure
+            )
+        )
     }
 
     @Test
@@ -117,14 +241,28 @@ class AuthTokenStoragePolicyTest {
     }
 
     private class FakeAuthTokenCipher(
-        private val failEncrypt: Boolean = false
+        private val encryptFailure: AuthTokenCipherFailure? = null,
+        private val decryptFailure: AuthTokenCipherFailure? = null
     ) : AuthTokenCipher {
         override fun encrypt(plainText: String): String {
-            if (failEncrypt) error("Encryption failed")
+            encryptFailure?.let { throw AuthTokenCipherException(it) }
             return "encrypted:$plainText"
         }
 
-        override fun decrypt(cipherText: String): String? =
-            cipherText.removePrefix("encrypted:").takeIf { it != cipherText }
+        override fun decrypt(cipherText: String): AuthTokenDecryptResult {
+            decryptFailure?.let { return AuthTokenDecryptResult.Failure(it) }
+            val plainText = cipherText.removePrefix("encrypted:").takeIf { it != cipherText }
+            return if (plainText == null) {
+                AuthTokenDecryptResult.Failure(
+                    AuthTokenCipherFailure(
+                        operation = AuthTokenCipherOperation.DECRYPT,
+                        type = AuthTokenCipherFailureType.INVALID_FORMAT,
+                        message = "Stored token format is not recognized"
+                    )
+                )
+            } else {
+                AuthTokenDecryptResult.Success(plainText)
+            }
+        }
     }
 }

@@ -25,7 +25,9 @@ class AndroidKeyStoreAuthTokenCipherTest {
 
         val encrypted = cipher.encrypt("refresh-token")
 
-        assertThat(cipher.decrypt(encrypted)).isEqualTo("refresh-token")
+        assertThat(cipher.decrypt(encrypted)).isEqualTo(
+            AuthTokenDecryptResult.Success("refresh-token")
+        )
         assertThat(keyStore.getSecretKeyCalls).isEqualTo(1)
         assertThat(keyStore.clearKeyCalls).isEqualTo(1)
         assertThat(keyGenerator.generateCalls).isEqualTo(1)
@@ -45,7 +47,9 @@ class AndroidKeyStoreAuthTokenCipherTest {
 
         val encrypted = cipher.encrypt("access-token")
 
-        assertThat(cipher.decrypt(encrypted)).isEqualTo("access-token")
+        assertThat(cipher.decrypt(encrypted)).isEqualTo(
+            AuthTokenDecryptResult.Success("access-token")
+        )
         cipher.encrypt("next-token")
 
         assertThat(keyStore.getSecretKeyCalls).isEqualTo(1)
@@ -54,7 +58,7 @@ class AndroidKeyStoreAuthTokenCipherTest {
     }
 
     @Test
-    fun decryptReturnsNullWhenKeyStoreLookupThrowsRecoverablePlatformFailure() {
+    fun decryptReturnsTypedFailureWhenKeyStoreLookupThrowsRecoverablePlatformFailure() {
         val recoverableFailures = listOf(
             IOException("AndroidKeyStore load failed"),
             ProviderException("AndroidKeyStore provider unavailable")
@@ -72,11 +76,56 @@ class AndroidKeyStoreAuthTokenCipherTest {
             val keyGenerator = FakeAuthSecretKeyGenerator(secretKey(seed = 20 + index))
             val cipher = createCipher(keyStore, keyGenerator)
 
-            assertThat(cipher.decrypt(encryptedWithOldKey)).isNull()
+            assertThat(cipher.decrypt(encryptedWithOldKey)).isEqualTo(
+                AuthTokenDecryptResult.Failure(
+                    AuthTokenCipherFailure(
+                        operation = AuthTokenCipherOperation.KEY_LOOKUP,
+                        type = AuthTokenCipherFailureType.KEY_LOOKUP,
+                        message = "Android Keystore key lookup failed for auth token storage",
+                        cause = failure
+                    )
+                )
+            )
             assertThat(keyStore.getSecretKeyCalls).isEqualTo(1)
             assertThat(keyStore.clearKeyCalls).isEqualTo(1)
             assertThat(keyGenerator.generateCalls).isEqualTo(1)
         }
+    }
+
+    @Test
+    fun decryptReturnsTypedFailureWhenCipherTextFormatIsInvalid() {
+        val cipher = createCipher(
+            keyStore = FakeAuthSecretKeyStore(storedKey = secretKey(seed = 4)),
+            keyGenerator = FakeAuthSecretKeyGenerator(generatedKey = null)
+        )
+
+        assertThat(cipher.decrypt("not-an-auth-token")).isEqualTo(
+            AuthTokenDecryptResult.Failure(
+                AuthTokenCipherFailure(
+                    operation = AuthTokenCipherOperation.DECRYPT,
+                    type = AuthTokenCipherFailureType.INVALID_FORMAT,
+                    message = "Stored auth token does not match the encrypted token format"
+                )
+            )
+        )
+    }
+
+    @Test
+    fun encryptWrapsCipherFailureWithTypedException() {
+        val keyStore = FakeAuthSecretKeyStore(storedKey = secretKey(seed = 5))
+        val cipher = createCipher(
+            keyStore = keyStore,
+            keyGenerator = FakeAuthSecretKeyGenerator(generatedKey = null),
+            base64Codec = FailingBase64Codec
+        )
+
+        val thrown = assertThrows(AuthTokenCipherException::class.java) {
+            cipher.encrypt("access-token")
+        }
+
+        assertThat(thrown.failure.operation).isEqualTo(AuthTokenCipherOperation.ENCRYPT)
+        assertThat(thrown.failure.type).isEqualTo(AuthTokenCipherFailureType.ENCODING)
+        assertThat(thrown.failure.message).isEqualTo("Auth token encryption output could not be encoded")
     }
 
     @Test
@@ -97,12 +146,13 @@ class AndroidKeyStoreAuthTokenCipherTest {
 
     private fun createCipher(
         keyStore: AuthSecretKeyStore,
-        keyGenerator: AuthSecretKeyGenerator
+        keyGenerator: AuthSecretKeyGenerator,
+        base64Codec: AuthTokenBase64Codec = JavaBase64Codec
     ): AndroidKeyStoreAuthTokenCipher =
         AndroidKeyStoreAuthTokenCipher(
             secretKeyStore = keyStore,
             secretKeyGenerator = keyGenerator,
-            base64Codec = JavaBase64Codec
+            base64Codec = base64Codec
         )
 
     private fun secretKey(seed: Int): SecretKey =
@@ -148,6 +198,15 @@ class AndroidKeyStoreAuthTokenCipherTest {
 
         override fun decode(encoded: String): ByteArray =
             Base64.getDecoder().decode(encoded)
+    }
+
+    private object FailingBase64Codec : AuthTokenBase64Codec {
+        override fun encode(bytes: ByteArray): String {
+            throw IllegalArgumentException("Encoding failed")
+        }
+
+        override fun decode(encoded: String): ByteArray =
+            error("Not used")
     }
 
     private companion object {
