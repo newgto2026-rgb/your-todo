@@ -21,6 +21,7 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.model.TodoSyncStatus
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.sync.NetworkTodo
@@ -285,6 +286,15 @@ class TodoRepositoryImpl @Inject constructor(
         userPreferencesDataSource.setSelectedTodoPriorityFilter(filter)
     }.onFailure { throwable ->
         logError("setSelectedPriorityFilter", throwable)
+    }
+
+    override fun observeSelectedSortOption(): Flow<TodoSortOption> =
+        userPreferencesDataSource.selectedTodoSortOption
+
+    override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> = runCatching {
+        userPreferencesDataSource.setSelectedTodoSortOption(option)
+    }.onFailure { throwable ->
+        logError("setSelectedSortOption", throwable)
     }
 
     private suspend fun validateCategoryId(categoryId: Long?) {

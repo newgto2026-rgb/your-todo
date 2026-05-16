@@ -89,6 +89,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
+import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.ui.TodoItemRow
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState

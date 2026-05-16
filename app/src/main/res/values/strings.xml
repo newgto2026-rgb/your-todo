@@ -8,6 +8,7 @@
     <string name="tab_friends">Friends</string>
     <string name="app_sync_success">Sync completed.</string>
     <string name="app_sync_failed">Sync was partially completed.</string>
+    <string name="app_exit_confirmation">Exit app? Press Back again to close.</string>
     <string name="profile_menu_title">Account</string>
     <string name="profile_menu_close">Close profile menu</string>
     <string name="profile_menu_nickname_missing">Nickname required</string>

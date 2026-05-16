@@ -5,6 +5,7 @@ import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.components.SingletonComponent
@@ -30,6 +31,7 @@ private class InMemoryUserPreferencesDataSource : UserPreferencesDataSource {
     private val selectedFilter = MutableStateFlow(TodoFilter.ALL)
     private val selectedCategoryFilter = MutableStateFlow<Long?>(null)
     private val selectedPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private val selectedSortOption = MutableStateFlow(TodoSortOption.DEFAULT)
     private val todoSyncCursorFlow = MutableStateFlow<String?>(null)
     private val todoSyncHaltReasonFlow = MutableStateFlow<String?>(null)
 
@@ -37,6 +39,7 @@ private class InMemoryUserPreferencesDataSource : UserPreferencesDataSource {
     override val selectedTodoFilter: Flow<TodoFilter> = selectedFilter
     override val selectedTodoCategoryFilter: Flow<Long?> = selectedCategoryFilter
     override val selectedTodoPriorityFilter: Flow<TodoPriorityFilter> = selectedPriorityFilter
+    override val selectedTodoSortOption: Flow<TodoSortOption> = selectedSortOption
     override val todoSyncCursor: Flow<String?> = todoSyncCursorFlow
     override val todoSyncHaltReason: Flow<String?> = todoSyncHaltReasonFlow
 
@@ -59,6 +62,10 @@ private class InMemoryUserPreferencesDataSource : UserPreferencesDataSource {
 
     override suspend fun setSelectedTodoPriorityFilter(filter: TodoPriorityFilter) {
         selectedPriorityFilter.value = filter
+    }
+
+    override suspend fun setSelectedTodoSortOption(option: TodoSortOption) {
+        selectedSortOption.value = option
     }
 
     override suspend fun setTodoSyncCursor(cursor: String?) {

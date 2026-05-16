@@ -10,6 +10,7 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,7 @@ class FakeTodoRepository :
     private val selectedFilter = MutableStateFlow(TodoFilter.ALL)
     private val selectedCategoryFilter = MutableStateFlow<Long?>(null)
     private val selectedPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private val selectedSortOption = MutableStateFlow(TodoSortOption.DEFAULT)
     private var idSeed = 1L
     private var categoryIdSeed = 1L
     var syncCount: Int = 0
@@ -209,6 +211,13 @@ class FakeTodoRepository :
 
     override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> = runCatching {
         selectedPriorityFilter.value = filter
+    }
+
+    override fun observeSelectedSortOption(): Flow<TodoSortOption> =
+        selectedSortOption.asStateFlow()
+
+    override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> = runCatching {
+        selectedSortOption.value = option
     }
 
     private fun validateCategoryId(categoryId: Long?) {

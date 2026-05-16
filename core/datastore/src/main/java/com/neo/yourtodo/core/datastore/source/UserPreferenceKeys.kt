@@ -15,6 +15,7 @@ internal object UserPreferenceKeys {
     val SELECTED_TODO_FILTER = stringPreferencesKey("selected_todo_filter")
     val SELECTED_TODO_CATEGORY_FILTER = longPreferencesKey("selected_todo_category_filter")
     val SELECTED_TODO_PRIORITY_FILTER = stringPreferencesKey("selected_todo_priority_filter")
+    val SELECTED_TODO_SORT_OPTION = stringPreferencesKey("selected_todo_sort_option")
     val TODO_SYNC_CURSOR = stringPreferencesKey("todo_sync_cursor")
     val TODO_SYNC_HALT_REASON = stringPreferencesKey("todo_sync_halt_reason")
     val PUSH_CURRENT_TOKEN = stringPreferencesKey("push_current_token")

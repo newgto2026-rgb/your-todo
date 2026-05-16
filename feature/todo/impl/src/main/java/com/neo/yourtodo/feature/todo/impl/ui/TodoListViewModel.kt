@@ -10,15 +10,19 @@ import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveSelectedTodoPriorityFilterUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveSelectedTodoSortOptionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
+import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoSortOptionUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -47,7 +51,10 @@ class TodoListViewModel @Inject constructor(
     private val syncTodosUseCase: SyncTodosUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
+    observeSelectedTodoPriorityFilterUseCase: ObserveSelectedTodoPriorityFilterUseCase,
     private val updateSelectedTodoPriorityFilterUseCase: UpdateSelectedTodoPriorityFilterUseCase,
+    observeSelectedTodoSortOptionUseCase: ObserveSelectedTodoSortOptionUseCase,
+    private val updateSelectedTodoSortOptionUseCase: UpdateSelectedTodoSortOptionUseCase,
     private val getTodoUseCase: GetTodoUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
     private val calendarWidgetUpdater: CalendarWidgetUpdater
@@ -57,7 +64,27 @@ class TodoListViewModel @Inject constructor(
     private val sideEffectMutable = MutableSharedFlow<TodoListSideEffect>()
     private val todoItems = observeTodosUseCase()
     private val authSession = observeAuthSessionUseCase()
-    private val localPriorityFilter = MutableStateFlow(TodoPriorityFilter.ALL)
+    private val selectedPriorityFilter = observeSelectedTodoPriorityFilterUseCase()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = TodoPriorityFilter.ALL
+        )
+    private val selectedSortOption = observeSelectedTodoSortOptionUseCase()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = TodoSortOption.DEFAULT
+        )
+    private val selectedPreferences = combine(
+        selectedPriorityFilter,
+        selectedSortOption
+    ) { priorityFilter, sortOption ->
+        SelectedTodoListPreferences(
+            priorityFilter = priorityFilter,
+            sortOption = sortOption
+        )
+    }
     private val receivedAssignedTodos = getAssignedTodosUseCase.observeVisibleReceived()
         .stateIn(
             scope = viewModelScope,
@@ -73,15 +100,15 @@ class TodoListViewModel @Inject constructor(
         todoItems,
         receivedAssignedTodos,
         authSession,
-        localPriorityFilter,
+        selectedPreferences,
         uiLocalState
-    ) { items, assignedItems, session, localPriorityFilter, localState ->
+    ) { items, assignedItems, session, selectedPreferences, localState ->
         buildTodoListUiState(
-            localState = localState,
+            localState = localState.copy(selectedSortOption = selectedPreferences.sortOption),
             items = items,
             assignedItems = assignedItems,
             selectedFilter = localState.selectedFilter,
-            selectedPriorityFilter = localPriorityFilter,
+            selectedPriorityFilter = selectedPreferences.priorityFilter,
             profileInitial = session?.user?.nickname
         )
     }.stateIn(
@@ -693,12 +720,9 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun updatePriorityFilter(filter: TodoPriorityFilter) {
-        val previousFilter = uiState.value.selectedPriorityFilter
-        localPriorityFilter.value = filter
         viewModelScope.launch {
             updateSelectedTodoPriorityFilterUseCase(filter)
                 .onFailure {
-                    localPriorityFilter.value = previousFilter
                     sideEffectMutable.emit(
                         TodoListSideEffect.ShowSnackbar(
                             R.string.todo_error_priority_filter_change_failed
@@ -711,17 +735,19 @@ class TodoListViewModel @Inject constructor(
     private fun updateSortOption(option: TodoSortOption) {
         if (uiState.value.selectedSortOption == option) return
 
-        localPriorityFilter.value = TodoPriorityFilter.ALL
-        updateLocalState { copy(selectedSortOption = option) }
         viewModelScope.launch {
-            updateSelectedTodoPriorityFilterUseCase(TodoPriorityFilter.ALL)
-                .onFailure {
-                    sideEffectMutable.emit(
-                        TodoListSideEffect.ShowSnackbar(
-                            R.string.todo_error_priority_filter_change_failed
-                        )
+            val sortResult = updateSelectedTodoSortOptionUseCase(option)
+            val priorityResult = updateSelectedTodoPriorityFilterUseCase(TodoPriorityFilter.ALL)
+            when {
+                sortResult.isFailure -> sideEffectMutable.emit(
+                    TodoListSideEffect.ShowSnackbar(R.string.todo_error_sort_change_failed)
+                )
+                priorityResult.isFailure -> sideEffectMutable.emit(
+                    TodoListSideEffect.ShowSnackbar(
+                        R.string.todo_error_priority_filter_change_failed
                     )
-                }
+                )
+            }
         }
     }
 
@@ -801,5 +827,10 @@ internal fun List<AssignedTodo>.replaceAssignedTodo(updated: AssignedTodo): List
     } else {
         this + updated
     }
+
+private data class SelectedTodoListPreferences(
+    val priorityFilter: TodoPriorityFilter,
+    val sortOption: TodoSortOption
+)
 
 private const val ForegroundSyncIntervalMillis = 15_000L

@@ -1,6 +1,7 @@
 package com.neo.yourtodo.app
 
 import com.neo.yourtodo.feature.calendar.api.CalendarRoute
+import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.feature.todo.api.TodoAllRoute
 import com.neo.yourtodo.feature.todo.api.TodoCompletedRoute
 import com.neo.yourtodo.feature.todo.api.TodoTodayRoute
@@ -26,6 +27,16 @@ class AppTabDestinationTest {
             .isEqualTo(AppTabDestination.COMPLETED)
         assertThat(AppTabDestination.fromRoute(CalendarRoute))
             .isEqualTo(AppTabDestination.CALENDAR)
+    }
+
+    @Test
+    fun fromTodoFilter_returnsExpectedTodoTabs() {
+        assertThat(AppTabDestination.fromTodoFilter(TodoFilter.ALL))
+            .isEqualTo(AppTabDestination.ALL)
+        assertThat(AppTabDestination.fromTodoFilter(TodoFilter.TODAY))
+            .isEqualTo(AppTabDestination.TODAY)
+        assertThat(AppTabDestination.fromTodoFilter(TodoFilter.COMPLETED))
+            .isEqualTo(AppTabDestination.COMPLETED)
     }
 
     @Test

@@ -14,10 +14,12 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.PUSH_REGISTERED
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_CATEGORY_FILTER
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_FILTER
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_PRIORITY_FILTER
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_SORT_OPTION
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.TODO_SYNC_CURSOR
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.TODO_SYNC_HALT_REASON
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -65,6 +67,13 @@ class UserPreferencesDataSourceImpl @Inject constructor(
             val stored = prefs[SELECTED_TODO_PRIORITY_FILTER]
             stored?.let { value -> TodoPriorityFilter.entries.find { it.name == value } }
                 ?: TodoPriorityFilter.ALL
+        }
+
+    override val selectedTodoSortOption: Flow<TodoSortOption> =
+        dataStore.data.map { prefs ->
+            val stored = prefs[SELECTED_TODO_SORT_OPTION]
+            stored?.let { value -> TodoSortOption.entries.find { it.name == value } }
+                ?: TodoSortOption.DEFAULT
         }
 
     override val todoSyncCursor: Flow<String?> =
@@ -124,6 +133,12 @@ class UserPreferencesDataSourceImpl @Inject constructor(
     override suspend fun setSelectedTodoPriorityFilter(filter: TodoPriorityFilter) {
         dataStore.edit { prefs ->
             prefs[SELECTED_TODO_PRIORITY_FILTER] = filter.name
+        }
+    }
+
+    override suspend fun setSelectedTodoSortOption(option: TodoSortOption) {
+        dataStore.edit { prefs ->
+            prefs[SELECTED_TODO_SORT_OPTION] = option.name
         }
     }
 

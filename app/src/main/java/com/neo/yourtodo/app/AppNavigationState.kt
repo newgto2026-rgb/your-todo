@@ -123,11 +123,7 @@ class AppNavigationState(
                 "Top-level route $route is not registered: $topLevelRoutes"
             }
             topLevelStack.apply {
-                if (route == startRoute) {
-                    clear()
-                } else {
-                    remove(route)
-                }
+                clear()
                 add(route)
             }
         }

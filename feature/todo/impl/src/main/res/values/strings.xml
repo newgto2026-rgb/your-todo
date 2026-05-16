@@ -130,6 +130,7 @@
     <string name="todo_error_toggle_done_failed">Failed to change completion status.</string>
     <string name="todo_error_delete_failed">Failed to delete.</string>
     <string name="todo_error_priority_filter_change_failed">Failed to change priority filter.</string>
+    <string name="todo_error_sort_change_failed">Failed to change sort order.</string>
     <string name="todo_error_reschedule_failed">Failed to reschedule.</string>
     <string name="todo_error_undo_failed">Failed to undo.</string>
 </resources>

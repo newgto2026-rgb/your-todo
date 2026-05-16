@@ -25,6 +25,7 @@ import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
+import com.neo.yourtodo.core.model.TodoSortOption
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import java.time.LocalDate
@@ -77,6 +78,7 @@ class CalendarUiTest {
             userPreferencesDataSource.setSelectedTodoFilter(TodoFilter.ALL)
             userPreferencesDataSource.setSelectedTodoCategoryFilter(null)
             userPreferencesDataSource.setSelectedTodoPriorityFilter(TodoPriorityFilter.ALL)
+            userPreferencesDataSource.setSelectedTodoSortOption(TodoSortOption.DEFAULT)
 
             todayTodoId = addTodoUseCase(
                 title = "Calendar UI - today",
