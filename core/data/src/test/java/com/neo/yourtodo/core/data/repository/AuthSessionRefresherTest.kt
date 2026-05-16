@@ -26,7 +26,7 @@ class AuthSessionRefresherTest {
     fun refreshStoresNewSession() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
         val network = FakeAuthNetworkDataSource()
-        val refresher = AuthSessionRefresher(prefs, network)
+        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
 
         val refreshed = refresher.refresh("old-refresh")
 
@@ -39,7 +39,7 @@ class AuthSessionRefresherTest {
     fun refreshReturnsCurrentSessionWithoutNetworkWhenAnotherCallerAlreadyRotatedToken() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "new-refresh"))
         val network = FakeAuthNetworkDataSource()
-        val refresher = AuthSessionRefresher(prefs, network)
+        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
 
         val refreshed = refresher.refresh("old-refresh")
 
@@ -51,7 +51,7 @@ class AuthSessionRefresherTest {
     fun refreshReturnsNullWithoutNetworkWhenAnotherCallerAlreadyClearedSession() = runTest {
         val prefs = FakePreferencesDataSource(session = null)
         val network = FakeAuthNetworkDataSource()
-        val refresher = AuthSessionRefresher(prefs, network)
+        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
 
         val refreshed = refresher.refresh("old-refresh")
 
@@ -88,7 +88,7 @@ class AuthSessionRefresherTest {
     fun refreshCancellationKeepsSessionAndRethrows() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
         val network = FakeAuthNetworkDataSource(refreshException = CancellationException("Cancelled"))
-        val refresher = AuthSessionRefresher(prefs, network)
+        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
 
         var cancellationThrown = false
         try {

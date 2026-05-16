@@ -11,7 +11,6 @@ import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentState
 import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
 import com.neo.yourtodo.core.network.assignments.NetworkDirectAssignmentConsentSummary
-import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.friends.FriendAuthRequiredException
 import com.neo.yourtodo.core.network.friends.FriendNetworkDataSource
 import com.neo.yourtodo.core.network.friends.NetworkFriend
@@ -30,11 +29,8 @@ import javax.inject.Inject
 class FriendRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val friendNetworkDataSource: FriendNetworkDataSource,
-    authNetworkDataSource: AuthNetworkDataSource,
-    private val authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource),
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
-        AssignmentFeedFreshnessTracker()
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
+    private val authSessionRefresher: AuthSessionRefresher
 ) : FriendRepository {
     override suspend fun getFriends(): Result<List<Friend>> =
         onlineOnlyAuthenticatedRequest { accessToken ->

@@ -44,12 +44,12 @@ import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentItem
 import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsRequest
 import com.neo.yourtodo.core.network.assignments.NetworkSetDirectAssignmentOptInRequest
 import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
-import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import java.time.Instant
 import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -64,11 +64,8 @@ class AssignmentRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val assignmentNetworkDataSource: AssignmentNetworkDataSource,
     private val assignedTodoDao: AssignedTodoDao,
-    authNetworkDataSource: AuthNetworkDataSource,
-    private val authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource),
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
-        AssignmentFeedFreshnessTracker()
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
+    private val authSessionRefresher: AuthSessionRefresher
 ) : AssignmentRepository {
     override suspend fun createBundle(
         receiverUserId: String,
@@ -545,6 +542,8 @@ class AssignmentRepositoryImpl @Inject constructor(
                     authRequired()
                 }
             }
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
         }
 
     private suspend fun currentSession() =

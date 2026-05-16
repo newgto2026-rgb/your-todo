@@ -50,6 +50,7 @@ import com.neo.yourtodo.core.network.auth.NetworkAuthUser
 import com.neo.yourtodo.core.network.auth.NetworkAuthUserResponse
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.Flow
@@ -241,6 +242,40 @@ class AssignmentRepositoryImplTest {
         assertThat(result.exceptionOrNull()).isInstanceOf(AuthRequiredException::class.java)
         assertThat(authNetwork.lastRefreshToken).isEqualTo("refresh-token")
         assertThat(prefs.authSession.first()).isNull()
+    }
+
+    @Test
+    fun requestRethrowsCancellationAndKeepsFeedFreshness() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val tracker = AssignmentFeedFreshnessTracker()
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+        tracker.recordRefresh(
+            ownerUserId = "user-id",
+            feed = feed,
+            refreshedAt = 123L
+        )
+        val network = FakeAssignmentNetworkDataSource().apply {
+            receivedException = CancellationException("cancelled")
+        }
+        val repository = repository(
+            prefs = prefs,
+            network = network,
+            assignmentFeedFreshnessTracker = tracker
+        )
+
+        var cancellationThrown = false
+        try {
+            repository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE)
+        } catch (_: CancellationException) {
+            cancellationThrown = true
+        }
+
+        assertThat(cancellationThrown).isTrue()
+        assertThat(tracker.observeRefreshTime("user-id", feed).first()).isEqualTo(123L)
+        assertThat(prefs.authSession.first()).isNotNull()
     }
 
     @Test
@@ -472,8 +507,12 @@ class AssignmentRepositoryImplTest {
         userPreferencesDataSource = prefs,
         assignmentNetworkDataSource = network,
         assignedTodoDao = assignedTodoDao,
-        authNetworkDataSource = authNetwork,
-        assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker
+        assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
+        authSessionRefresher = AuthSessionRefresher(
+            prefs,
+            authNetwork,
+            assignmentFeedFreshnessTracker
+        )
     )
 
     private fun authSession(
@@ -874,6 +913,7 @@ class AssignmentRepositoryImplTest {
         var mutationItem: NetworkAssignedTodoMutationItem? = null
         var bundleItem: NetworkAssignedTodo? = null
         var receivedItems: List<NetworkAssignedTodo> = listOf(networkTodo())
+        var receivedException: Throwable? = null
         val directAssignmentOptInRequests = mutableListOf<Pair<String, Boolean>>()
 
         override suspend fun createBundle(
@@ -892,6 +932,7 @@ class AssignmentRepositoryImplTest {
             status: String
         ): NetworkAssignedTodosResponse {
             receivedTokens += accessToken
+            receivedException?.let { throw it }
             failAuthIfNeeded()
             lastReceivedStatus = status
             return NetworkAssignedTodosResponse(items = receivedItems)

@@ -155,11 +155,17 @@ class FriendRepositoryImplTest {
     private fun repository(
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeFriendNetworkDataSource = FakeFriendNetworkDataSource(),
-        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource()
+        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
+        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
     ) = FriendRepositoryImpl(
         userPreferencesDataSource = prefs,
         friendNetworkDataSource = network,
-        authNetworkDataSource = authNetwork
+        assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
+        authSessionRefresher = AuthSessionRefresher(
+            prefs,
+            authNetwork,
+            assignmentFeedFreshnessTracker
+        )
     )
 
     private fun authSession(

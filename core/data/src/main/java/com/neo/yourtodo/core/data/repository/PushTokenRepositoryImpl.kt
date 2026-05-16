@@ -4,7 +4,6 @@ import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.repository.PushTokenRepository
-import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.push.NetworkDeletePushTokenRequest
 import com.neo.yourtodo.core.network.push.NetworkPushTokenRequest
 import com.neo.yourtodo.core.network.push.PushAuthRequiredException
@@ -15,11 +14,8 @@ import kotlinx.coroutines.flow.first
 class PushTokenRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val pushNetworkDataSource: PushNetworkDataSource,
-    authNetworkDataSource: AuthNetworkDataSource,
-    private val authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource),
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
-        AssignmentFeedFreshnessTracker()
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
+    private val authSessionRefresher: AuthSessionRefresher
 ) : PushTokenRepository {
     override suspend fun saveCurrentToken(token: String): Result<Unit> =
         runCatching {

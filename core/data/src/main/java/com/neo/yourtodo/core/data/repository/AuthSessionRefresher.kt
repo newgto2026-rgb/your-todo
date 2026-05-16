@@ -15,8 +15,7 @@ import kotlinx.coroutines.sync.withLock
 class AuthSessionRefresher @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val authNetworkDataSource: AuthNetworkDataSource,
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
-        AssignmentFeedFreshnessTracker()
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker
 ) {
     private val refreshMutex = Mutex()
 

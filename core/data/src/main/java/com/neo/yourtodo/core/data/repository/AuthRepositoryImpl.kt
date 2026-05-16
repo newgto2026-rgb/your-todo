@@ -21,8 +21,7 @@ class AuthRepositoryImpl @Inject constructor(
     private val todoDao: TodoDao,
     private val todoOutboxDao: TodoOutboxDao,
     private val assignedTodoDao: AssignedTodoDao,
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
-        AssignmentFeedFreshnessTracker()
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker
 ) : AuthRepository {
 
     override val authSession: Flow<AuthSession?> =
