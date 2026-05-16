@@ -28,6 +28,8 @@ class NetworkTodoSyncModelsTest {
                   "dueDate": "2026-05-08",
                   "status": "DELETED",
                   "priority": "HIGH",
+                  "categoryId": 42,
+                  "dueTimeMinutes": 870,
                   "revision": "12",
                   "createdAt": "2026-05-08T00:00:00.000Z",
                   "updatedAt": "2026-05-08T00:00:01.000Z",
@@ -44,6 +46,8 @@ class NetworkTodoSyncModelsTest {
         assertThat(response.todos.single().revision).isEqualTo("12")
         assertThat(response.todos.single().status).isEqualTo("DELETED")
         assertThat(response.todos.single().priority).isEqualTo("HIGH")
+        assertThat(response.todos.single().categoryId).isEqualTo(42L)
+        assertThat(response.todos.single().dueTimeMinutes).isEqualTo(870)
         assertThat(response.todos.single().deletedAt).isEqualTo("2026-05-08T00:00:02.000Z")
     }
 
@@ -137,7 +141,9 @@ class NetworkTodoSyncModelsTest {
                             description = null,
                             dueDate = null,
                             status = "ACTIVE",
-                            priority = "HIGH"
+                            priority = "HIGH",
+                            categoryId = 42L,
+                            dueTimeMinutes = 870
                         )
                     )
                 )
@@ -147,6 +153,8 @@ class NetworkTodoSyncModelsTest {
         assertThat(requestJson).contains("\"description\":null")
         assertThat(requestJson).contains("\"dueDate\":null")
         assertThat(requestJson).contains("\"priority\":\"HIGH\"")
+        assertThat(requestJson).contains("\"categoryId\":42")
+        assertThat(requestJson).contains("\"dueTimeMinutes\":870")
     }
 
     @Test
@@ -165,7 +173,9 @@ class NetworkTodoSyncModelsTest {
                             description = null,
                             dueDate = "2026-05-10",
                             status = "COMPLETED",
-                            priority = "LOW"
+                            priority = "LOW",
+                            categoryId = 42L,
+                            dueTimeMinutes = 870
                         )
                     )
                 )
@@ -209,12 +219,12 @@ class NetworkTodoSyncModelsTest {
             "description",
             "dueDate",
             "status",
-            "priority"
+            "priority",
+            "categoryId",
+            "dueTimeMinutes"
         )
 
         val ANDROID_LOCAL_ONLY_TODO_FIELDS = listOf(
-            "categoryId",
-            "dueTimeMinutes",
             "reminderAtEpochMillis",
             "isReminderEnabled",
             "reminderRepeatType",

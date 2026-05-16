@@ -18,6 +18,7 @@ import com.neo.yourtodo.core.data.repository.todo.TodoTimeProvider
 import com.neo.yourtodo.core.data.repository.todo.TodoTransactionRunner
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
+import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoCategoryFilter
@@ -339,11 +340,13 @@ class TodoRepositoryImplTest {
             transactionRunner = transactionRunner,
             timeProvider = timeProvider
         )
+        val categoryId = repository.addCategory("Work", "#112233", "briefcase").getOrThrow()
 
         val id = repository.addTodo(
             title = "sync me",
             dueDate = LocalDate.of(2026, 5, 10),
-            categoryId = null,
+            categoryId = categoryId,
+            dueTimeMinutes = 9 * 60 + 30,
             priority = TodoPriority.HIGH
         ).getOrThrow()
 
@@ -353,11 +356,15 @@ class TodoRepositoryImplTest {
         assertThat(saved.clientId).isNotNull()
         assertThat(saved.createdAt).isEqualTo(123_456L)
         assertThat(saved.updatedAt).isEqualTo(123_456L)
+        assertThat(saved.categoryId).isEqualTo(categoryId)
+        assertThat(saved.dueTimeMinutes).isEqualTo(9 * 60 + 30)
         assertThat(outboxDao.items).hasSize(1)
         assertThat(outboxDao.items.single().type).isEqualTo("CREATE")
         assertThat(outboxDao.items.single().createdAt).isEqualTo(123_456L)
         assertThat(outboxDao.items.single().payloadJson).contains("sync me")
         assertThat(outboxDao.items.single().payloadJson).contains("\"priority\":\"HIGH\"")
+        assertThat(outboxDao.items.single().payloadJson).contains("\"categoryId\":$categoryId")
+        assertThat(outboxDao.items.single().payloadJson).contains("\"dueTimeMinutes\":570")
         assertThat(transactionRunner.transactionCount).isEqualTo(1)
     }
 
@@ -662,7 +669,7 @@ class TodoRepositoryImplTest {
     }
 
     @Test
-    fun `sync legacy outbox without priority uses local priority`() = runTest {
+    fun `sync legacy outbox without extended fields uses local sync values`() = runTest {
         val todoDao = FakeTodoDao()
         val outboxDao = FakeTodoOutboxDao()
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
@@ -677,7 +684,8 @@ class TodoRepositoryImplTest {
                 dueDateEpochDay = null,
                 createdAt = 1L,
                 updatedAt = 1L,
-                categoryId = null,
+                categoryId = 42L,
+                dueTimeMinutes = 870,
                 priority = TodoPriority.HIGH.name,
                 clientId = clientId,
                 ownerUserId = "user-id",
@@ -712,13 +720,16 @@ class TodoRepositoryImplTest {
         assertThat(result.isSuccess).isTrue()
         assertThat(todoDao.getTodosByIdsRequests).containsExactly(listOf(10L))
         assertThat(todoDao.getTodoByIdCallCount).isEqualTo(0)
-        assertThat(network.lastPushRequest?.mutations?.single()?.payload?.priority).isEqualTo("HIGH")
+        val payload = network.lastPushRequest?.mutations?.single()?.payload
+        assertThat(payload?.priority).isEqualTo("HIGH")
+        assertThat(payload?.categoryId).isEqualTo(42L)
+        assertThat(payload?.dueTimeMinutes).isEqualTo(870)
         assertThat(todoDao.getTodoById(10L)?.priority).isEqualTo(TodoPriority.HIGH.name)
         assertThat(outboxDao.items).isEmpty()
     }
 
     @Test
-    fun `sync pull maps remote priority case insensitively`() = runTest {
+    fun `sync pull maps remote extended sync fields`() = runTest {
         val todoDao = FakeTodoDao()
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
         val network = FakeTodoSyncNetworkDataSource().apply {
@@ -729,7 +740,9 @@ class TodoRepositoryImplTest {
                         clientId = "client-case",
                         title = "case",
                         revision = "2",
-                        priority = "high"
+                        priority = "hIgH",
+                        categoryId = 42L,
+                        dueTimeMinutes = 870
                     )
                 ),
                 nextCursor = "2"
@@ -740,7 +753,69 @@ class TodoRepositoryImplTest {
         val result = repository.syncTodos()
 
         assertThat(result.isSuccess).isTrue()
-        assertThat(todoDao.getTodoByServerId("user-id", "server-case")?.priority).isEqualTo(TodoPriority.HIGH.name)
+        val saved = todoDao.getTodoByServerId("user-id", "server-case")
+        assertThat(saved?.priority).isEqualTo(TodoPriority.HIGH.name)
+        assertThat(saved?.categoryId).isEqualTo(42L)
+        assertThat(saved?.dueTimeMinutes).isEqualTo(870)
+    }
+
+    @Test
+    fun `sync pull preserves local reminder fields and omitted extended fields on remote update`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 11L,
+                    title = "local reminder",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = 42L,
+                    reminderAtEpochMillis = 1_778_400_000_000L,
+                    isReminderEnabled = true,
+                    reminderRepeatType = ReminderRepeatType.WEEKLY.name,
+                    reminderRepeatDaysMask = 0b0101010,
+                    dueTimeMinutes = 870,
+                    reminderLeadMinutes = 30,
+                    priority = TodoPriority.MEDIUM.name,
+                    serverId = "server-reminder",
+                    clientId = "client-reminder",
+                    ownerUserId = "user-id",
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeTodoSyncNetworkDataSource().apply {
+            nextPullResponse = NetworkTodoSyncPullResponse(
+                todos = listOf(
+                    networkTodo(
+                        id = "server-reminder",
+                        clientId = "client-reminder",
+                        title = "remote update",
+                        revision = "2",
+                        priority = "HIGH"
+                    )
+                ),
+                nextCursor = "2"
+            )
+        }
+        val repository = repository(todoDao = todoDao, prefs = prefs, network = network)
+
+        val result = repository.syncTodos()
+
+        assertThat(result.isSuccess).isTrue()
+        val saved = todoDao.getTodoById(11L)
+        assertThat(saved?.title).isEqualTo("remote update")
+        assertThat(saved?.priority).isEqualTo(TodoPriority.HIGH.name)
+        assertThat(saved?.categoryId).isEqualTo(42L)
+        assertThat(saved?.dueTimeMinutes).isEqualTo(870)
+        assertThat(saved?.reminderAtEpochMillis).isEqualTo(1_778_400_000_000L)
+        assertThat(saved?.isReminderEnabled).isTrue()
+        assertThat(saved?.reminderRepeatType).isEqualTo(ReminderRepeatType.WEEKLY.name)
+        assertThat(saved?.reminderRepeatDaysMask).isEqualTo(0b0101010)
+        assertThat(saved?.reminderLeadMinutes).isEqualTo(30)
     }
 
     @Test
@@ -877,7 +952,9 @@ class TodoRepositoryImplTest {
         title: String,
         revision: String,
         status: String = "ACTIVE",
-        priority: String? = null
+        priority: String? = null,
+        categoryId: Long? = null,
+        dueTimeMinutes: Int? = null
     ): NetworkTodo =
         NetworkTodo(
             id = id,
@@ -886,6 +963,8 @@ class TodoRepositoryImplTest {
             dueDate = null,
             status = status,
             priority = priority,
+            categoryId = categoryId,
+            dueTimeMinutes = dueTimeMinutes,
             revision = revision,
             createdAt = "2026-05-08T00:00:00.000Z",
             updatedAt = "2026-05-08T00:00:00.000Z",

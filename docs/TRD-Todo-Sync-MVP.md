@@ -89,6 +89,8 @@ Authorization: Bearer <server accessToken>
   "dueDate": "2026-05-10",
   "status": "ACTIVE",
   "priority": "MEDIUM",
+  "categoryId": 12,
+  "dueTimeMinutes": 870,
   "revision": "42",
   "createdAt": "2026-05-08T00:00:00.000Z",
   "updatedAt": "2026-05-08T00:00:00.000Z",
@@ -104,12 +106,14 @@ Authorization: Bearer <server accessToken>
 - `dueDate`: `YYYY-MM-DD`, 없으면 null
 - `status`: `ACTIVE`, `COMPLETED`, `DELETED`
 - `priority`: `LOW`, `MEDIUM`, `HIGH`
+- `categoryId`: 개인 Todo 카테고리 ID, 없으면 null
+- `dueTimeMinutes`: 0..1439 범위의 로컬 날짜 기준 시각, 없으면 null
 - `revision`: 사용자 Todo 변경 순서를 나타내는 서버 단조 증가 값. API에서는 decimal string으로 고정한다.
 - `deletedAt`: soft delete tombstone
 
 ### 5.2.1 Android sync field policy
 
-현재 Android는 서버 계약을 임의로 확장하지 않는다. `TodoSyncPayload`와 `NetworkTodoMutationPayload`가 전송하는 필드는 다음 5개로 고정한다.
+현재 Android는 서버 계약을 임의로 확장하지 않는다. `TodoSyncPayload`와 `NetworkTodoMutationPayload`가 전송하는 필드는 다음 7개로 고정한다.
 
 | 필드 | Android source | 서버 왕복 정책 |
 |---|---|---|
@@ -118,13 +122,13 @@ Authorization: Bearer <server accessToken>
 | `dueDate` | `TodoEntity.dueDateEpochDay` | 날짜만 `YYYY-MM-DD`로 push/pull |
 | `status` | `TodoEntity.isDone` | `ACTIVE`/`COMPLETED`, tombstone은 서버 `DELETED`로 수신 |
 | `priority` | `TodoEntity.priority` | `LOW`/`MEDIUM`/`HIGH` push/pull |
+| `categoryId` | `TodoEntity.categoryId` | 개인 Todo 카테고리 ID를 push/pull, 없으면 null |
+| `dueTimeMinutes` | `TodoEntity.dueTimeMinutes` | 마감 시각을 0..1439 minute-of-day로 push/pull, 없으면 null |
 
-다음 Android 필드는 현재 서버 Todo sync 계약에 포함하지 않는 로컬 전용 필드다. 누락이 아니라 MVP 계약 결정이며, 서버와 여러 기기 간 완전한 왕복이 필요해지면 별도 서버/API/TRD 개정으로 확장한다.
+다음 Android reminder 세부 필드는 현재 서버 Todo sync 계약에 포함하지 않는 로컬 전용 필드다. 누락이 아니라 MVP 계약 결정이며, 서버와 여러 기기 간 reminder 완전한 왕복이 필요해지면 별도 서버/API/TRD 개정으로 확장한다.
 
 | 로컬 전용 필드 | 이유 |
 |---|---|
-| `categoryId` | 카테고리 sync 계약이 없음 |
-| `dueTimeMinutes` | 서버 Todo sync는 date-only `dueDate`만 가짐 |
 | `reminderAtEpochMillis` | Todo 내장 reminder sync 계약이 없음 |
 | `isReminderEnabled` | Todo 내장 reminder sync 계약이 없음 |
 | `reminderRepeatType` | 반복 reminder sync 계약이 없음 |
@@ -152,6 +156,8 @@ Response:
       "dueDate": "2026-05-10",
       "status": "ACTIVE",
       "priority": "MEDIUM",
+      "categoryId": 12,
+      "dueTimeMinutes": 870,
       "revision": "42",
       "createdAt": "2026-05-08T00:00:00.000Z",
       "updatedAt": "2026-05-08T00:00:00.000Z",
@@ -192,7 +198,9 @@ Request:
         "description": null,
         "dueDate": "2026-05-10",
         "status": "ACTIVE",
-        "priority": "MEDIUM"
+        "priority": "MEDIUM",
+        "categoryId": 12,
+        "dueTimeMinutes": 870
       }
     },
     {
@@ -204,7 +212,9 @@ Request:
         "description": null,
         "dueDate": "2026-05-11",
         "status": "COMPLETED",
-        "priority": "HIGH"
+        "priority": "HIGH",
+        "categoryId": 15,
+        "dueTimeMinutes": 540
       }
     },
     {
@@ -335,6 +345,8 @@ Todo 모델은 다음 sync 필드를 가져야 한다.
 - `description`
 - `status`
 - `priority`
+- `categoryId`
+- `dueTimeMinutes`
 - `revision`
 - `deletedAt`
 - `createdAt`, `updatedAt`

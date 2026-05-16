@@ -8,5 +8,7 @@ data class TodoSyncPayload(
     val description: String? = null,
     val dueDate: String? = null,
     val status: String = "ACTIVE",
-    val priority: String? = null
+    val priority: String? = null,
+    val categoryId: Long? = null,
+    val dueTimeMinutes: Int? = null
 )

@@ -35,7 +35,9 @@ class TodoSyncFieldPolicyTest {
             "description",
             "dueDate",
             "status",
-            "priority"
+            "priority",
+            "categoryId",
+            "dueTimeMinutes"
         ).inOrder()
         assertThat(payloadFields).containsExactlyElementsIn(TodoSyncFieldPolicy.syncedPayloadFields)
         assertThat(payloadFields).containsNoneIn(TodoSyncFieldPolicy.localOnlyTodoFields)
@@ -45,16 +47,16 @@ class TodoSyncFieldPolicyTest {
                 description = null,
                 dueDate = "2026-05-10",
                 status = TodoSyncConstants.STATUS_COMPLETED,
-                priority = TodoPriority.HIGH.name
+                priority = TodoPriority.HIGH.name,
+                categoryId = 9L,
+                dueTimeMinutes = 14 * 60 + 30
             )
         )
     }
 
     @Test
-    fun `policy names local only todo fields excluded from sync contract`() {
+    fun `policy names reminder fields as local only and excluded from sync contract`() {
         assertThat(TodoSyncFieldPolicy.localOnlyTodoFields).containsExactly(
-            "categoryId",
-            "dueTimeMinutes",
             "reminderAtEpochMillis",
             "isReminderEnabled",
             "reminderRepeatType",
@@ -66,7 +68,7 @@ class TodoSyncFieldPolicyTest {
     }
 
     @Test
-    fun `remote todo mapper does not populate android local only fields`() {
+    fun `remote todo mapper populates extended sync fields but not reminder fields`() {
         val entity = NetworkTodo(
             id = "server-id",
             clientId = "client-id",
@@ -74,13 +76,15 @@ class TodoSyncFieldPolicyTest {
             dueDate = "2026-05-10",
             status = TodoSyncConstants.STATUS_ACTIVE,
             priority = TodoPriority.LOW.name,
+            categoryId = 9L,
+            dueTimeMinutes = 14 * 60 + 30,
             revision = "3",
             createdAt = "2026-05-08T00:00:00.000Z",
             updatedAt = "2026-05-08T00:00:01.000Z"
         ).toTodoEntity(ownerUserId = "user-id")
 
-        assertThat(entity.categoryId).isNull()
-        assertThat(entity.dueTimeMinutes).isNull()
+        assertThat(entity.categoryId).isEqualTo(9L)
+        assertThat(entity.dueTimeMinutes).isEqualTo(14 * 60 + 30)
         assertThat(entity.reminderAtEpochMillis).isNull()
         assertThat(entity.isReminderEnabled).isFalse()
         assertThat(entity.reminderRepeatType).isEqualTo(ReminderRepeatType.NONE.name)
