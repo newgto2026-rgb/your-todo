@@ -12,8 +12,7 @@ class SignOutUseCase @Inject constructor(
 
     suspend operator fun invoke() {
         pushTokenRepository.deleteRegisteredToken()
-        authRepository.deleteUserScopedLocalData()
-        authRepository.clearAuthSession()
+        authRepository.signOut()
     }
 }
 
