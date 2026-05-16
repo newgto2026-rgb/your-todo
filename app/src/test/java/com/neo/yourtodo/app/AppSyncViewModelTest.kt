@@ -8,6 +8,9 @@ import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
@@ -63,7 +66,10 @@ class AppSyncViewModelTest {
             todoRepository = FakeTodoRepository(),
             friendRepository = SuccessFriendRepository(),
             assignmentRepository = PartialFailureAssignmentRepository(),
-            calendarWidgetUpdater = NoOpCalendarWidgetUpdater()
+            calendarWidgetUpdater = NoOpCalendarWidgetUpdater(),
+            refreshPolicy = WorkspaceRefreshPolicy(),
+            refreshClock = WorkspaceRefreshClock(),
+            syncNotifier = WorkspaceSyncNotifier()
         )
 
     private class SuccessFriendRepository : FriendRepository {

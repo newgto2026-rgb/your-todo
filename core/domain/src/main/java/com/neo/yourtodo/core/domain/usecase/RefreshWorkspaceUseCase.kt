@@ -25,8 +25,9 @@ class RefreshWorkspaceUseCase @Inject constructor(
     private val friendRepository: FriendRepository,
     private val assignmentRepository: AssignmentRepository,
     private val calendarWidgetUpdater: CalendarWidgetUpdater,
-    private val refreshPolicy: WorkspaceRefreshPolicy = WorkspaceRefreshPolicy(),
-    private val syncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
+    private val refreshPolicy: WorkspaceRefreshPolicy,
+    private val refreshClock: WorkspaceRefreshClock,
+    private val syncNotifier: WorkspaceSyncNotifier
 ) {
     private val inFlightMutex = Mutex()
     private var inFlightRefresh: CompletableDeferred<Result<WorkspaceRefreshSnapshot>>? = null
@@ -41,7 +42,7 @@ class RefreshWorkspaceUseCase @Inject constructor(
                 when (val decision = refreshPolicy.decide(
                     forceRefresh = forceRefresh,
                     lastRefresh = lastRefresh,
-                    nowEpochMillis = System.currentTimeMillis()
+                    nowEpochMillis = refreshClock.nowEpochMillis()
                 )) {
                     is WorkspaceRefreshDecision.Refresh -> {
                         val newRefresh = CompletableDeferred<Result<WorkspaceRefreshSnapshot>>()
@@ -69,14 +70,14 @@ class RefreshWorkspaceUseCase @Inject constructor(
                 inFlightMutex.withLock {
                     lastRefresh = WorkspaceRefreshState(
                         snapshot = result.getOrThrow(),
-                        completedAtEpochMillis = System.currentTimeMillis()
+                        completedAtEpochMillis = refreshClock.nowEpochMillis()
                     )
                 }
             }
             checkNotNull(refresh).complete(result)
             result
         } catch (exception: CancellationException) {
-            checkNotNull(refresh).cancel(exception)
+            checkNotNull(refresh).completeExceptionally(exception)
             throw exception
         } catch (throwable: Throwable) {
             checkNotNull(refresh).completeExceptionally(throwable)
@@ -148,6 +149,7 @@ class RefreshWorkspaceUseCase @Inject constructor(
 
     private suspend fun updateCalendarWidgetsBestEffort() {
         runCatching { calendarWidgetUpdater.updateCalendarWidgets() }
+            .onFailure { if (it is CancellationException) throw it }
     }
 }
 
@@ -199,4 +201,8 @@ class WorkspaceRefreshPolicy @Inject constructor() {
     companion object {
         const val STALE_THRESHOLD_MILLIS: Long = 5 * 60 * 1000
     }
+}
+
+open class WorkspaceRefreshClock @Inject constructor() {
+    open fun nowEpochMillis(): Long = System.currentTimeMillis()
 }

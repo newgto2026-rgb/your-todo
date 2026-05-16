@@ -15,6 +15,8 @@ import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshSnapshot
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import androidx.lifecycle.SavedStateHandle
@@ -611,7 +613,10 @@ class CalendarViewModelTest {
                     todoRepository = repository,
                     friendRepository = FakeFriendRepository(),
                     assignmentRepository = assignmentRepository,
-                    calendarWidgetUpdater = calendarWidgetUpdater
+                    calendarWidgetUpdater = calendarWidgetUpdater,
+                    refreshPolicy = WorkspaceRefreshPolicy(),
+                    refreshClock = WorkspaceRefreshClock(),
+                    syncNotifier = WorkspaceSyncNotifier()
                 )
             ),
             calendarWidgetUpdater = calendarWidgetUpdater,

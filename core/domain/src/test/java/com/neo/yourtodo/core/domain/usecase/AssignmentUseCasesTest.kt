@@ -603,7 +603,10 @@ class AssignmentUseCasesTest {
             todoRepository = SuccessfulTodoRepository(),
             friendRepository = SuccessfulFriendRepository(),
             assignmentRepository = assignmentRepository,
-            calendarWidgetUpdater = RecordingCalendarWidgetUpdater()
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
+            refreshPolicy = WorkspaceRefreshPolicy(),
+            refreshClock = WorkspaceRefreshClock(),
+            syncNotifier = WorkspaceSyncNotifier()
         )
 
     private class SuccessfulTodoRepository : TodoItemRepository {
