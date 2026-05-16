@@ -352,6 +352,58 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun closeFriendDetailClearsMonitorSelectionAndHistoryState() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            sentItems = listOf(assignedTodo(id = "sent-active", title = "Sent"))
+            receivedPendingItems = listOf(
+                assignedTodo(
+                    id = "pending-1",
+                    title = "Pending",
+                    status = AssignedTodoStatus.PENDING_ACCEPTANCE,
+                    bundleId = "bundle-1"
+                )
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+            val loaded = awaitItem()
+            assertThat(loaded.selectedFriend?.userId).isEqualTo("friend-1")
+            assertThat(loaded.assignmentDetail.pendingReceivedItems).hasSize(1)
+
+            viewModel.onAction(FriendsAction.OnToggleAssignmentHistory)
+            assertThat(awaitItem().showFriendAssignmentHistory).isTrue()
+
+            viewModel.onAction(FriendsAction.OnToggleAssignmentSection(FriendAssignmentSection.SENT_HISTORY))
+            assertThat(awaitItem().expandedAssignmentSections).containsExactly(FriendAssignmentSection.SENT_HISTORY)
+
+            viewModel.onAction(FriendsAction.OnTogglePendingAssignment("pending-1"))
+            assertThat(awaitItem().selectedPendingAssignmentIds).containsExactly("pending-1")
+
+            viewModel.onAction(FriendsAction.OnCloseFriendDetail)
+            val closed = awaitItem()
+            assertThat(closed.selectedFriend).isNull()
+            assertThat(closed.friendDetailLoading).isFalse()
+            assertThat(closed.friendAssignmentSummary).isNull()
+            assertThat(closed.friendSentAssignedTodos).isEmpty()
+            assertThat(closed.friendReceivedAssignedTodos).isEmpty()
+            assertThat(closed.friendSentCompletedHistoryTodos).isEmpty()
+            assertThat(closed.friendReceivedCompletedHistoryTodos).isEmpty()
+            assertThat(closed.showFriendAssignmentHistory).isFalse()
+            assertThat(closed.expandedAssignmentSections).isEmpty()
+            assertThat(closed.selectedPendingAssignmentIds).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun friendClickDerivesAssignmentSummaryFromLoadedFeeds() = runTest {
         val assignmentRepository = FakeAssignmentRepository().apply {
             sentItems = (1..7).map { index -> assignedTodo(id = "sent-active-$index") }
@@ -1267,6 +1319,41 @@ class FriendsViewModelTest {
                 .inOrder()
             assertThat(sent.assignmentDraftItems).isEmpty()
             assertThat(sent.assignmentTargetFriend).isNull()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun closeAssignmentEditorClearsDraftInputsAndValidationError() = runTest {
+        val assignmentRepository = FakeAssignmentRepository()
+        val viewModel = FakeFriendRepository().createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnOpenAssignmentEditor(friend()))
+            assertThat(awaitItem().assignmentTargetFriend?.userId).isEqualTo("friend-1")
+
+            viewModel.onAction(FriendsAction.OnAssignmentTitleChanged("Buy milk"))
+            assertThat(awaitItem().assignmentTitleInput).isEqualTo("Buy milk")
+
+            viewModel.onAction(FriendsAction.OnAssignmentDueTimeChanged("14:30"))
+            assertThat(awaitItem().assignmentDueTimeInput).isEqualTo("14:30")
+
+            viewModel.onAction(FriendsAction.OnSendAssignmentNow)
+            assertThat(awaitItem().assignmentInputErrorMessageRes)
+                .isEqualTo(R.string.friends_assignment_error_due_time_requires_due_date)
+
+            viewModel.onAction(FriendsAction.OnCloseAssignmentEditor)
+            val closed = awaitItem()
+            assertThat(closed.assignmentTargetFriend).isNull()
+            assertThat(closed.assignmentDraftItems).isEmpty()
+            assertThat(closed.assignmentTitleInput).isEmpty()
+            assertThat(closed.assignmentDueDateInput).isEmpty()
+            assertThat(closed.assignmentDueTimeInput).isEmpty()
+            assertThat(closed.assignmentMode).isEqualTo(AssignmentMode.REQUEST)
+            assertThat(closed.assignmentInputErrorMessageRes).isNull()
+            assertThat(assignmentRepository.lastItems).isEmpty()
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -10,8 +10,10 @@ import com.neo.yourtodo.core.domain.usecase.SignOutUseCase
 import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -83,6 +85,31 @@ class AuthGateViewModelTest {
         }
     }
 
+    @Test
+    fun signInIgnoresDuplicateRequestsWhileInProgress() = runTest {
+        val signInGate = CompletableDeferred<Result<AuthSession>>()
+        val repository = FakeAuthRepository(signInGate = signInGate)
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { it.destination == AuthGateDestination.SIGNED_OUT }
+
+        viewModel.signInWithGoogleIdToken("first-token")
+        viewModel.uiState.first { it.signInInProgress }
+
+        viewModel.signInWithGoogleIdToken("second-token")
+
+        assertThat(repository.signInCalls).isEqualTo(1)
+        assertThat(repository.lastGoogleIdToken).isEqualTo("first-token")
+
+        signInGate.complete(Result.success(authSession(nickname = "neo", onboardingRequired = false)))
+
+        val signedIn = viewModel.uiState.first {
+            it.destination == AuthGateDestination.SIGNED_IN && !it.signInInProgress
+        }
+        assertThat(signedIn.error).isNull()
+        assertThat(repository.signInCalls).isEqualTo(1)
+    }
+
     private fun FakeAuthRepository.createViewModel(): AuthGateViewModel =
         AuthGateViewModel(
             observeAuthSession = ObserveAuthSessionUseCase(this),
@@ -94,15 +121,22 @@ class AuthGateViewModelTest {
     private class FakeAuthRepository(
         private val signInResult: Result<AuthSession> = Result.success(
             authSession(nickname = null, onboardingRequired = true)
-        )
+        ),
+        private val signInGate: CompletableDeferred<Result<AuthSession>>? = null
     ) : AuthRepository {
         val session = MutableStateFlow<AuthSession?>(null)
         var lastNickname: String? = null
+        var lastGoogleIdToken: String? = null
+        var signInCalls: Int = 0
 
         override val authSession: Flow<AuthSession?> = session
 
-        override suspend fun signInWithGoogle(idToken: String): Result<AuthSession> =
-            signInResult.onSuccess { session.value = it }
+        override suspend fun signInWithGoogle(idToken: String): Result<AuthSession> {
+            signInCalls += 1
+            lastGoogleIdToken = idToken
+            return (signInGate?.await() ?: signInResult)
+                .onSuccess { session.value = it }
+        }
 
         override suspend fun completeNicknameOnboarding(nickname: String): Result<AuthSession> {
             lastNickname = nickname
