@@ -13,6 +13,12 @@
 - Reverse pending request becomes an active friendship on the server.
 - Removing a friend is soft on the server; past records remain.
 
+## Cache Policy
+- Friends and friend requests are online-only for the MVP.
+- `FriendRepository` list calls fetch the current server snapshot and do not fall back to Room, DataStore, or the previous in-memory response.
+- A network/auth failure is not treated as an empty friend list. Initial load failure keeps the screen in an unavailable state with retry, while an already loaded in-memory snapshot can remain visible until the next successful server refresh.
+- Assigned todo feeds have their own Room cache policy and are intentionally separate from the Friends/requests policy.
+
 ## Android Architecture
 - `feature:friends:api`: route and feature entry contract.
 - `feature:friends:entry`: Hilt multibinding into the app shell.

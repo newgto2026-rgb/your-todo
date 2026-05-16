@@ -22,6 +22,11 @@
     <string name="friends_remove_confirm">Remove</string>
     <string name="friends_empty_title">No friends yet</string>
     <string name="friends_empty_description">Add a friend with their exact nickname.</string>
+    <string name="friends_unavailable_network_title">Friends need a connection</string>
+    <string name="friends_unavailable_network_description">Friends and requests load directly from the server. There is no saved friend list to show offline yet.</string>
+    <string name="friends_unavailable_auth_title">Sign in to load friends</string>
+    <string name="friends_unavailable_auth_description">Friends and requests are loaded from your server account after authentication.</string>
+    <string name="friends_unavailable_retry">Try again</string>
     <string name="friends_request_sent">Friend request sent.</string>
     <string name="friends_request_accepted">You are friends now.</string>
     <string name="friends_request_declined">Friend request declined.</string>

@@ -18,6 +18,8 @@ data class FriendsUiState(
     val friends: List<Friend> = emptyList(),
     val incomingRequests: List<FriendRequest> = emptyList(),
     val outgoingRequests: List<FriendRequest> = emptyList(),
+    val hasLoadedFriendsSnapshot: Boolean = false,
+    val friendsSnapshotError: FriendsError? = null,
     val addFriendExpanded: Boolean = false,
     val nicknameInput: String = "",
     val selectedFriend: Friend? = null,
@@ -46,6 +48,12 @@ data class FriendsUiState(
 
     val canSendDirectAssignment: Boolean
         get() = assignmentTargetFriend?.directAssignment?.canDirectAssignToFriend == true
+
+    val showFriendsUnavailable: Boolean
+        get() = !isLoading && !hasLoadedFriendsSnapshot && friendsSnapshotError != null
+
+    val showEmptyFriends: Boolean
+        get() = hasLoadedFriendsSnapshot && friends.isEmpty()
 
     val assignmentDetail: FriendAssignmentDetailUiModel
         get() {
@@ -228,9 +236,21 @@ sealed interface FriendsSideEffect {
     data class ShowSnackbar(@StringRes val messageRes: Int) : FriendsSideEffect
 }
 
-enum class FriendsError(@StringRes val messageRes: Int) {
-    AUTH_REQUIRED(R.string.friends_error_auth_required),
-    NETWORK(R.string.friends_error_network)
+enum class FriendsError(
+    @StringRes val messageRes: Int,
+    @StringRes val unavailableTitleRes: Int,
+    @StringRes val unavailableDescriptionRes: Int
+) {
+    AUTH_REQUIRED(
+        messageRes = R.string.friends_error_auth_required,
+        unavailableTitleRes = R.string.friends_unavailable_auth_title,
+        unavailableDescriptionRes = R.string.friends_unavailable_auth_description
+    ),
+    NETWORK(
+        messageRes = R.string.friends_error_network,
+        unavailableTitleRes = R.string.friends_unavailable_network_title,
+        unavailableDescriptionRes = R.string.friends_unavailable_network_description
+    )
 }
 
 enum class FriendsMessage(@StringRes val messageRes: Int) {

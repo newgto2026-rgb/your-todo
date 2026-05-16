@@ -16,9 +16,17 @@ import com.neo.yourtodo.core.network.friends.FriendAuthRequiredException
 import com.neo.yourtodo.core.network.friends.FriendNetworkDataSource
 import com.neo.yourtodo.core.network.friends.NetworkFriend
 import com.neo.yourtodo.core.network.friends.NetworkFriendRequest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
+/**
+ * Server-authored Friends implementation.
+ *
+ * This repository intentionally does not read or write a Room/DataStore friends
+ * cache. List methods expose the current server snapshot only; network failures
+ * stay as failures so UI can distinguish "not loaded" from "loaded and empty".
+ */
 class FriendRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val friendNetworkDataSource: FriendNetworkDataSource,
@@ -27,59 +35,67 @@ class FriendRepositoryImpl @Inject constructor(
         AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
 ) : FriendRepository {
     override suspend fun getFriends(): Result<List<Friend>> =
-        authenticatedRequest { accessToken ->
+        onlineOnlyAuthenticatedRequest { accessToken ->
             friendNetworkDataSource.getFriends(accessToken).friends.map { it.toDomain() }
         }
 
     override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
-        authenticatedRequest { accessToken ->
+        onlineOnlyAuthenticatedRequest { accessToken ->
             friendNetworkDataSource.getIncomingRequests(accessToken).requests.map { it.toDomain() }
         }
 
     override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> =
-        authenticatedRequest { accessToken ->
+        onlineOnlyAuthenticatedRequest { accessToken ->
             friendNetworkDataSource.getOutgoingRequests(accessToken).requests.map { it.toDomain() }
         }
 
     override suspend fun sendRequest(nickname: String): Result<Unit> =
-        authenticatedRequest { accessToken ->
+        onlineOnlyAuthenticatedRequest { accessToken ->
             friendNetworkDataSource.sendRequest(accessToken, nickname)
             Unit
         }
 
     override suspend fun acceptRequest(requestId: String): Result<Unit> =
-        authenticatedRequest { accessToken ->
+        onlineOnlyAuthenticatedRequest { accessToken ->
             friendNetworkDataSource.acceptRequest(accessToken, requestId)
             Unit
         }
 
     override suspend fun declineRequest(requestId: String): Result<Unit> =
-        authenticatedRequest { accessToken ->
+        onlineOnlyAuthenticatedRequest { accessToken ->
             friendNetworkDataSource.declineRequest(accessToken, requestId)
             Unit
         }
 
     override suspend fun removeFriend(friendshipId: String): Result<Unit> =
-        authenticatedRequest { accessToken ->
+        onlineOnlyAuthenticatedRequest { accessToken ->
             friendNetworkDataSource.removeFriend(accessToken, friendshipId)
             Unit
         }
 
-    private suspend fun <T> authenticatedRequest(block: suspend (String) -> T): Result<T> =
-        runCatching {
-            val session = currentSession() ?: throw AuthRequiredException()
+    private suspend fun <T> onlineOnlyAuthenticatedRequest(block: suspend (String) -> T): Result<T> =
+        try {
+            Result.success(onlineOnlyAuthenticatedValue(block))
+        } catch (throwable: CancellationException) {
+            throw throwable
+        } catch (throwable: Throwable) {
+            Result.failure(throwable)
+        }
+
+    private suspend fun <T> onlineOnlyAuthenticatedValue(block: suspend (String) -> T): T {
+        val session = currentSession() ?: throw AuthRequiredException()
+        return try {
+            block(session.accessToken)
+        } catch (throwable: FriendAuthRequiredException) {
+            val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
+                ?: authRequired()
             try {
-                block(session.accessToken)
-            } catch (throwable: FriendAuthRequiredException) {
-                val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
-                    ?: authRequired()
-                try {
-                    block(refreshedSession.accessToken)
-                } catch (retryThrowable: FriendAuthRequiredException) {
-                    authRequired()
-                }
+                block(refreshedSession.accessToken)
+            } catch (retryThrowable: FriendAuthRequiredException) {
+                authRequired()
             }
         }
+    }
 
     private suspend fun currentSession() =
         userPreferencesDataSource.authSession.first()
