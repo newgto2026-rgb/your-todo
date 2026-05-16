@@ -1,7 +1,6 @@
 package com.neo.yourtodo.core.data.repository.todo
 
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.MUTATION_DELETE
-import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.STATUS_ACTIVE
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.STATUS_COMPLETED
 import com.neo.yourtodo.core.data.sync.TodoSyncPayload
 import com.neo.yourtodo.core.database.entity.TodoEntity
@@ -23,12 +22,7 @@ internal fun TodoEntity.syncStatus(): TodoSyncStatus =
     TodoSyncStatus.entries.find { it.name == syncStatus } ?: TodoSyncStatus.LOCAL_ONLY
 
 internal fun TodoEntity.toSyncPayload(): TodoSyncPayload =
-    TodoSyncPayload(
-        title = title,
-        dueDate = dueDateEpochDay?.let { LocalDate.ofEpochDay(it).toString() },
-        status = if (isDone) STATUS_COMPLETED else STATUS_ACTIVE,
-        priority = priority
-    )
+    TodoSyncFieldPolicy.createPayload(this)
 
 internal fun TodoOutboxEntity.toNetworkMutation(
     json: Json,

@@ -24,6 +24,12 @@ data class NetworkTodoMutation(
     val payload: NetworkTodoMutationPayload? = null
 )
 
+/**
+ * MVP server payload for personal Todo sync.
+ *
+ * Android-only fields such as category, due time, reminder trigger/repeat/lead settings
+ * are intentionally absent until the server contract is explicitly expanded.
+ */
 @Serializable
 data class NetworkTodoMutationPayload(
     val title: String? = null,
@@ -53,6 +59,12 @@ data class NetworkTodoMutationError(
     val message: String
 )
 
+/**
+ * Server Todo snapshot for sync pull/push results.
+ *
+ * This mirrors the current server contract only; Android-local category, due time, and
+ * reminder fields are not decoded from or encoded into this DTO.
+ */
 @Serializable
 data class NetworkTodo(
     val id: String,
