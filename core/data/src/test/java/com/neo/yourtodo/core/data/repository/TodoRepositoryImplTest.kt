@@ -26,6 +26,7 @@ import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPushResponse
 import com.neo.yourtodo.core.network.sync.TodoSyncAuthRequiredException
 import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -177,6 +178,21 @@ class TodoRepositoryImplTest {
         repository.setSelectedSortOption(TodoSortOption.PRIORITY)
 
         assertThat(repository.observeSelectedSortOption().first()).isEqualTo(TodoSortOption.PRIORITY)
+    }
+
+    @Test
+    fun `setSelectedSortOption rethrows cancellation exception`() = runTest {
+        val prefs = FakePreferencesDataSource().apply {
+            sortOptionFailure = CancellationException("cancelled")
+        }
+        val repository = repository(prefs = prefs)
+
+        val thrown = runCatching {
+            repository.setSelectedSortOption(TodoSortOption.PRIORITY)
+        }.exceptionOrNull()
+
+        assertThat(thrown).isInstanceOf(CancellationException::class.java)
+        assertThat(repository.observeSelectedSortOption().first()).isEqualTo(TodoSortOption.DEFAULT)
     }
 
     @Test
@@ -727,6 +743,7 @@ class TodoRepositoryImplTest {
         private val sortOptionFlow = MutableStateFlow(TodoSortOption.DEFAULT)
         private val syncCursorFlow = MutableStateFlow<String?>(null)
         private val syncHaltReasonFlow = MutableStateFlow<String?>(null)
+        var sortOptionFailure: Throwable? = null
 
         override val authSession: Flow<AuthSessionData?> = authSessionFlow.asStateFlow()
         override val selectedTodoFilter: Flow<TodoFilter> = filterFlow.asStateFlow()
@@ -757,6 +774,7 @@ class TodoRepositoryImplTest {
         }
 
         override suspend fun setSelectedTodoSortOption(option: TodoSortOption) {
+            sortOptionFailure?.let { throw it }
             sortOptionFlow.value = option
         }
 

@@ -608,6 +608,44 @@ class TodoListViewModelTest {
     }
 
     @Test
+    fun sortOptionChangeUpdatesUiOptimisticallyAndIgnoresDuplicateTriggers() = runTest {
+        val sortWriteGate = CompletableDeferred<Unit>()
+        repository.beforeSetSelectedSortOption = { sortWriteGate.await() }
+
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        mainDispatcherRule.testDispatcher.scheduler.runCurrent()
+
+        assertThat(viewModel.uiState.value.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
+        assertThat(repository.setSelectedSortOptionCallCount).isEqualTo(1)
+
+        sortWriteGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertThat(repository.observeSelectedSortOption().first()).isEqualTo(TodoSortOption.DUE_DATE)
+        assertThat(viewModel.uiState.value.selectedSortOption).isEqualTo(TodoSortOption.DUE_DATE)
+    }
+
+    @Test
+    fun sortOptionChangeFailureKeepsPriorityFilterUnchanged() = runTest {
+        repository.setSelectedSortOptionResult = Result.failure(IllegalStateException("disk full"))
+        viewModel.onAction(TodoListAction.OnPriorityFilterChange(TodoPriorityFilter.HIGH))
+        advanceUntilIdle()
+        val sideEffect = async { viewModel.sideEffect.first() }
+
+        viewModel.onAction(TodoListAction.OnSortOptionChange(TodoSortOption.DUE_DATE))
+        advanceUntilIdle()
+
+        assertThat(sideEffect.await()).isEqualTo(
+            TodoListSideEffect.ShowSnackbar(R.string.todo_error_sort_change_failed)
+        )
+        assertThat(viewModel.uiState.value.selectedSortOption).isEqualTo(TodoSortOption.DEFAULT)
+        assertThat(viewModel.uiState.value.selectedPriorityFilter).isEqualTo(TodoPriorityFilter.HIGH)
+        assertThat(repository.observeSelectedPriorityFilter().first()).isEqualTo(TodoPriorityFilter.HIGH)
+    }
+
+    @Test
     fun sortOptionReselectKeepsPriorityFilter() = runTest {
         val today = LocalDate.now()
         repository.addTodo(

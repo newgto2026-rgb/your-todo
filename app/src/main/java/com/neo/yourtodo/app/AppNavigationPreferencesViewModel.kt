@@ -7,6 +7,7 @@ import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoFilterUseCase
 import com.neo.yourtodo.core.model.TodoFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,8 @@ class AppNavigationPreferencesViewModel @Inject constructor(
     observeSelectedTodoFilterUseCase: ObserveSelectedTodoFilterUseCase,
     private val updateSelectedTodoFilterUseCase: UpdateSelectedTodoFilterUseCase
 ) : ViewModel() {
+    private var rememberSelectedTodoFilterJob: Job? = null
+
     val selectedTodoFilter: StateFlow<TodoFilter?> = observeSelectedTodoFilterUseCase()
         .map { filter -> filter as TodoFilter? }
         .stateIn(
@@ -28,7 +31,8 @@ class AppNavigationPreferencesViewModel @Inject constructor(
 
     fun rememberSelectedTodoFilter(filter: TodoFilter) {
         if (selectedTodoFilter.value == filter) return
-        viewModelScope.launch {
+        rememberSelectedTodoFilterJob?.cancel()
+        rememberSelectedTodoFilterJob = viewModelScope.launch {
             updateSelectedTodoFilterUseCase(filter)
         }
     }

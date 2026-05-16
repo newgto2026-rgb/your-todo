@@ -205,6 +205,7 @@ fun AppNavHost(
                 selectedTab = currentTab,
                 onTabSelected = { tab ->
                     isExitConfirmationPending = false
+                    hasRestoredTodoFilter = true
                     snackbarHostState.currentSnackbarData?.dismiss()
                     tab.todoFilter?.let(navigationPreferencesViewModel::rememberSelectedTodoFilter)
                     navigator.navigate(tab.route)

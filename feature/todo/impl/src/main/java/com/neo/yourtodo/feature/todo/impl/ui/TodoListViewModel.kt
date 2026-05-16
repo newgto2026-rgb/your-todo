@@ -76,13 +76,15 @@ class TodoListViewModel @Inject constructor(
             started = SharingStarted.Eagerly,
             initialValue = TodoSortOption.DEFAULT
         )
+    private val pendingSortOption = MutableStateFlow<TodoSortOption?>(null)
     private val selectedPreferences = combine(
         selectedPriorityFilter,
-        selectedSortOption
-    ) { priorityFilter, sortOption ->
+        selectedSortOption,
+        pendingSortOption
+    ) { priorityFilter, sortOption, pendingSortOption ->
         SelectedTodoListPreferences(
             priorityFilter = priorityFilter,
-            sortOption = sortOption
+            sortOption = pendingSortOption ?: sortOption
         )
     }
     private val receivedAssignedTodos = getAssignedTodosUseCase.observeVisibleReceived()
@@ -93,6 +95,7 @@ class TodoListViewModel @Inject constructor(
         )
     private var syncJob: Job? = null
     private var foregroundSyncJob: Job? = null
+    private var updateSortOptionJob: Job? = null
 
     val sideEffect = sideEffectMutable.asSharedFlow()
 
@@ -733,20 +736,32 @@ class TodoListViewModel @Inject constructor(
     }
 
     private fun updateSortOption(option: TodoSortOption) {
-        if (uiState.value.selectedSortOption == option) return
+        if (uiState.value.selectedSortOption == option || pendingSortOption.value == option) return
 
-        viewModelScope.launch {
-            val sortResult = updateSelectedTodoSortOptionUseCase(option)
-            val priorityResult = updateSelectedTodoPriorityFilterUseCase(TodoPriorityFilter.ALL)
-            when {
-                sortResult.isFailure -> sideEffectMutable.emit(
-                    TodoListSideEffect.ShowSnackbar(R.string.todo_error_sort_change_failed)
-                )
-                priorityResult.isFailure -> sideEffectMutable.emit(
-                    TodoListSideEffect.ShowSnackbar(
-                        R.string.todo_error_priority_filter_change_failed
+        updateSortOptionJob?.cancel()
+        pendingSortOption.value = option
+        updateSortOptionJob = viewModelScope.launch {
+            try {
+                val sortResult = updateSelectedTodoSortOptionUseCase(option)
+                if (sortResult.isFailure) {
+                    sideEffectMutable.emit(
+                        TodoListSideEffect.ShowSnackbar(R.string.todo_error_sort_change_failed)
                     )
-                )
+                    return@launch
+                }
+
+                val priorityResult = updateSelectedTodoPriorityFilterUseCase(TodoPriorityFilter.ALL)
+                if (priorityResult.isFailure) {
+                    sideEffectMutable.emit(
+                        TodoListSideEffect.ShowSnackbar(
+                            R.string.todo_error_priority_filter_change_failed
+                        )
+                    )
+                }
+            } finally {
+                if (pendingSortOption.value == option) {
+                    pendingSortOption.value = null
+                }
             }
         }
     }

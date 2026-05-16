@@ -33,6 +33,11 @@ class FakeTodoRepository :
     private var categoryIdSeed = 1L
     var syncCount: Int = 0
         private set
+    var setSelectedPriorityFilterResult: Result<Unit>? = null
+    var setSelectedSortOptionResult: Result<Unit>? = null
+    var beforeSetSelectedSortOption: (suspend (TodoSortOption) -> Unit)? = null
+    var setSelectedSortOptionCallCount: Int = 0
+        private set
 
     override fun observeTodos(): Flow<List<TodoItem>> = todos.asStateFlow()
 
@@ -209,15 +214,21 @@ class FakeTodoRepository :
     override fun observeSelectedPriorityFilter(): Flow<TodoPriorityFilter> =
         selectedPriorityFilter.asStateFlow()
 
-    override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> = runCatching {
+    override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> {
+        setSelectedPriorityFilterResult?.let { return it }
         selectedPriorityFilter.value = filter
+        return Result.success(Unit)
     }
 
     override fun observeSelectedSortOption(): Flow<TodoSortOption> =
         selectedSortOption.asStateFlow()
 
-    override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> = runCatching {
+    override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> {
+        setSelectedSortOptionCallCount += 1
+        beforeSetSelectedSortOption?.invoke(option)
+        setSelectedSortOptionResult?.let { return it }
         selectedSortOption.value = option
+        return Result.success(Unit)
     }
 
     private fun validateCategoryId(categoryId: Long?) {

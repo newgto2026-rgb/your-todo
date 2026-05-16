@@ -30,6 +30,7 @@ import com.neo.yourtodo.core.network.sync.NetworkTodoMutationPayload
 import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPushRequest
 import com.neo.yourtodo.core.network.sync.TodoSyncAuthRequiredException
 import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -217,7 +218,7 @@ class TodoRepositoryImpl @Inject constructor(
     override suspend fun setSelectedFilter(filter: TodoFilter): Result<Unit> = runCatching {
         userPreferencesDataSource.setSelectedTodoFilter(filter)
     }.onFailure { throwable ->
-        logError("setSelectedFilter", throwable)
+        logPreferenceFailure("setSelectedFilter", throwable)
     }
 
     override fun observeCategories(): Flow<List<Category>> =
@@ -276,7 +277,7 @@ class TodoRepositoryImpl @Inject constructor(
         }
         userPreferencesDataSource.setSelectedTodoCategoryFilter(categoryId)
     }.onFailure { throwable ->
-        logError("setSelectedCategoryFilter", throwable)
+        logPreferenceFailure("setSelectedCategoryFilter", throwable)
     }
 
     override fun observeSelectedPriorityFilter(): Flow<TodoPriorityFilter> =
@@ -285,7 +286,7 @@ class TodoRepositoryImpl @Inject constructor(
     override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> = runCatching {
         userPreferencesDataSource.setSelectedTodoPriorityFilter(filter)
     }.onFailure { throwable ->
-        logError("setSelectedPriorityFilter", throwable)
+        logPreferenceFailure("setSelectedPriorityFilter", throwable)
     }
 
     override fun observeSelectedSortOption(): Flow<TodoSortOption> =
@@ -294,7 +295,7 @@ class TodoRepositoryImpl @Inject constructor(
     override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> = runCatching {
         userPreferencesDataSource.setSelectedTodoSortOption(option)
     }.onFailure { throwable ->
-        logError("setSelectedSortOption", throwable)
+        logPreferenceFailure("setSelectedSortOption", throwable)
     }
 
     private suspend fun validateCategoryId(categoryId: Long?) {
@@ -588,6 +589,11 @@ class TodoRepositoryImpl @Inject constructor(
 
     private fun logError(action: String, throwable: Throwable) {
         Log.e(TAG, "action=$action failure=${throwable.message}", throwable)
+    }
+
+    private fun logPreferenceFailure(action: String, throwable: Throwable) {
+        if (throwable is CancellationException) throw throwable
+        logError(action, throwable)
     }
 
     private companion object {
