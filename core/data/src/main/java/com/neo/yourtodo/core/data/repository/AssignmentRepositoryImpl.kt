@@ -418,11 +418,10 @@ class AssignmentRepositoryImpl @Inject constructor(
         checklist: List<AssignedTodoChecklistItem>
     ) {
         val cacheKey = assignedTodoCacheKey(ownerUserId, assignedTodoId)
-        assignedTodoDao.deleteChecklistItems(listOf(cacheKey))
-        val checklistItems = checklist.toChecklistEntities(ownerUserId, assignedTodoId)
-        if (checklistItems.isNotEmpty()) {
-            assignedTodoDao.upsertChecklistItems(checklistItems)
-        }
+        assignedTodoDao.replaceChecklistItems(
+            assignedTodoCacheKey = cacheKey,
+            checklistItems = checklist.toChecklistEntities(ownerUserId, assignedTodoId)
+        )
     }
 
     private fun List<AssignedTodoChecklistItem>.toChecklistEntities(

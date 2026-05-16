@@ -182,6 +182,17 @@ interface AssignedTodoDao {
     @Query("DELETE FROM assigned_todo_checklist_item WHERE assignedTodoCacheKey IN (:assignedTodoCacheKeys)")
     suspend fun deleteChecklistItems(assignedTodoCacheKeys: List<String>)
 
+    @Transaction
+    suspend fun replaceChecklistItems(
+        assignedTodoCacheKey: String,
+        checklistItems: List<AssignedTodoChecklistItemEntity>
+    ) {
+        deleteChecklistItems(listOf(assignedTodoCacheKey))
+        if (checklistItems.isNotEmpty()) {
+            upsertChecklistItems(checklistItems)
+        }
+    }
+
     @Query("DELETE FROM assigned_todo WHERE ownerUserId = :ownerUserId AND receivedCached = 1 AND status IN (:statuses)")
     suspend fun deleteReceivedByStatuses(ownerUserId: String, statuses: List<String>)
 

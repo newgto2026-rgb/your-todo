@@ -50,6 +50,7 @@ import com.neo.yourtodo.feature.calendar.api.CalendarDateRoute
 import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.todo.api.TodoEditorRoute
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -299,20 +300,23 @@ private fun finishActivityOrDispatchBack(
         ?: backPressedDispatcherOwner?.onBackPressedDispatcher?.onBackPressed()
 }
 
-private fun requestExitConfirmation(
+internal fun requestExitConfirmation(
     snackbarHostState: SnackbarHostState,
     coroutineScope: CoroutineScope,
     message: String,
     setPending: (Boolean) -> Unit
-) {
+): Job {
     setPending(true)
-    coroutineScope.launch {
-        snackbarHostState.currentSnackbarData?.dismiss()
-        snackbarHostState.showSnackbar(
-            message = message,
-            duration = SnackbarDuration.Short
-        )
-        setPending(false)
+    return coroutineScope.launch {
+        try {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+        } finally {
+            setPending(false)
+        }
     }
 }
 
