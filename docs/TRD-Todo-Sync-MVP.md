@@ -402,15 +402,15 @@ MVP 저장 위치:
 - DataStore에 `todo_sync_cursor`
 
 주의:
-- 로그아웃 시 `todo_sync_cursor`와 서버 Todo 캐시/outbox 처리 정책이 필요하다.
-- MVP에서는 로그아웃 시 auth session만 지우는 기존 정책을 유지하되, 다음 로그인 사용자가 바뀔 수 있으므로 서버 Todo 캐시와 outbox를 사용자별로 분리하거나 로그아웃 시 삭제해야 한다.
+- 명시 로그아웃은 현재 계정의 user-scoped local data를 삭제한다.
+- 세션 만료/`AUTH_REQUIRED`는 local Todo/outbox/cache를 보존하고 auth-required 상태로 전환한다.
 
 권장:
 - `TodoEntity`에 `ownerUserId`를 추가한다.
 - 모든 sync Todo는 현재 `AuthSession.user.id` 기준으로 저장/조회한다.
-- 로그아웃 시 서버 Todo 캐시와 outbox는 삭제한다.
+- 로그아웃 시 현재 사용자 Todo 캐시와 outbox는 삭제한다.
 - 로그아웃 시 `todo_sync_cursor`도 삭제한다.
-- 로그아웃 시 `LOCAL_ONLY` Todo는 삭제하지 않는다.
+- 로그아웃 시 현재 사용자 `LOCAL_ONLY` Todo도 삭제한다.
 - 다른 계정 로그인 시 이전 계정의 서버 Todo/outbox/cursor는 노출되지 않아야 한다.
 
 ## 8. Android 동기화 알고리즘

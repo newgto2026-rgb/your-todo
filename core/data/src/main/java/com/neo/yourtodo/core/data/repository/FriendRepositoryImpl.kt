@@ -29,7 +29,6 @@ import javax.inject.Inject
 class FriendRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val friendNetworkDataSource: FriendNetworkDataSource,
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
     private val authSessionRefresher: AuthSessionRefresher
 ) : FriendRepository {
     override suspend fun getFriends(): Result<List<Friend>> =
@@ -100,8 +99,6 @@ class FriendRepositoryImpl @Inject constructor(
             ?.takeUnless { it.onboardingRequired }
 
     private suspend fun authRequired(): Nothing {
-        assignmentFeedFreshnessTracker.clear()
-        userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
         userPreferencesDataSource.clearAuthSession()
         throw AuthRequiredException()
     }

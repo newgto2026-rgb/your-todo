@@ -1,7 +1,6 @@
 package com.neo.yourtodo.core.data.repository.todo
 
 import com.neo.yourtodo.core.data.di.TodoSyncPayloadJson
-import com.neo.yourtodo.core.data.repository.AssignmentFeedFreshnessTracker
 import com.neo.yourtodo.core.data.repository.AuthSessionRefresher
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.RESULT_APPLIED
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.RESULT_DUPLICATE_APPLIED
@@ -34,7 +33,6 @@ internal class TodoSyncCoordinator @Inject constructor(
     private val todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
     private val authSessionRefresher: AuthSessionRefresher,
     private val syncSessionProvider: TodoSyncSessionProvider,
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
     @TodoSyncPayloadJson
     private val json: Json
 ) {
@@ -77,8 +75,6 @@ internal class TodoSyncCoordinator @Inject constructor(
     }
 
     private suspend fun clearAuthSession() {
-        assignmentFeedFreshnessTracker.clear()
-        userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
         userPreferencesDataSource.clearAuthSession()
     }
 

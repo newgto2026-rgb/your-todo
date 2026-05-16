@@ -58,7 +58,7 @@ class AuthRepositoryImplTest {
     }
 
     @Test
-    fun signOutClearsServerScopedTodosOutboxAndSyncState() = runTest {
+    fun signOutClearsUserScopedLocalDataAndSyncState() = runTest {
         val preferences = FakeUserPreferencesDataSource()
         val todoDao = FakeTodoDao()
         val todoOutboxDao = FakeTodoOutboxDao()
@@ -85,7 +85,7 @@ class AuthRepositoryImplTest {
     }
 
     @Test
-    fun signOutKeepsLocalOnlyTodosAndPreventsPreviousUserServerDataLeak() = runTest {
+    fun signOutDeletesLocalOnlyTodosAndPreventsPreviousUserDataLeak() = runTest {
         val preferences = FakeUserPreferencesDataSource()
         val todoDao = FakeTodoDao().apply {
             seed(
@@ -171,9 +171,74 @@ class AuthRepositoryImplTest {
 
         repository.signOut()
 
-        assertThat(todoDao.items.map { it.title }).containsExactly("user a local", "user b server")
+        assertThat(todoDao.items.map { it.title }).containsExactly("user b server")
         assertThat(todoOutboxDao.items.map { it.ownerUserId }).containsExactly("user-b")
         assertThat(preferences.todoSyncCursor.first()).isNull()
+    }
+
+    @Test
+    fun signInTokenStorageFailureClearsOnlyAuthSessionAndPreservesLocalData() = runTest {
+        val preferences = FakeUserPreferencesDataSource(failSaveAuthSession = true).apply {
+            saveAuthSessionIgnoringFailure(
+                AuthSessionData(
+                    accessToken = "old-access",
+                    refreshToken = "old-refresh",
+                    userId = "user-a",
+                    nickname = "neo-a",
+                    email = "a@example.com",
+                    onboardingRequired = false
+                )
+            )
+            setTodoSyncCursor("cursor-a")
+            setTodoSyncHaltReason("AUTH_REQUIRED")
+        }
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 1L,
+                    title = "user a local",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    ownerUserId = "user-a",
+                    syncStatus = "LOCAL_ONLY"
+                )
+            )
+        }
+        val todoOutboxDao = FakeTodoOutboxDao().apply {
+            seed(
+                TodoOutboxEntity(
+                    id = 1L,
+                    ownerUserId = "user-a",
+                    clientMutationId = "mutation-a",
+                    todoLocalId = 1L,
+                    serverId = null,
+                    clientId = "client-a",
+                    type = "CREATE",
+                    payloadJson = "{}",
+                    createdAt = 1L
+                )
+            )
+        }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val repository = repository(
+            preferences = preferences,
+            todoDao = todoDao,
+            todoOutboxDao = todoOutboxDao,
+            assignedTodoDao = assignedTodoDao
+        )
+
+        val result = repository.signInWithGoogle("google-token")
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(preferences.authSession.first()).isNull()
+        assertThat(preferences.todoSyncCursor.first()).isEqualTo("cursor-a")
+        assertThat(preferences.todoSyncHaltReason.first()).isEqualTo("AUTH_REQUIRED")
+        assertThat(todoDao.items.map { it.title }).containsExactly("user a local")
+        assertThat(todoOutboxDao.items.map { it.clientMutationId }).containsExactly("mutation-a")
+        assertThat(assignedTodoDao.deletedOwnerUserId).isNull()
     }
 
     @Test
@@ -259,7 +324,9 @@ class AuthRepositoryImplTest {
         }
     }
 
-    private class FakeUserPreferencesDataSource : UserPreferencesDataSource {
+    private class FakeUserPreferencesDataSource(
+        private val failSaveAuthSession: Boolean = false
+    ) : UserPreferencesDataSource {
         private val savedAuthSession = MutableStateFlow<AuthSessionData?>(null)
         private val syncCursor = MutableStateFlow<String?>(null)
         private val syncHaltReason = MutableStateFlow<String?>(null)
@@ -273,6 +340,11 @@ class AuthRepositoryImplTest {
         override val todoSyncHaltReason: Flow<String?> = syncHaltReason
 
         override suspend fun saveAuthSession(session: AuthSessionData) {
+            if (failSaveAuthSession) error("Auth token storage failed")
+            savedAuthSession.value = session
+        }
+
+        fun saveAuthSessionIgnoringFailure(session: AuthSessionData) {
             savedAuthSession.value = session
         }
 
@@ -330,6 +402,10 @@ class AuthRepositoryImplTest {
         override suspend fun deleteSyncedTodosByOwner(ownerUserId: String) {
             deletedOwnerUserId = ownerUserId
             items.removeAll { it.ownerUserId == ownerUserId && it.syncStatus != "LOCAL_ONLY" }
+        }
+        override suspend fun deleteByOwner(ownerUserId: String) {
+            deletedOwnerUserId = ownerUserId
+            items.removeAll { it.ownerUserId == ownerUserId }
         }
         override suspend fun getTodosWithActiveReminder(): List<TodoEntity> = emptyList()
     }

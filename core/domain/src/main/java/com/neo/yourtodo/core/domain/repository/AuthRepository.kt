@@ -7,5 +7,11 @@ interface AuthRepository {
     val authSession: Flow<AuthSession?>
     suspend fun signInWithGoogle(idToken: String): Result<AuthSession>
     suspend fun completeNicknameOnboarding(nickname: String): Result<AuthSession>
-    suspend fun signOut()
+    suspend fun deleteUserScopedLocalData()
+    suspend fun clearAuthSession()
+
+    suspend fun signOut() {
+        deleteUserScopedLocalData()
+        clearAuthSession()
+    }
 }

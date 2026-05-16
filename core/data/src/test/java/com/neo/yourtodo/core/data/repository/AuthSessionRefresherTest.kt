@@ -26,7 +26,7 @@ class AuthSessionRefresherTest {
     fun refreshStoresNewSession() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
         val network = FakeAuthNetworkDataSource()
-        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
+        val refresher = AuthSessionRefresher(prefs, network)
 
         val refreshed = refresher.refresh("old-refresh")
 
@@ -39,7 +39,7 @@ class AuthSessionRefresherTest {
     fun refreshReturnsCurrentSessionWithoutNetworkWhenAnotherCallerAlreadyRotatedToken() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "new-refresh"))
         val network = FakeAuthNetworkDataSource()
-        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
+        val refresher = AuthSessionRefresher(prefs, network)
 
         val refreshed = refresher.refresh("old-refresh")
 
@@ -51,7 +51,7 @@ class AuthSessionRefresherTest {
     fun refreshReturnsNullWithoutNetworkWhenAnotherCallerAlreadyClearedSession() = runTest {
         val prefs = FakePreferencesDataSource(session = null)
         val network = FakeAuthNetworkDataSource()
-        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
+        val refresher = AuthSessionRefresher(prefs, network)
 
         val refreshed = refresher.refresh("old-refresh")
 
@@ -60,7 +60,7 @@ class AuthSessionRefresherTest {
     }
 
     @Test
-    fun refreshFailureClearsSession() = runTest {
+    fun refreshFailureClearsOnlySessionAndPreservesLocalRefreshState() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
         val network = FakeAuthNetworkDataSource(refreshException = IllegalStateException("Refresh failed"))
         val assignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
@@ -73,7 +73,8 @@ class AuthSessionRefresherTest {
             feed = feed,
             refreshedAt = 123L
         )
-        val refresher = AuthSessionRefresher(prefs, network, assignmentFeedFreshnessTracker)
+        prefs.setAssignmentFeedRefreshTime("user-id_received_active", 123L)
+        val refresher = AuthSessionRefresher(prefs, network)
 
         val refreshed = refresher.refresh("old-refresh")
 
@@ -81,14 +82,16 @@ class AuthSessionRefresherTest {
         assertThat(network.refreshTokens).containsExactly("old-refresh")
         assertThat(prefs.authSession.first()).isNull()
         assertThat(assignmentFeedFreshnessTracker.observeRefreshTime("user-id", feed).first())
-            .isNull()
+            .isEqualTo(123L)
+        assertThat(prefs.observeAssignmentFeedRefreshTime("user-id_received_active").first())
+            .isEqualTo(123L)
     }
 
     @Test
     fun refreshCancellationKeepsSessionAndRethrows() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
         val network = FakeAuthNetworkDataSource(refreshException = CancellationException("Cancelled"))
-        val refresher = AuthSessionRefresher(prefs, network, AssignmentFeedFreshnessTracker())
+        val refresher = AuthSessionRefresher(prefs, network)
 
         var cancellationThrown = false
         try {
@@ -114,6 +117,7 @@ class AuthSessionRefresherTest {
             MutableStateFlow(TodoPriorityFilter.ALL)
         override val todoSyncCursor: Flow<String?> = MutableStateFlow(null)
         override val todoSyncHaltReason: Flow<String?> = MutableStateFlow(null)
+        private val assignmentFeedRefreshTimes = MutableStateFlow<Map<String, Long>>(emptyMap())
 
         override suspend fun saveAuthSession(session: AuthSessionData) {
             authSessionFlow.value = session
@@ -129,6 +133,16 @@ class AuthSessionRefresherTest {
         override suspend fun setTodoSyncCursor(cursor: String?) = Unit
         override suspend fun setTodoSyncHaltReason(reason: String?) = Unit
         override suspend fun clearTodoSyncState() = Unit
+        override fun observeAssignmentFeedRefreshTime(feedKey: String): Flow<Long?> =
+            MutableStateFlow(assignmentFeedRefreshTimes.value[feedKey])
+
+        override suspend fun setAssignmentFeedRefreshTime(feedKey: String, refreshedAtEpochMillis: Long) {
+            assignmentFeedRefreshTimes.value += feedKey to refreshedAtEpochMillis
+        }
+
+        override suspend fun clearAssignmentFeedRefreshTimes() {
+            assignmentFeedRefreshTimes.value = emptyMap()
+        }
     }
 
     private class FakeAuthNetworkDataSource(

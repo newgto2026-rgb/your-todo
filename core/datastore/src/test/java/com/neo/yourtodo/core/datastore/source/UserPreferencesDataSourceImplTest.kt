@@ -14,6 +14,7 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TO
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_EMAIL
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_ID
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_NICKNAME
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.TODO_SYNC_CURSOR
 import com.neo.yourtodo.core.model.TodoFilter
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -69,6 +70,28 @@ class UserPreferencesDataSourceImplTest {
         assertThat(dataSource.authSession.first()).isEqualTo(
             authSession(onboardingRequired = true)
         )
+    }
+
+    @Test
+    fun clearAuthSessionRemovesOnlyAuthValues() = runTest {
+        val dataStore = createDataStore(backgroundScope)
+        val dataSource = createDataSource(dataStore)
+        dataSource.saveAuthSession(authSession())
+        dataSource.setSelectedTodoFilter(TodoFilter.TODAY)
+        dataSource.setTodoSyncCursor("cursor-a")
+        dataSource.setAssignmentFeedRefreshTime("user-id_received_active", 123L)
+
+        dataSource.clearAuthSession()
+
+        val saved = dataStore.data.first()
+        assertThat(dataSource.authSession.first()).isNull()
+        assertThat(saved[AUTH_ENCRYPTED_ACCESS_TOKEN]).isNull()
+        assertThat(saved[AUTH_ENCRYPTED_REFRESH_TOKEN]).isNull()
+        assertThat(saved[AUTH_USER_ID]).isNull()
+        assertThat(dataSource.selectedTodoFilter.first()).isEqualTo(TodoFilter.TODAY)
+        assertThat(saved[TODO_SYNC_CURSOR]).isEqualTo("cursor-a")
+        assertThat(dataSource.observeAssignmentFeedRefreshTime("user-id_received_active").first())
+            .isEqualTo(123L)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

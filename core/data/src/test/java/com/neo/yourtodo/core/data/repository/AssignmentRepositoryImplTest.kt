@@ -227,6 +227,9 @@ class AssignmentRepositoryImplTest {
     @Test
     fun requestClearsSessionWhenRefreshFails() = runTest {
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao().apply {
+            upsertAssignedTodos(listOf(cachedAssignedTodo()))
+        }
         val network = FakeAssignmentNetworkDataSource().apply {
             authFailuresRemaining = 1
         }
@@ -234,7 +237,8 @@ class AssignmentRepositoryImplTest {
         val repository = repository(
             prefs = prefs,
             network = network,
-            authNetwork = authNetwork
+            authNetwork = authNetwork,
+            assignedTodoDao = assignedTodoDao
         )
 
         val result = repository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE)
@@ -242,6 +246,11 @@ class AssignmentRepositoryImplTest {
         assertThat(result.exceptionOrNull()).isInstanceOf(AuthRequiredException::class.java)
         assertThat(authNetwork.lastRefreshToken).isEqualTo("refresh-token")
         assertThat(prefs.authSession.first()).isNull()
+        assertThat(
+            assignedTodoDao.observeReceivedAssignedTodos("user-id", listOf("ACCEPTED"))
+                .first()
+                .map { it.assignedTodo.id }
+        ).containsExactly("cached-assigned")
     }
 
     @Test
@@ -539,8 +548,7 @@ class AssignmentRepositoryImplTest {
         assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
         authSessionRefresher = AuthSessionRefresher(
             prefs,
-            authNetwork,
-            assignmentFeedFreshnessTracker
+            authNetwork
         )
     )
 
@@ -555,6 +563,35 @@ class AssignmentRepositoryImplTest {
         nickname = "neo",
         email = "neo@example.com",
         onboardingRequired = false
+    )
+
+    private fun cachedAssignedTodo() = AssignedTodoEntity(
+        ownerUserId = "user-id",
+        id = "cached-assigned",
+        cacheKey = assignedTodoCacheKey("user-id", "cached-assigned"),
+        bundleId = "bundle-1",
+        title = "Cached assigned",
+        description = null,
+        dueDateEpochDay = null,
+        dueTimeMinutes = null,
+        priority = "MEDIUM",
+        category = null,
+        status = "ACCEPTED",
+        terminalReason = null,
+        progressPercent = 0,
+        senderUserId = "friend-1",
+        senderNickname = "monday",
+        receiverUserId = "user-id",
+        receiverNickname = "neo",
+        assignmentMode = "MANUAL",
+        reminderAt = null,
+        reminderEnabled = null,
+        createdAtEpochMillis = null,
+        completedAtEpochMillis = null,
+        receivedCached = true,
+        receivedTaskHidden = false,
+        sentCached = false,
+        cacheUpdatedAt = 1L
     )
 
     private class FakePreferencesDataSource : UserPreferencesDataSource {
@@ -892,6 +929,7 @@ class AssignmentRepositoryImplTest {
         override suspend fun getTodoByServerId(ownerUserId: String, serverId: String): TodoEntity? = null
         override suspend fun getTodoByClientId(ownerUserId: String, clientId: String): TodoEntity? = null
         override suspend fun deleteSyncedTodosByOwner(ownerUserId: String) = Unit
+        override suspend fun deleteByOwner(ownerUserId: String) = Unit
         override suspend fun getTodosWithActiveReminder(): List<TodoEntity> = emptyList()
     }
 

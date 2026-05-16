@@ -278,4 +278,33 @@ class TodoDaoTest {
 
         assertThat(dao.getTodoById(id)).isNull()
     }
+
+    @Test
+    fun deleteByOwner_removesAllRowsForOwnerOnly() = runTest {
+        dao.insert(todo(title = "user-a-local", ownerUserId = "user-a", syncStatus = "LOCAL_ONLY"))
+        dao.insert(todo(title = "user-a-synced", ownerUserId = "user-a", syncStatus = "SYNCED"))
+        dao.insert(todo(title = "user-b-synced", ownerUserId = "user-b", syncStatus = "SYNCED"))
+        dao.insert(todo(title = "device-local", ownerUserId = null, syncStatus = "LOCAL_ONLY"))
+
+        dao.deleteByOwner("user-a")
+
+        assertThat(dao.observeTodos().first().map { it.title })
+            .containsExactly("device-local", "user-b-synced")
+    }
+
+    private fun todo(
+        title: String,
+        ownerUserId: String?,
+        syncStatus: String
+    ): TodoEntity =
+        TodoEntity(
+            title = title,
+            isDone = false,
+            dueDateEpochDay = null,
+            createdAt = 1L,
+            updatedAt = 1L,
+            categoryId = null,
+            ownerUserId = ownerUserId,
+            syncStatus = syncStatus
+        )
 }

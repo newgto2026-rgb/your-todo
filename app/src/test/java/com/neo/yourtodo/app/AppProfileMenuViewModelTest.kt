@@ -65,7 +65,8 @@ class AppProfileMenuViewModelTest {
             mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
             assertThat(awaitItem()).isEqualTo(AppProfileMenuSideEffect.SignedOut)
-            assertThat(repository.signOutCount).isEqualTo(1)
+            assertThat(repository.deleteUserScopedLocalDataCount).isEqualTo(1)
+            assertThat(repository.clearAuthSessionCount).isEqualTo(1)
             assertThat(pushTokenRepository.deleteRegisteredTokenCount).isEqualTo(1)
             assertThat(repository.currentSession).isNull()
             assertThat(viewModel.uiState.value.isSigningOut).isFalse()
@@ -84,7 +85,8 @@ class AppProfileMenuViewModelTest {
             mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
             assertThat(awaitItem()).isEqualTo(AppProfileMenuSideEffect.LogoutFailed)
-            assertThat(repository.signOutCount).isEqualTo(0)
+            assertThat(repository.deleteUserScopedLocalDataCount).isEqualTo(0)
+            assertThat(repository.clearAuthSessionCount).isEqualTo(0)
             assertThat(repository.currentSession).isNotNull()
             assertThat(viewModel.uiState.value.isSigningOut).isFalse()
         }
@@ -102,7 +104,8 @@ class AppProfileMenuViewModelTest {
         initialSession: AuthSession?
     ) : AuthRepository {
         private val session = MutableStateFlow(initialSession)
-        var signOutCount = 0
+        var deleteUserScopedLocalDataCount = 0
+        var clearAuthSessionCount = 0
         val currentSession: AuthSession?
             get() = session.value
 
@@ -114,8 +117,12 @@ class AppProfileMenuViewModelTest {
         override suspend fun completeNicknameOnboarding(nickname: String): Result<AuthSession> =
             Result.failure(UnsupportedOperationException())
 
-        override suspend fun signOut() {
-            signOutCount += 1
+        override suspend fun deleteUserScopedLocalData() {
+            deleteUserScopedLocalDataCount += 1
+        }
+
+        override suspend fun clearAuthSession() {
+            clearAuthSessionCount += 1
             session.value = null
         }
     }
