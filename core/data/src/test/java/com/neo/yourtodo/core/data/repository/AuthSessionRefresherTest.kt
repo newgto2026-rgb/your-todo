@@ -3,6 +3,9 @@ package com.neo.yourtodo.core.data.repository
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
+import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCacheKey
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
@@ -60,13 +63,25 @@ class AuthSessionRefresherTest {
     fun refreshFailureClearsSession() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
         val network = FakeAuthNetworkDataSource(refreshException = IllegalStateException("Refresh failed"))
-        val refresher = AuthSessionRefresher(prefs, network)
+        val assignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+        assignmentFeedFreshnessTracker.recordRefresh(
+            ownerUserId = "user-id",
+            feed = feed,
+            refreshedAt = 123L
+        )
+        val refresher = AuthSessionRefresher(prefs, network, assignmentFeedFreshnessTracker)
 
         val refreshed = refresher.refresh("old-refresh")
 
         assertThat(refreshed).isNull()
         assertThat(network.refreshTokens).containsExactly("old-refresh")
         assertThat(prefs.authSession.first()).isNull()
+        assertThat(assignmentFeedFreshnessTracker.observeRefreshTime("user-id", feed).first())
+            .isNull()
     }
 
     @Test

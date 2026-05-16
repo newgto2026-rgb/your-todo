@@ -20,7 +20,9 @@ class AuthRepositoryImpl @Inject constructor(
     private val preferencesDataSource: UserPreferencesDataSource,
     private val todoDao: TodoDao,
     private val todoOutboxDao: TodoOutboxDao,
-    private val assignedTodoDao: AssignedTodoDao
+    private val assignedTodoDao: AssignedTodoDao,
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
+        AssignmentFeedFreshnessTracker()
 ) : AuthRepository {
 
     override val authSession: Flow<AuthSession?> =
@@ -63,6 +65,7 @@ class AuthRepositoryImpl @Inject constructor(
             assignedTodoDao.deleteByOwner(session.userId)
         }
         preferencesDataSource.clearTodoSyncState()
+        assignmentFeedFreshnessTracker.clear()
         preferencesDataSource.clearAuthSession()
     }
 

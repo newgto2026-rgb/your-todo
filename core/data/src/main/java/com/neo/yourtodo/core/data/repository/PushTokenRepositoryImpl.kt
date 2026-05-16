@@ -17,7 +17,9 @@ class PushTokenRepositoryImpl @Inject constructor(
     private val pushNetworkDataSource: PushNetworkDataSource,
     authNetworkDataSource: AuthNetworkDataSource,
     private val authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
+        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource),
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
+        AssignmentFeedFreshnessTracker()
 ) : PushTokenRepository {
     override suspend fun saveCurrentToken(token: String): Result<Unit> =
         runCatching {
@@ -83,6 +85,7 @@ class PushTokenRepositoryImpl @Inject constructor(
         }
 
     private suspend fun authRequired(): Nothing {
+        assignmentFeedFreshnessTracker.clear()
         userPreferencesDataSource.clearAuthSession()
         throw AuthRequiredException()
     }

@@ -32,7 +32,9 @@ class FriendRepositoryImpl @Inject constructor(
     private val friendNetworkDataSource: FriendNetworkDataSource,
     authNetworkDataSource: AuthNetworkDataSource,
     private val authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
+        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource),
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
+        AssignmentFeedFreshnessTracker()
 ) : FriendRepository {
     override suspend fun getFriends(): Result<List<Friend>> =
         onlineOnlyAuthenticatedRequest { accessToken ->
@@ -102,6 +104,7 @@ class FriendRepositoryImpl @Inject constructor(
             ?.takeUnless { it.onboardingRequired }
 
     private suspend fun authRequired(): Nothing {
+        assignmentFeedFreshnessTracker.clear()
         userPreferencesDataSource.clearAuthSession()
         throw AuthRequiredException()
     }

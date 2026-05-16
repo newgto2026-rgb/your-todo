@@ -39,7 +39,9 @@ class TodoRepositoryImpl @Inject constructor(
     todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
     authNetworkDataSource: AuthNetworkDataSource,
     authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
+        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource),
+    assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker =
+        AssignmentFeedFreshnessTracker()
 ) : TodoItemRepository, TodoCategoryRepository, TodoFilterRepository, TodoReminderRepository {
 
     private val json = Json {
@@ -62,6 +64,7 @@ class TodoRepositoryImpl @Inject constructor(
         todoSyncNetworkDataSource = todoSyncNetworkDataSource,
         authSessionRefresher = authSessionRefresher,
         syncSessionProvider = syncSessionProvider,
+        assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
         json = json
     )
     private val filterPreferences = TodoFilterPreferences(userPreferencesDataSource, categoryStore)
