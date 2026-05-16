@@ -9,6 +9,7 @@ import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import com.neo.yourtodo.core.network.auth.NetworkAuthUser
 import com.neo.yourtodo.core.network.auth.NetworkAuthUserResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -58,7 +59,7 @@ class AuthSessionRefresherTest {
     @Test
     fun refreshFailureClearsSession() = runTest {
         val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
-        val network = FakeAuthNetworkDataSource(refreshFails = true)
+        val network = FakeAuthNetworkDataSource(refreshException = IllegalStateException("Refresh failed"))
         val refresher = AuthSessionRefresher(prefs, network)
 
         val refreshed = refresher.refresh("old-refresh")
@@ -66,6 +67,24 @@ class AuthSessionRefresherTest {
         assertThat(refreshed).isNull()
         assertThat(network.refreshTokens).containsExactly("old-refresh")
         assertThat(prefs.authSession.first()).isNull()
+    }
+
+    @Test
+    fun refreshCancellationKeepsSessionAndRethrows() = runTest {
+        val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
+        val network = FakeAuthNetworkDataSource(refreshException = CancellationException("Cancelled"))
+        val refresher = AuthSessionRefresher(prefs, network)
+
+        var cancellationThrown = false
+        try {
+            refresher.refresh("old-refresh")
+        } catch (_: CancellationException) {
+            cancellationThrown = true
+        }
+
+        assertThat(cancellationThrown).isTrue()
+        assertThat(network.refreshTokens).containsExactly("old-refresh")
+        assertThat(prefs.authSession.first()?.refreshToken).isEqualTo("old-refresh")
     }
 
     private class FakePreferencesDataSource(
@@ -98,7 +117,7 @@ class AuthSessionRefresherTest {
     }
 
     private class FakeAuthNetworkDataSource(
-        private val refreshFails: Boolean = false
+        private val refreshException: Exception? = null
     ) : AuthNetworkDataSource {
         val refreshTokens = mutableListOf<String>()
 
@@ -107,7 +126,7 @@ class AuthSessionRefresherTest {
 
         override suspend fun refreshSession(refreshToken: String): NetworkAuthSession {
             refreshTokens += refreshToken
-            if (refreshFails) error("Refresh failed")
+            refreshException?.let { throw it }
             return NetworkAuthSession(
                 accessToken = "new-access",
                 refreshToken = "new-refresh",

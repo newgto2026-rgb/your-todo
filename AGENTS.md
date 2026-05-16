@@ -65,6 +65,7 @@
 
 ## Review guidelines
 - PR 리뷰는 실제 동작 오류, 회귀 위험, 아키텍처/모듈 경계 위반, 테스트 누락을 우선한다.
+- PR 리뷰 코멘트 대응 시 기본적으로 각 unresolved thread에 수정 내용 또는 판단 근거를 답글로 남기고, 처리가 끝난 thread는 resolved 처리한다.
 - `core:* -> feature:*` 의존 추가, `feature:*:api`와 `feature:*:impl` 책임 혼합, 앱 셸에서 구현 상세 직접 참조는 P1로 지적한다.
 - ViewModel/use case/domain/data 변경에 대응 단위 테스트가 없거나, 핵심 사용자 플로우 변경에 UI 테스트가 없으면 P1로 지적한다.
 - 사용자 노출 문자열이 `values`, `values-ko` 리소스가 아닌 코드에 하드코딩되면 P1로 지적한다.

@@ -6,6 +6,7 @@ import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -27,11 +28,13 @@ class AuthSessionRefresher @Inject constructor(
                 return@withLock currentSession
             }
 
-            runCatching {
+            try {
                 authNetworkDataSource.refreshSession(refreshToken)
                     .toAuthSessionData()
                     .also { userPreferencesDataSource.saveAuthSession(it) }
-            }.getOrElse {
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Exception) {
                 userPreferencesDataSource.clearAuthSession()
                 null
             }
