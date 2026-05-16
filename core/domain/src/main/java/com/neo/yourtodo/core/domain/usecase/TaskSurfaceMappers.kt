@@ -25,7 +25,10 @@ fun TodoItem.toTaskSurfaceItem(): TaskSurfaceItem =
         source = TaskSurfaceSource.Local(todoId = id)
     )
 
-fun AssignedTodo.toTaskSurfaceItem(isDoneOverride: Boolean? = null): TaskSurfaceItem {
+fun AssignedTodo.toTaskSurfaceItem(
+    zoneId: ZoneId,
+    isDoneOverride: Boolean? = null
+): TaskSurfaceItem {
     val reminderEpochMillis = reminderAtEpochMillis()
     return TaskSurfaceItem(
         id = assignedTaskSurfaceRowId(id),
@@ -35,7 +38,10 @@ fun AssignedTodo.toTaskSurfaceItem(isDoneOverride: Boolean? = null): TaskSurface
         dueTimeMinutes = dueTimeMinutes,
         reminderAtEpochMillis = reminderEpochMillis,
         isReminderEnabled = reminder?.enabled == true,
-        reminderLeadMinutes = reminderLeadMinutes(reminderEpochMillis),
+        reminderLeadMinutes = reminderLeadMinutes(
+            reminderEpochMillis = reminderEpochMillis,
+            zoneId = zoneId
+        ),
         reminderRepeatType = ReminderRepeatType.NONE,
         priority = priority,
         source = TaskSurfaceSource.Assigned(assignedTodoId = id),
@@ -55,7 +61,7 @@ fun AssignedTodo.toTaskSurfaceSummary(): TodoSummary =
     )
 
 fun assignedTaskSurfaceRowId(id: String): Long {
-    val positiveHash = id.hashCode().toLong().let { if (it == Long.MIN_VALUE) 0 else abs(it) }
+    val positiveHash = abs(id.hashCode().toLong())
     return -positiveHash - 1
 }
 
@@ -71,13 +77,16 @@ private fun AssignedTodo.reminderAtEpochMillis(): Long? =
         ?.reminderAt
         ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
 
-private fun AssignedTodo.reminderLeadMinutes(reminderEpochMillis: Long?): Int? {
+private fun AssignedTodo.reminderLeadMinutes(
+    reminderEpochMillis: Long?,
+    zoneId: ZoneId
+): Int? {
     val dueDate = dueDate ?: return null
     val dueTimeMinutes = dueTimeMinutes ?: return null
     val reminderMillis = reminderEpochMillis ?: return null
     val dueMillis = dueDate
         .atTime(LocalTime.of(dueTimeMinutes / MINUTES_PER_HOUR, dueTimeMinutes % MINUTES_PER_HOUR))
-        .atZone(ZoneId.systemDefault())
+        .atZone(zoneId)
         .toInstant()
         .toEpochMilli()
     val leadMinutes = ((dueMillis - reminderMillis) / MILLIS_PER_MINUTE).toInt()

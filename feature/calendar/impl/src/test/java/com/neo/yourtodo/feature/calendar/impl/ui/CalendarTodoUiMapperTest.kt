@@ -19,9 +19,10 @@ class CalendarTodoUiMapperTest {
     @Test
     fun buildSelectedDateTodos_filtersSortsAndMapsLocalThenAssignedTodos() {
         val selectedDate = LocalDate.of(2026, 5, 9)
+        val zoneId = ZoneId.of("Asia/Seoul")
         val reminderAt = selectedDate
             .atTime(LocalTime.of(8, 30))
-            .atZone(ZoneId.systemDefault())
+            .atZone(zoneId)
             .toInstant()
             .toString()
         val todos = listOf(
@@ -58,7 +59,8 @@ class CalendarTodoUiMapperTest {
         val taskSurfaceItems = BuildTaskSurfaceDateTodosUseCase()(
             selectedDate = selectedDate,
             localTodos = todos,
-            assignedTodos = assignedTodos
+            assignedTodos = assignedTodos,
+            zoneId = zoneId
         )
         val uiModels = buildSelectedDateTodos(taskSurfaceItems)
 

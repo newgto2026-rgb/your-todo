@@ -29,6 +29,7 @@ import com.neo.yourtodo.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -115,6 +116,8 @@ class TodoListViewModel @Inject constructor(
             selectedFilter = localState.selectedFilter,
             selectedPriorityFilter = selectedPreferences.priorityFilter,
             profileInitial = session?.user?.nickname,
+            today = LocalDate.now(),
+            zoneId = ZoneId.systemDefault(),
             buildTaskSurfaceListUseCase = buildTaskSurfaceListUseCase
         )
     }.stateIn(

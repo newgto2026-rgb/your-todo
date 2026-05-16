@@ -12,6 +12,7 @@ import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.model.TodoSummary
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
+import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoReminder
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
@@ -22,7 +23,9 @@ import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.YearMonth
+import kotlin.math.abs
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
@@ -70,6 +73,7 @@ class TaskSurfaceUseCasesTest {
             selectedPriorityFilter = TodoPriorityFilter.ALL,
             selectedSortOption = TodoSortOption.DUE_DATE,
             today = today,
+            zoneId = TEST_ZONE_ID,
             assignedOverrides = AssignedTaskSurfaceOverrides(
                 activeIds = setOf("assigned-done")
             )
@@ -113,7 +117,8 @@ class TaskSurfaceUseCasesTest {
             selectedFilter = TodoFilter.ALL,
             selectedPriorityFilter = TodoPriorityFilter.ALL,
             selectedSortOption = TodoSortOption.FRIEND,
-            today = today
+            today = today,
+            zoneId = TEST_ZONE_ID
         )
 
         assertThat(surface.sections.map { it.key }).containsExactly(
@@ -127,6 +132,40 @@ class TaskSurfaceUseCasesTest {
             "Bob task",
             "My task",
             "Done friend task"
+        ).inOrder()
+    }
+
+    @Test
+    fun buildTaskSurfaceListNonAllFiltersKeepPlannerPriorityOrderingAcrossSortOptions() {
+        val today = LocalDate.of(2026, 5, 16)
+
+        val surface = BuildTaskSurfaceListUseCase()(
+            localTodos = listOf(
+                todo(
+                    id = 1,
+                    title = "Low overdue",
+                    dueDate = today.minusDays(1),
+                    priority = TodoPriority.LOW
+                ),
+                todo(
+                    id = 2,
+                    title = "High today",
+                    dueDate = today,
+                    priority = TodoPriority.HIGH
+                )
+            ),
+            assignedTodos = emptyList(),
+            selectedFilter = TodoFilter.TODAY,
+            selectedPriorityFilter = TodoPriorityFilter.ALL,
+            selectedSortOption = TodoSortOption.DUE_DATE,
+            today = today,
+            zoneId = TEST_ZONE_ID
+        )
+
+        assertThat(surface.sections).isEmpty()
+        assertThat(surface.items.map { it.title }).containsExactly(
+            "High today",
+            "Low overdue"
         ).inOrder()
     }
 
@@ -162,7 +201,8 @@ class TaskSurfaceUseCasesTest {
                     dueDate = selectedDate.plusDays(1),
                     priority = TodoPriority.HIGH
                 )
-            )
+            ),
+            zoneId = TEST_ZONE_ID
         )
 
         assertThat(items.map { it.title }).containsExactly(
@@ -173,6 +213,38 @@ class TaskSurfaceUseCasesTest {
             "Assigned low"
         ).inOrder()
         assertThat(items.take(3).all { it.assignedTodoId == null }).isTrue()
+    }
+
+    @Test
+    fun assignedTaskSurfaceRowIdKeepsExistingNegativeHashPolicy() {
+        val id = "assigned-id"
+
+        val rowId = assignedTaskSurfaceRowId(id)
+
+        assertThat(rowId).isEqualTo(-abs(id.hashCode().toLong()) - 1)
+        assertThat(rowId).isLessThan(0L)
+    }
+
+    @Test
+    fun assignedTodoReminderLeadMinutesUseExplicitZoneId() {
+        val dueDate = LocalDate.of(2026, 5, 16)
+        val reminderAt = dueDate
+            .atTime(8, 30)
+            .atZone(TEST_ZONE_ID)
+            .toInstant()
+            .toString()
+        val assignedTodo = assignedTodo(
+            id = "assigned-reminder",
+            dueDate = dueDate,
+            dueTimeMinutes = 9 * 60,
+            reminder = AssignedTodoReminder(reminderAt = reminderAt, enabled = true)
+        )
+
+        val itemInTestZone = assignedTodo.toTaskSurfaceItem(zoneId = TEST_ZONE_ID)
+        val itemInUtc = assignedTodo.toTaskSurfaceItem(zoneId = ZoneId.of("UTC"))
+
+        assertThat(itemInTestZone.reminderLeadMinutes).isEqualTo(30)
+        assertThat(itemInUtc.reminderLeadMinutes).isNull()
     }
 
     @Test
@@ -276,7 +348,8 @@ class TaskSurfaceUseCasesTest {
         priority: TodoPriority = TodoPriority.MEDIUM,
         dueTimeMinutes: Int? = null,
         senderNickname: String = "monday",
-        assignmentMode: AssignmentMode = AssignmentMode.REQUEST
+        assignmentMode: AssignmentMode = AssignmentMode.REQUEST,
+        reminder: AssignedTodoReminder? = null
     ): AssignedTodo =
         AssignedTodo(
             id = id,
@@ -293,7 +366,7 @@ class TaskSurfaceUseCasesTest {
             sender = AssignedTodoUser(id = "friend-1", nickname = senderNickname),
             receiver = AssignedTodoUser(id = "me", nickname = "tester"),
             assignmentMode = assignmentMode,
-            reminder = null,
+            reminder = reminder,
             checklist = emptyList(),
             createdAt = Instant.ofEpochMilli(ASSIGNED_CREATED_AT)
         )
@@ -364,5 +437,6 @@ class TaskSurfaceUseCasesTest {
 
     private companion object {
         private const val ASSIGNED_CREATED_AT = 1_768_521_600_000L
+        private val TEST_ZONE_ID = ZoneId.of("Asia/Seoul")
     }
 }

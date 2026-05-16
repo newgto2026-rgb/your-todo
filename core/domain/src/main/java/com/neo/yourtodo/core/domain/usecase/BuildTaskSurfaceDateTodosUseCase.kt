@@ -3,13 +3,15 @@ package com.neo.yourtodo.core.domain.usecase
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
 class BuildTaskSurfaceDateTodosUseCase @Inject constructor() {
     operator fun invoke(
         selectedDate: LocalDate,
         localTodos: List<TodoItem>,
-        assignedTodos: List<AssignedTodo>
+        assignedTodos: List<AssignedTodo>,
+        zoneId: ZoneId
     ): List<TaskSurfaceItem> {
         val selectedLocalTodos = localTodos
             .asSequence()
@@ -21,7 +23,7 @@ class BuildTaskSurfaceDateTodosUseCase @Inject constructor() {
         val selectedAssignedTodos = assignedTodos
             .asSequence()
             .filter { it.dueDate == selectedDate }
-            .map { it.toTaskSurfaceItem() }
+            .map { it.toTaskSurfaceItem(zoneId = zoneId) }
             .sortedWith(selectedDateAssignedComparator)
             .toList()
 

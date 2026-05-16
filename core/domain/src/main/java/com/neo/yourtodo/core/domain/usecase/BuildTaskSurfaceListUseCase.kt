@@ -7,6 +7,7 @@ import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
 class BuildTaskSurfaceListUseCase @Inject constructor() {
@@ -16,7 +17,8 @@ class BuildTaskSurfaceListUseCase @Inject constructor() {
         selectedFilter: TodoFilter,
         selectedPriorityFilter: TodoPriorityFilter,
         selectedSortOption: TodoSortOption,
-        today: LocalDate = LocalDate.now(),
+        today: LocalDate,
+        zoneId: ZoneId,
         assignedOverrides: AssignedTaskSurfaceOverrides = AssignedTaskSurfaceOverrides()
     ): TaskSurfaceList {
         val surfaceItems = localTodos.map { it.toTaskSurfaceItem() } +
@@ -25,6 +27,7 @@ class BuildTaskSurfaceListUseCase @Inject constructor() {
                 .filterNot { it.id in assignedOverrides.hiddenIds }
                 .map { assignedTodo ->
                     assignedTodo.toTaskSurfaceItem(
+                        zoneId = zoneId,
                         isDoneOverride = when {
                             assignedTodo.id in assignedOverrides.activeIds -> false
                             assignedTodo.id in assignedOverrides.completedIds -> true

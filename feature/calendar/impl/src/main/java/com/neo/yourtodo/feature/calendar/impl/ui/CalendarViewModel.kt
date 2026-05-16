@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 
 private const val STATE_MONTH_KEY = "calendar_month"
 private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
@@ -94,7 +95,8 @@ class CalendarViewModel @Inject constructor(
             taskSurfaceItems = buildTaskSurfaceDateTodosUseCase(
                 selectedDate = selectedDate,
                 localTodos = todos,
-                assignedTodos = assignedTodos
+                assignedTodos = assignedTodos,
+                zoneId = ZoneId.systemDefault()
             )
         )
     }.stateIn(

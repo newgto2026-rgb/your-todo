@@ -10,6 +10,8 @@ import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 internal fun buildTodoListUiState(
@@ -19,6 +21,8 @@ internal fun buildTodoListUiState(
     selectedFilter: TodoFilter,
     selectedPriorityFilter: TodoPriorityFilter,
     profileInitial: String?,
+    today: LocalDate,
+    zoneId: ZoneId,
     buildTaskSurfaceListUseCase: BuildTaskSurfaceListUseCase
 ): TodoListUiState {
     val taskSurface = buildTaskSurfaceListUseCase(
@@ -27,6 +31,8 @@ internal fun buildTodoListUiState(
         selectedFilter = selectedFilter,
         selectedPriorityFilter = selectedPriorityFilter,
         selectedSortOption = localState.selectedSortOption,
+        today = today,
+        zoneId = zoneId,
         assignedOverrides = AssignedTaskSurfaceOverrides(
             completedIds = localState.optimisticCompletedAssignedTodoIds,
             activeIds = localState.optimisticActiveAssignedTodoIds,
