@@ -740,7 +740,7 @@ class TodoRepositoryImplTest {
                         clientId = "client-case",
                         title = "case",
                         revision = "2",
-                        priority = "high",
+                        priority = "hIgH",
                         categoryId = 42L,
                         dueTimeMinutes = 870
                     )
@@ -760,7 +760,7 @@ class TodoRepositoryImplTest {
     }
 
     @Test
-    fun `sync pull preserves local only reminder fields on remote update`() = runTest {
+    fun `sync pull preserves local reminder fields and omitted extended fields on remote update`() = runTest {
         val todoDao = FakeTodoDao().apply {
             seed(
                 TodoEntity(
@@ -770,11 +770,12 @@ class TodoRepositoryImplTest {
                     dueDateEpochDay = null,
                     createdAt = 1L,
                     updatedAt = 1L,
-                    categoryId = null,
+                    categoryId = 42L,
                     reminderAtEpochMillis = 1_778_400_000_000L,
                     isReminderEnabled = true,
                     reminderRepeatType = ReminderRepeatType.WEEKLY.name,
                     reminderRepeatDaysMask = 0b0101010,
+                    dueTimeMinutes = 870,
                     reminderLeadMinutes = 30,
                     priority = TodoPriority.MEDIUM.name,
                     serverId = "server-reminder",
@@ -808,6 +809,8 @@ class TodoRepositoryImplTest {
         val saved = todoDao.getTodoById(11L)
         assertThat(saved?.title).isEqualTo("remote update")
         assertThat(saved?.priority).isEqualTo(TodoPriority.HIGH.name)
+        assertThat(saved?.categoryId).isEqualTo(42L)
+        assertThat(saved?.dueTimeMinutes).isEqualTo(870)
         assertThat(saved?.reminderAtEpochMillis).isEqualTo(1_778_400_000_000L)
         assertThat(saved?.isReminderEnabled).isTrue()
         assertThat(saved?.reminderRepeatType).isEqualTo(ReminderRepeatType.WEEKLY.name)
