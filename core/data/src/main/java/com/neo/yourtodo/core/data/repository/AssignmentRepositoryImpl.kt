@@ -54,6 +54,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
@@ -226,15 +227,18 @@ class AssignmentRepositoryImpl @Inject constructor(
                     )
                 )
             val scopedKey = feed.toScopedKey(ownerUserId)
+            val refreshTimeFlow = feedRefreshTimes
+                .map { refreshTimes -> refreshTimes[scopedKey] }
+                .distinctUntilChanged()
             combine(
                 observePersistedFeedCacheUpdatedAt(ownerUserId, feed),
-                feedRefreshTimes
-            ) { persistedUpdatedAt, refreshTimes ->
+                refreshTimeFlow
+            ) { persistedUpdatedAt, refreshTime ->
                 AssignmentFeedCacheFreshness(
                     feed = feed,
-                    lastUpdatedAtEpochMillis = refreshTimes[scopedKey] ?: persistedUpdatedAt
+                    lastUpdatedAtEpochMillis = refreshTime ?: persistedUpdatedAt
                 )
-            }
+            }.distinctUntilChanged()
         }
 
     override suspend fun decideBundleItems(
@@ -766,21 +770,21 @@ class AssignmentRepositoryImpl @Inject constructor(
             AssignmentDirection.RECEIVED -> {
                 val friendUserId = feed.friendUserId
                 if (friendUserId == null) {
-                    assignedTodoDao.observeReceivedAssignedTodos(ownerUserId, statuses)
+                    assignedTodoDao.observeReceivedFeedCacheUpdatedAt(ownerUserId, statuses)
                 } else {
-                    assignedTodoDao.observeReceivedAssignedTodosByFriend(ownerUserId, friendUserId, statuses)
+                    assignedTodoDao.observeReceivedFriendFeedCacheUpdatedAt(ownerUserId, friendUserId, statuses)
                 }
             }
 
             AssignmentDirection.SENT -> {
                 val friendUserId = feed.friendUserId
                 if (friendUserId == null) {
-                    assignedTodoDao.observeSentAssignedTodos(ownerUserId, statuses)
+                    assignedTodoDao.observeSentFeedCacheUpdatedAt(ownerUserId, statuses)
                 } else {
-                    assignedTodoDao.observeSentAssignedTodosByFriend(ownerUserId, friendUserId, statuses)
+                    assignedTodoDao.observeSentFriendFeedCacheUpdatedAt(ownerUserId, friendUserId, statuses)
                 }
             }
-        }.map { items -> items.minOfOrNull { it.assignedTodo.cacheUpdatedAt } }
+        }.distinctUntilChanged()
     }
 
     private fun recordFeedRefresh(

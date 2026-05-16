@@ -46,11 +46,15 @@ import com.neo.yourtodo.core.network.auth.NetworkAuthUser
 import com.neo.yourtodo.core.network.auth.NetworkAuthUserResponse
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -392,6 +396,32 @@ class AssignmentRepositoryImplTest {
             .isTrue()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun observeFeedCacheFreshnessDoesNotEmitForUnrelatedFeedRefresh() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val repository = repository(prefs = prefs, assignedTodoDao = assignedTodoDao)
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+        val emissions = mutableListOf<Long?>()
+
+        backgroundScope.launch {
+            repository.observeFeedCacheFreshness(feed)
+                .collect { freshness -> emissions += freshness.lastUpdatedAtEpochMillis }
+        }
+        runCurrent()
+
+        assertThat(emissions).containsExactly(null)
+
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.PENDING).getOrThrow()
+        runCurrent()
+
+        assertThat(emissions).containsExactly(null)
+    }
+
     private fun repository(
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeAssignmentNetworkDataSource = FakeAssignmentNetworkDataSource(),
@@ -529,6 +559,51 @@ class AssignmentRepositoryImplTest {
         override suspend fun getAssignedTodoById(ownerUserId: String, id: String): AssignedTodoEntity? =
             state.value.items.values.firstOrNull { it.ownerUserId == ownerUserId && it.id == id }
 
+        override fun observeReceivedFeedCacheUpdatedAt(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> =
+            observeCacheUpdatedAt {
+                it.ownerUserId == ownerUserId &&
+                    it.receivedCached &&
+                    !it.receivedTaskHidden &&
+                    it.status in statuses
+            }
+
+        override fun observeSentFeedCacheUpdatedAt(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> =
+            observeCacheUpdatedAt {
+                it.ownerUserId == ownerUserId &&
+                    it.sentCached &&
+                    it.status in statuses
+            }
+
+        override fun observeSentFriendFeedCacheUpdatedAt(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> =
+            observeCacheUpdatedAt {
+                it.ownerUserId == ownerUserId &&
+                    it.sentCached &&
+                    it.receiverUserId == friendUserId &&
+                    it.status in statuses
+            }
+
+        override fun observeReceivedFriendFeedCacheUpdatedAt(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> =
+            observeCacheUpdatedAt {
+                it.ownerUserId == ownerUserId &&
+                    it.receivedCached &&
+                    it.senderUserId == friendUserId &&
+                    it.status in statuses
+            }
+
         override suspend fun deleteByOwner(ownerUserId: String) {
             deleteWhere { it.ownerUserId == ownerUserId }
         }
@@ -655,6 +730,15 @@ class AssignmentRepositoryImplTest {
                 }
             )
         }
+
+        private fun observeCacheUpdatedAt(
+            predicate: (AssignedTodoEntity) -> Boolean
+        ): Flow<Long?> =
+            state.map { cache ->
+                cache.items.values
+                    .filter(predicate)
+                    .minOfOrNull { it.cacheUpdatedAt }
+            }
 
         private fun Collection<AssignedTodoEntity>.toWithChecklist(
             cache: CacheState

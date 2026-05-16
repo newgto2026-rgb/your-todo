@@ -78,6 +78,63 @@ interface AssignedTodoDao {
     @Query("SELECT * FROM assigned_todo WHERE ownerUserId = :ownerUserId AND id = :id LIMIT 1")
     suspend fun getAssignedTodoById(ownerUserId: String, id: String): AssignedTodoEntity?
 
+    @Query(
+        """
+        SELECT MIN(cacheUpdatedAt) FROM assigned_todo
+        WHERE ownerUserId = :ownerUserId
+            AND receivedCached = 1
+            AND receivedTaskHidden = 0
+            AND status IN (:statuses)
+        """
+    )
+    fun observeReceivedFeedCacheUpdatedAt(
+        ownerUserId: String,
+        statuses: List<String>
+    ): Flow<Long?>
+
+    @Query(
+        """
+        SELECT MIN(cacheUpdatedAt) FROM assigned_todo
+        WHERE ownerUserId = :ownerUserId
+            AND sentCached = 1
+            AND status IN (:statuses)
+        """
+    )
+    fun observeSentFeedCacheUpdatedAt(
+        ownerUserId: String,
+        statuses: List<String>
+    ): Flow<Long?>
+
+    @Query(
+        """
+        SELECT MIN(cacheUpdatedAt) FROM assigned_todo
+        WHERE ownerUserId = :ownerUserId
+            AND sentCached = 1
+            AND receiverUserId = :friendUserId
+            AND status IN (:statuses)
+        """
+    )
+    fun observeSentFriendFeedCacheUpdatedAt(
+        ownerUserId: String,
+        friendUserId: String,
+        statuses: List<String>
+    ): Flow<Long?>
+
+    @Query(
+        """
+        SELECT MIN(cacheUpdatedAt) FROM assigned_todo
+        WHERE ownerUserId = :ownerUserId
+            AND receivedCached = 1
+            AND senderUserId = :friendUserId
+            AND status IN (:statuses)
+        """
+    )
+    fun observeReceivedFriendFeedCacheUpdatedAt(
+        ownerUserId: String,
+        friendUserId: String,
+        statuses: List<String>
+    ): Flow<Long?>
+
     @Query("DELETE FROM assigned_todo WHERE ownerUserId = :ownerUserId")
     suspend fun deleteByOwner(ownerUserId: String)
 
