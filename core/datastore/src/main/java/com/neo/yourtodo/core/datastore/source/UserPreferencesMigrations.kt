@@ -9,6 +9,18 @@ import com.neo.yourtodo.core.model.TodoPriorityFilter
 internal object UserPreferencesMigrations {
     private const val CURRENT_SCHEMA_VERSION = 1
 
+    fun encryptLegacyAuthTokens(
+        authTokenStoragePolicy: AuthTokenStoragePolicy
+    ) = object : DataMigration<Preferences> {
+        override suspend fun shouldMigrate(currentData: Preferences): Boolean =
+            authTokenStoragePolicy.shouldMigrateLegacyPlaintextTokens(currentData)
+
+        override suspend fun migrate(currentData: Preferences): Preferences =
+            authTokenStoragePolicy.migrateLegacyPlaintextTokens(currentData)
+
+        override suspend fun cleanUp() = Unit
+    }
+
     val resetLegacyTodoPriorityFilter = object : DataMigration<Preferences> {
         override suspend fun shouldMigrate(currentData: Preferences): Boolean =
             (currentData[SCHEMA_VERSION] ?: 0) < CURRENT_SCHEMA_VERSION

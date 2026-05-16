@@ -3,9 +3,7 @@ package com.neo.yourtodo.core.datastore.source
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ACCESS_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ONBOARDING_REQUIRED
-import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_EMAIL
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_ID
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_NICKNAME
@@ -25,26 +23,25 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class UserPreferencesDataSourceImpl @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    private val authTokenStoragePolicy: AuthTokenStoragePolicy
 ) : UserPreferencesDataSource {
 
     override val authSession: Flow<AuthSessionData?> =
         dataStore.data.map { prefs ->
-            val accessToken = prefs[AUTH_ACCESS_TOKEN]
-            val refreshToken = prefs[AUTH_REFRESH_TOKEN]
+            val tokens = authTokenStoragePolicy.readTokens(prefs)
             val userId = prefs[AUTH_USER_ID]
             val email = prefs[AUTH_USER_EMAIL]
             if (
-                accessToken.isNullOrBlank() ||
-                refreshToken.isNullOrBlank() ||
+                tokens == null ||
                 userId.isNullOrBlank() ||
                 email.isNullOrBlank()
             ) {
                 null
             } else {
                 AuthSessionData(
-                    accessToken = accessToken,
-                    refreshToken = refreshToken,
+                    accessToken = tokens.accessToken,
+                    refreshToken = tokens.refreshToken,
                     userId = userId,
                     nickname = prefs[AUTH_USER_NICKNAME],
                     email = email,
@@ -90,8 +87,13 @@ class UserPreferencesDataSourceImpl @Inject constructor(
 
     override suspend fun saveAuthSession(session: AuthSessionData) {
         dataStore.edit { prefs ->
-            prefs[AUTH_ACCESS_TOKEN] = session.accessToken
-            prefs[AUTH_REFRESH_TOKEN] = session.refreshToken
+            authTokenStoragePolicy.saveTokens(
+                preferences = prefs,
+                tokens = AuthTokenPair(
+                    accessToken = session.accessToken,
+                    refreshToken = session.refreshToken
+                )
+            )
             prefs[AUTH_USER_ID] = session.userId
             if (session.nickname.isNullOrBlank()) {
                 prefs.remove(AUTH_USER_NICKNAME)
@@ -105,8 +107,7 @@ class UserPreferencesDataSourceImpl @Inject constructor(
 
     override suspend fun clearAuthSession() {
         dataStore.edit { prefs ->
-            prefs.remove(AUTH_ACCESS_TOKEN)
-            prefs.remove(AUTH_REFRESH_TOKEN)
+            authTokenStoragePolicy.clearTokens(prefs)
             prefs.remove(AUTH_USER_ID)
             prefs.remove(AUTH_USER_NICKNAME)
             prefs.remove(AUTH_USER_EMAIL)
