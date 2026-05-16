@@ -82,6 +82,7 @@ class PushTokenRepositoryImpl @Inject constructor(
 
     private suspend fun authRequired(): Nothing {
         assignmentFeedFreshnessTracker.clear()
+        userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
         userPreferencesDataSource.clearAuthSession()
         throw AuthRequiredException()
     }

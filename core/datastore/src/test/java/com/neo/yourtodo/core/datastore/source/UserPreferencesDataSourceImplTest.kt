@@ -106,6 +106,23 @@ class UserPreferencesDataSourceImplTest {
         collectJob.cancel()
     }
 
+    @Test
+    fun assignmentFeedRefreshTimePersistsAndClearsByPrefix() = runTest {
+        val dataStore = createDataStore(backgroundScope)
+        val firstDataSource = createDataSource(dataStore)
+        val secondDataSource = createDataSource(dataStore)
+
+        firstDataSource.setAssignmentFeedRefreshTime("user-id_received_active", 123L)
+
+        assertThat(secondDataSource.observeAssignmentFeedRefreshTime("user-id_received_active").first())
+            .isEqualTo(123L)
+
+        secondDataSource.clearAssignmentFeedRefreshTimes()
+
+        assertThat(firstDataSource.observeAssignmentFeedRefreshTime("user-id_received_active").first())
+            .isNull()
+    }
+
     private fun createDataSource(
         dataStore: DataStore<Preferences>,
         authTokenStoragePolicy: AuthTokenStoragePolicy = AuthTokenStoragePolicy(FakeAuthTokenCipher())

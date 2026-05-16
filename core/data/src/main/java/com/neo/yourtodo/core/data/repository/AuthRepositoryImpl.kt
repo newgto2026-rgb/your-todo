@@ -65,6 +65,7 @@ class AuthRepositoryImpl @Inject constructor(
         }
         preferencesDataSource.clearTodoSyncState()
         assignmentFeedFreshnessTracker.clear()
+        preferencesDataSource.clearAssignmentFeedRefreshTimes()
         preferencesDataSource.clearAuthSession()
     }
 

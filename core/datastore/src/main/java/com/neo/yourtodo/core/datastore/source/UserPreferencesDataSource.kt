@@ -16,6 +16,7 @@ interface UserPreferencesDataSource {
     val todoSyncHaltReason: Flow<String?>
     val pushCurrentToken: Flow<String?> get() = flowOf(null)
     val pushRegisteredToken: Flow<String?> get() = flowOf(null)
+    fun observeAssignmentFeedRefreshTime(feedKey: String): Flow<Long?> = flowOf(null)
     suspend fun saveAuthSession(session: AuthSessionData)
     suspend fun clearAuthSession()
     suspend fun setSelectedTodoFilter(filter: TodoFilter)
@@ -27,4 +28,6 @@ interface UserPreferencesDataSource {
     suspend fun clearTodoSyncState()
     suspend fun setPushCurrentToken(token: String?) = Unit
     suspend fun setPushRegisteredToken(token: String?) = Unit
+    suspend fun setAssignmentFeedRefreshTime(feedKey: String, refreshedAtEpochMillis: Long) = Unit
+    suspend fun clearAssignmentFeedRefreshTimes() = Unit
 }

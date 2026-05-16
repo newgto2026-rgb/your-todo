@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 
 internal object UserPreferenceKeys {
+    const val ASSIGNMENT_FEED_REFRESH_TIME_PREFIX = "assignment_feed_refresh_time_"
     val SCHEMA_VERSION = intPreferencesKey("user_preferences_schema_version")
     val AUTH_ACCESS_TOKEN = stringPreferencesKey("auth_access_token")
     val AUTH_REFRESH_TOKEN = stringPreferencesKey("auth_refresh_token")
