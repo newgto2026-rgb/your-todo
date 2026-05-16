@@ -186,6 +186,13 @@ private fun FriendsScreen(
                     item {
                         LoadingBlock()
                     }
+                } else if (uiState.showFriendsUnavailable) {
+                    item {
+                        FriendsUnavailableBlock(
+                            error = checkNotNull(uiState.friendsSnapshotError),
+                            onRetry = { onAction(FriendsAction.OnRefresh) }
+                        )
+                    }
                 } else {
                     if (uiState.incomingRequests.isNotEmpty()) {
                         item {
@@ -203,7 +210,7 @@ private fun FriendsScreen(
                     item {
                         SectionTitle(text = stringResource(R.string.friends_list_title))
                     }
-                    if (uiState.friends.isEmpty()) {
+                    if (uiState.showEmptyFriends) {
                         item {
                             EmptyFriendsBlock(
                                 onAddClick = { onAction(FriendsAction.OnToggleAddFriend) }

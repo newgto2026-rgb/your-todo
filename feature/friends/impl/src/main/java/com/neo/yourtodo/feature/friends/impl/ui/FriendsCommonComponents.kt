@@ -150,6 +150,46 @@ internal fun EmptyFriendsBlock(onAddClick: () -> Unit) {
 }
 
 @Composable
+internal fun FriendsUnavailableBlock(
+    error: FriendsError,
+    onRetry: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, Color(0xFFDCE6F4)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("friends_unavailable")
+    ) {
+        Column(
+            modifier = Modifier.padding(22.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = stringResource(error.unavailableTitleRes),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color(0xFF303440)
+            )
+            Text(
+                text = stringResource(error.unavailableDescriptionRes),
+                modifier = Modifier.padding(top = 6.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF647286)
+            )
+            TextButton(
+                onClick = onRetry,
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .testTag("friends_unavailable_retry")
+            ) {
+                Text(stringResource(R.string.friends_unavailable_retry))
+            }
+        }
+    }
+}
+
+@Composable
 internal fun LoadingBlock() {
     Box(
         modifier = Modifier

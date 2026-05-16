@@ -137,6 +137,8 @@ internal class FakeAuthRepository : AuthRepository {
 
 internal class FakeFriendRepository(
     var getFriendsResult: Result<List<Friend>>? = null,
+    var incomingResult: Result<List<FriendRequest>>? = null,
+    var outgoingResult: Result<List<FriendRequest>>? = null,
     private val sendResult: Result<Unit> = Result.success(Unit),
     private val acceptResult: Result<Unit> = Result.success(Unit),
     private val removeResult: Result<Unit> = Result.success(Unit)
@@ -151,10 +153,10 @@ internal class FakeFriendRepository(
         getFriendsResult ?: Result.success(friends)
 
     override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
-        Result.success(incoming)
+        incomingResult ?: Result.success(incoming)
 
     override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> =
-        Result.success(outgoing)
+        outgoingResult ?: Result.success(outgoing)
 
     override suspend fun sendRequest(nickname: String): Result<Unit> {
         lastSentNickname = nickname

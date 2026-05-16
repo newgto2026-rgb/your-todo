@@ -43,7 +43,21 @@ class FriendsViewModelTest {
             assertThat(loaded.friends).hasSize(1)
             assertThat(loaded.incomingRequests).hasSize(1)
             assertThat(loaded.outgoingRequests).hasSize(1)
+            assertThat(loaded.hasLoadedFriendsSnapshot).isTrue()
+            assertThat(loaded.friendsSnapshotError).isNull()
+            assertThat(loaded.showFriendsUnavailable).isFalse()
         }
+    }
+
+    @Test
+    fun emptyFriendsStateShowsOnlyAfterServerSnapshotLoads() = runTest {
+        val viewModel = FakeFriendRepository().createViewModel()
+
+        val loaded = viewModel.uiState.first { !it.isLoading }
+
+        assertThat(loaded.hasLoadedFriendsSnapshot).isTrue()
+        assertThat(loaded.showEmptyFriends).isTrue()
+        assertThat(loaded.showFriendsUnavailable).isFalse()
     }
 
     @Test
@@ -152,8 +166,74 @@ class FriendsViewModelTest {
 
         viewModel.uiState.test {
             skipItems(1)
-            assertThat(awaitItem().error).isEqualTo(FriendsError.AUTH_REQUIRED)
+            val failed = awaitItem()
+            assertThat(failed.error).isEqualTo(FriendsError.AUTH_REQUIRED)
+            assertThat(failed.hasLoadedFriendsSnapshot).isFalse()
+            assertThat(failed.friendsSnapshotError).isEqualTo(FriendsError.AUTH_REQUIRED)
+            assertThat(failed.showFriendsUnavailable).isTrue()
+            assertThat(failed.showEmptyFriends).isFalse()
         }
+    }
+
+    @Test
+    fun initialNetworkFailureMarksFriendsSnapshotUnavailable() = runTest {
+        val repository = FakeFriendRepository(
+            getFriendsResult = Result.failure(IllegalStateException("Network unavailable"))
+        )
+        val viewModel = repository.createViewModel()
+
+        val failed = viewModel.uiState.first { it.showFriendsUnavailable }
+
+        assertThat(failed.error).isEqualTo(FriendsError.NETWORK)
+        assertThat(failed.hasLoadedFriendsSnapshot).isFalse()
+        assertThat(failed.friendsSnapshotError).isEqualTo(FriendsError.NETWORK)
+        assertThat(failed.friends).isEmpty()
+        assertThat(failed.incomingRequests).isEmpty()
+        assertThat(failed.outgoingRequests).isEmpty()
+        assertThat(failed.showEmptyFriends).isFalse()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun retryAfterInitialNetworkFailureLoadsServerSnapshot() = runTest {
+        val repository = FakeFriendRepository(
+            getFriendsResult = Result.failure(IllegalStateException("Network unavailable"))
+        )
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { it.showFriendsUnavailable }
+
+        repository.getFriendsResult = null
+        repository.friends = listOf(friend())
+        viewModel.onAction(FriendsAction.OnRefresh)
+        advanceUntilIdle()
+
+        val loaded = viewModel.uiState.value
+        assertThat(loaded.friendsSnapshotError).isNull()
+        assertThat(loaded.showFriendsUnavailable).isFalse()
+        assertThat(loaded.friends).hasSize(1)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun refreshFailureAfterLoadedSnapshotKeepsVisibleInMemoryData() = runTest {
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { it.hasLoadedFriendsSnapshot && it.friends.isNotEmpty() }
+
+        repository.getFriendsResult = Result.failure(IllegalStateException("Network unavailable"))
+        viewModel.onAction(FriendsAction.OnRefresh)
+        advanceUntilIdle()
+
+        val failedRefresh = viewModel.uiState.value
+        assertThat(failedRefresh.error).isEqualTo(FriendsError.NETWORK)
+        assertThat(failedRefresh.hasLoadedFriendsSnapshot).isTrue()
+        assertThat(failedRefresh.friendsSnapshotError).isNull()
+        assertThat(failedRefresh.showFriendsUnavailable).isFalse()
+        assertThat(failedRefresh.friends).hasSize(1)
     }
 
     @Test

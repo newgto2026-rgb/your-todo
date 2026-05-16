@@ -246,9 +246,10 @@ class FriendsViewModel @Inject constructor(
         if (uiState.value.isRefreshing) return
         viewModelScope.launch {
             mutableUiState.update {
+                val blockingLoad = initial || !it.hasLoadedFriendsSnapshot
                 it.copy(
-                    isLoading = initial,
-                    isRefreshing = !initial,
+                    isLoading = blockingLoad,
+                    isRefreshing = !blockingLoad,
                     error = null
                 )
             }
@@ -270,16 +271,24 @@ class FriendsViewModel @Inject constructor(
                         friends = friendsResult.getOrDefault(emptyList()),
                         incomingRequests = incomingRequestsResult.getOrDefault(emptyList()),
                         outgoingRequests = outgoingRequestsResult.getOrDefault(emptyList()),
+                        hasLoadedFriendsSnapshot = true,
+                        friendsSnapshotError = null,
                         error = null
                     )
                 }
                 openPendingIncomingAssignmentIfReady()
             } else {
+                val uiError = requiredFailure.toUiError()
                 mutableUiState.update {
                     it.copy(
                         isLoading = false,
                         isRefreshing = false,
-                        error = requiredFailure.toUiError()
+                        friendsSnapshotError = if (it.hasLoadedFriendsSnapshot) {
+                            it.friendsSnapshotError
+                        } else {
+                            uiError
+                        },
+                        error = uiError
                     )
                 }
             }
@@ -295,6 +304,8 @@ class FriendsViewModel @Inject constructor(
                             friends = snapshot.friends,
                             incomingRequests = snapshot.incomingRequests,
                             outgoingRequests = snapshot.outgoingRequests,
+                            hasLoadedFriendsSnapshot = true,
+                            friendsSnapshotError = null,
                             isRefreshing = false
                         )
                     }
@@ -762,6 +773,8 @@ class FriendsViewModel @Inject constructor(
                     friends = refreshedFriends,
                     incomingRequests = incoming.getOrThrow(),
                     outgoingRequests = outgoing.getOrThrow(),
+                    hasLoadedFriendsSnapshot = true,
+                    friendsSnapshotError = null,
                     selectedFriend = it.selectedFriend?.let { selected ->
                         refreshedFriends.firstOrNull { friend -> friend.userId == selected.userId } ?: selected
                     },
@@ -774,9 +787,15 @@ class FriendsViewModel @Inject constructor(
                 val failure = listOf(friends, incoming, outgoing)
                     .firstOrNull { result -> result.isFailure }
                     ?.exceptionOrNull()
+                val uiError = failure.toUiError()
                 it.copy(
                     runningActionKey = null,
-                    error = failure.toUiError()
+                    friendsSnapshotError = if (it.hasLoadedFriendsSnapshot) {
+                        it.friendsSnapshotError
+                    } else {
+                        uiError
+                    },
+                    error = uiError
                 )
             }
         }

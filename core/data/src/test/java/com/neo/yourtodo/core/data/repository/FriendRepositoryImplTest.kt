@@ -44,6 +44,45 @@ class FriendRepositoryImplTest {
     }
 
     @Test
+    fun getFriendsDoesNotFallbackToPreviousSnapshotWhenNetworkFails() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeFriendNetworkDataSource()
+        val repository = repository(prefs = prefs, network = network)
+        val failure = IllegalStateException("Network unavailable")
+
+        assertThat(repository.getFriends().getOrThrow().map { it.nickname })
+            .containsExactly("monday")
+
+        network.getFriendsFailure = failure
+        val result = repository.getFriends()
+
+        assertThat(result.exceptionOrNull()).isSameInstanceAs(failure)
+        assertThat(network.friendTokens).containsExactly("access-token", "access-token")
+        assertThat(prefs.authSession.first()).isNotNull()
+    }
+
+    @Test
+    fun requestQueriesReturnNetworkFailureWithoutCachedFallback() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val incomingFailure = IllegalStateException("Incoming unavailable")
+        val outgoingFailure = IllegalStateException("Outgoing unavailable")
+        val network = FakeFriendNetworkDataSource().apply {
+            getIncomingRequestsFailure = incomingFailure
+            getOutgoingRequestsFailure = outgoingFailure
+        }
+        val repository = repository(prefs = prefs, network = network)
+
+        val incoming = repository.getIncomingRequests()
+        val outgoing = repository.getOutgoingRequests()
+
+        assertThat(incoming.exceptionOrNull()).isSameInstanceAs(incomingFailure)
+        assertThat(outgoing.exceptionOrNull()).isSameInstanceAs(outgoingFailure)
+        assertThat(network.incomingTokens).containsExactly("access-token")
+        assertThat(network.outgoingTokens).containsExactly("access-token")
+        assertThat(prefs.authSession.first()).isNotNull()
+    }
+
+    @Test
     fun sendRequestRetriesWithRefreshedSessionWhenAccessTokenExpires() = runTest {
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
         val network = FakeFriendNetworkDataSource().apply {
@@ -201,7 +240,12 @@ class FriendRepositoryImplTest {
 
     private class FakeFriendNetworkDataSource : FriendNetworkDataSource {
         var authFailuresRemaining = 0
+        var getFriendsFailure: Throwable? = null
+        var getIncomingRequestsFailure: Throwable? = null
+        var getOutgoingRequestsFailure: Throwable? = null
         val friendTokens = mutableListOf<String>()
+        val incomingTokens = mutableListOf<String>()
+        val outgoingTokens = mutableListOf<String>()
         val sendTokens = mutableListOf<String>()
         val acceptTokens = mutableListOf<String>()
         var lastNickname: String? = null
@@ -209,18 +253,23 @@ class FriendRepositoryImplTest {
         override suspend fun getFriends(accessToken: String): NetworkFriendsResponse {
             friendTokens += accessToken
             failAuthIfNeeded()
+            getFriendsFailure?.let { throw it }
             return NetworkFriendsResponse(
                 friends = listOf(networkFriend())
             )
         }
 
         override suspend fun getIncomingRequests(accessToken: String): NetworkFriendRequestsResponse {
+            incomingTokens += accessToken
             failAuthIfNeeded()
+            getIncomingRequestsFailure?.let { throw it }
             return NetworkFriendRequestsResponse(requests = listOf(networkRequest()))
         }
 
         override suspend fun getOutgoingRequests(accessToken: String): NetworkFriendRequestsResponse {
+            outgoingTokens += accessToken
             failAuthIfNeeded()
+            getOutgoingRequestsFailure?.let { throw it }
             return NetworkFriendRequestsResponse(requests = emptyList())
         }
 
