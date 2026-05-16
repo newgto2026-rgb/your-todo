@@ -8,6 +8,7 @@ import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_7_8
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_8_9
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_9_10
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_10_11
+import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_11_12
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
@@ -262,6 +263,43 @@ class AppDatabaseMigrationTest {
         migrated.query("SELECT assignmentMode FROM assigned_todo WHERE id = 'assigned-1'").use { cursor ->
             assertThat(cursor.moveToFirst()).isTrue()
             assertThat(cursor.getString(0)).isEqualTo("REQUEST")
+        }
+        testDb.close()
+    }
+
+    @Test
+    fun migration11To12_preservesAssignedTodoSchemaAndRows() {
+        val testDb = createVersion8Database("${TEST_DB}_version_floor")
+        testDb.database.apply {
+            MIGRATION_8_9.migrate(this)
+            MIGRATION_9_10.migrate(this)
+            MIGRATION_10_11.migrate(this)
+            execSQL(
+                """
+                INSERT INTO assigned_todo (
+                    ownerUserId, id, cacheKey, bundleId, title, description, dueDateEpochDay,
+                    dueTimeMinutes, priority, category, status, terminalReason, progressPercent,
+                    senderUserId, senderNickname, receiverUserId, receiverNickname, reminderAt,
+                    reminderEnabled, createdAtEpochMillis, completedAtEpochMillis, receivedCached,
+                    sentCached, cacheUpdatedAt, receivedTaskHidden, assignmentMode
+                ) VALUES (
+                    'user-1', 'assigned-1', 'cache-1', NULL, 'direct shared', NULL, NULL,
+                    NULL, 'HIGH', NULL, 'ACCEPTED', NULL, 0,
+                    'friend-1', 'tee', 'user-1', 'neo', NULL,
+                    NULL, 100, NULL, 1,
+                    0, 300, 0, 'DIRECT'
+                )
+                """.trimIndent()
+            )
+        }
+
+        val migrated = testDb.database.apply { MIGRATION_11_12.migrate(this) }
+
+        assertThat(migrated.columnNames("assigned_todo")).contains("assignmentMode")
+        migrated.query("SELECT title, assignmentMode FROM assigned_todo WHERE id = 'assigned-1'").use { cursor ->
+            assertThat(cursor.moveToFirst()).isTrue()
+            assertThat(cursor.getString(0)).isEqualTo("direct shared")
+            assertThat(cursor.getString(1)).isEqualTo("DIRECT")
         }
         testDb.close()
     }

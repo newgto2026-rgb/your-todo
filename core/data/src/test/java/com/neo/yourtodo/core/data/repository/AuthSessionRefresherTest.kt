@@ -43,6 +43,31 @@ class AuthSessionRefresherTest {
         assertThat(refreshed?.refreshToken).isEqualTo("new-refresh")
     }
 
+    @Test
+    fun refreshReturnsNullWithoutNetworkWhenAnotherCallerAlreadyClearedSession() = runTest {
+        val prefs = FakePreferencesDataSource(session = null)
+        val network = FakeAuthNetworkDataSource()
+        val refresher = AuthSessionRefresher(prefs, network)
+
+        val refreshed = refresher.refresh("old-refresh")
+
+        assertThat(refreshed).isNull()
+        assertThat(network.refreshTokens).isEmpty()
+    }
+
+    @Test
+    fun refreshFailureClearsSession() = runTest {
+        val prefs = FakePreferencesDataSource(authSession(refreshToken = "old-refresh"))
+        val network = FakeAuthNetworkDataSource(refreshFails = true)
+        val refresher = AuthSessionRefresher(prefs, network)
+
+        val refreshed = refresher.refresh("old-refresh")
+
+        assertThat(refreshed).isNull()
+        assertThat(network.refreshTokens).containsExactly("old-refresh")
+        assertThat(prefs.authSession.first()).isNull()
+    }
+
     private class FakePreferencesDataSource(
         session: AuthSessionData?
     ) : UserPreferencesDataSource {
@@ -72,7 +97,9 @@ class AuthSessionRefresherTest {
         override suspend fun clearTodoSyncState() = Unit
     }
 
-    private class FakeAuthNetworkDataSource : AuthNetworkDataSource {
+    private class FakeAuthNetworkDataSource(
+        private val refreshFails: Boolean = false
+    ) : AuthNetworkDataSource {
         val refreshTokens = mutableListOf<String>()
 
         override suspend fun signInWithGoogle(idToken: String): NetworkAuthSession =
@@ -80,6 +107,7 @@ class AuthSessionRefresherTest {
 
         override suspend fun refreshSession(refreshToken: String): NetworkAuthSession {
             refreshTokens += refreshToken
+            if (refreshFails) error("Refresh failed")
             return NetworkAuthSession(
                 accessToken = "new-access",
                 refreshToken = "new-refresh",

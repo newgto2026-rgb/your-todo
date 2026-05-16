@@ -213,4 +213,8 @@ object AppDatabaseMigrations {
             db.execSQL("ALTER TABLE `assigned_todo` ADD COLUMN `assignmentMode` TEXT NOT NULL DEFAULT 'REQUEST'")
         }
     }
+
+    val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) = Unit
+    }
 }

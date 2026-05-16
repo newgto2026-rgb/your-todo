@@ -20,7 +20,10 @@ class AuthSessionRefresher @Inject constructor(
     suspend fun refresh(refreshToken: String): AuthSessionData? =
         refreshMutex.withLock {
             val currentSession = userPreferencesDataSource.authSession.first()
-            if (currentSession != null && currentSession.refreshToken != refreshToken) {
+            if (currentSession == null) {
+                return@withLock null
+            }
+            if (currentSession.refreshToken != refreshToken) {
                 return@withLock currentSession
             }
 
@@ -28,7 +31,10 @@ class AuthSessionRefresher @Inject constructor(
                 authNetworkDataSource.refreshSession(refreshToken)
                     .toAuthSessionData()
                     .also { userPreferencesDataSource.saveAuthSession(it) }
-            }.getOrNull()
+            }.getOrElse {
+                userPreferencesDataSource.clearAuthSession()
+                null
+            }
         }
 
     private fun NetworkAuthSession.toAuthSessionData() =
