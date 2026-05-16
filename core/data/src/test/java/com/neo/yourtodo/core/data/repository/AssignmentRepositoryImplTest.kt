@@ -2,9 +2,13 @@ package com.neo.yourtodo.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.database.dao.AssignedTodoDao
+import com.neo.yourtodo.core.database.dao.TodoDao
+import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.entity.AssignedTodoChecklistItemEntity
 import com.neo.yourtodo.core.database.entity.AssignedTodoEntity
 import com.neo.yourtodo.core.database.entity.AssignedTodoWithChecklist
+import com.neo.yourtodo.core.database.entity.TodoEntity
+import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import com.neo.yourtodo.core.database.entity.assignedTodoCacheKey
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
@@ -46,12 +50,14 @@ import com.neo.yourtodo.core.network.auth.NetworkAuthUser
 import com.neo.yourtodo.core.network.auth.NetworkAuthUserResponse
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
@@ -239,6 +245,40 @@ class AssignmentRepositoryImplTest {
     }
 
     @Test
+    fun requestRethrowsCancellationAndKeepsFeedFreshness() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val tracker = AssignmentFeedFreshnessTracker()
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+        tracker.recordRefresh(
+            ownerUserId = "user-id",
+            feed = feed,
+            refreshedAt = 123L
+        )
+        val network = FakeAssignmentNetworkDataSource().apply {
+            receivedException = CancellationException("cancelled")
+        }
+        val repository = repository(
+            prefs = prefs,
+            network = network,
+            assignmentFeedFreshnessTracker = tracker
+        )
+
+        var cancellationThrown = false
+        try {
+            repository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE)
+        } catch (_: CancellationException) {
+            cancellationThrown = true
+        }
+
+        assertThat(cancellationThrown).isTrue()
+        assertThat(tracker.observeRefreshTime("user-id", feed).first()).isEqualTo(123L)
+        assertThat(prefs.authSession.first()).isNotNull()
+    }
+
+    @Test
     fun getReceivedAssignedTodosCachesItemsForObservers() = runTest {
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
         val assignedTodoDao = FakeAssignedTodoDao()
@@ -422,16 +462,57 @@ class AssignmentRepositoryImplTest {
         assertThat(emissions).containsExactly(null)
     }
 
+    @Test
+    fun signOutClearsInMemoryFeedFreshnessForSameUserRelogin() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val assignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
+        val repository = repository(
+            prefs = prefs,
+            assignedTodoDao = assignedTodoDao,
+            assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker
+        )
+        val authRepository = AuthRepositoryImpl(
+            networkDataSource = FakeAuthNetworkDataSource(),
+            preferencesDataSource = prefs,
+            todoDao = NoOpTodoDao(),
+            todoOutboxDao = NoOpTodoOutboxDao(),
+            assignedTodoDao = assignedTodoDao,
+            assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker
+        )
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE).getOrThrow()
+        assertThat(repository.observeFeedCacheFreshness(feed).first().lastUpdatedAtEpochMillis)
+            .isNotNull()
+
+        authRepository.signOut()
+        prefs.saveAuthSession(authSession())
+
+        val freshnessAfterRelogin = repository.observeFeedCacheFreshness(feed).first()
+        assertThat(freshnessAfterRelogin.lastUpdatedAtEpochMillis).isNull()
+        assertThat(freshnessAfterRelogin.shouldForceRefresh(System.currentTimeMillis())).isTrue()
+    }
+
     private fun repository(
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeAssignmentNetworkDataSource = FakeAssignmentNetworkDataSource(),
         authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
-        assignedTodoDao: FakeAssignedTodoDao = FakeAssignedTodoDao()
+        assignedTodoDao: FakeAssignedTodoDao = FakeAssignedTodoDao(),
+        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
     ) = AssignmentRepositoryImpl(
         userPreferencesDataSource = prefs,
         assignmentNetworkDataSource = network,
         assignedTodoDao = assignedTodoDao,
-        authNetworkDataSource = authNetwork
+        assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
+        authSessionRefresher = AuthSessionRefresher(
+            prefs,
+            authNetwork,
+            assignmentFeedFreshnessTracker
+        )
     )
 
     private fun authSession(
@@ -757,6 +838,33 @@ class AssignmentRepositoryImplTest {
         val checklist: Map<String, List<AssignedTodoChecklistItemEntity>> = emptyMap()
     )
 
+    private class NoOpTodoDao : TodoDao {
+        override fun observeTodos(): Flow<List<TodoEntity>> = flowOf(emptyList())
+        override fun observeTodosByDueDateRange(startEpochDay: Long, endEpochDay: Long): Flow<List<TodoEntity>> =
+            flowOf(emptyList())
+
+        override suspend fun insert(todo: TodoEntity): Long = todo.id
+        override suspend fun update(todo: TodoEntity) = Unit
+        override suspend fun delete(todo: TodoEntity) = Unit
+        override suspend fun getTodoById(id: Long): TodoEntity? = null
+        override suspend fun getTodosByIds(ids: List<Long>): List<TodoEntity> = emptyList()
+        override suspend fun getTodoByServerId(ownerUserId: String, serverId: String): TodoEntity? = null
+        override suspend fun getTodoByClientId(ownerUserId: String, clientId: String): TodoEntity? = null
+        override suspend fun deleteSyncedTodosByOwner(ownerUserId: String) = Unit
+        override suspend fun getTodosWithActiveReminder(): List<TodoEntity> = emptyList()
+    }
+
+    private class NoOpTodoOutboxDao : TodoOutboxDao {
+        override suspend fun getPendingMutations(ownerUserId: String): List<TodoOutboxEntity> = emptyList()
+        override suspend fun getByTodoLocalId(todoLocalId: Long): TodoOutboxEntity? = null
+        override suspend fun insert(outbox: TodoOutboxEntity): Long = outbox.id
+        override suspend fun update(outbox: TodoOutboxEntity) = Unit
+        override suspend fun delete(outbox: TodoOutboxEntity) = Unit
+        override suspend fun deleteById(id: Long) = Unit
+        override suspend fun deleteByTodoLocalId(todoLocalId: Long) = Unit
+        override suspend fun deleteByOwner(ownerUserId: String) = Unit
+    }
+
     private class FakeAuthNetworkDataSource(
         private val refreshFails: Boolean = false
     ) : AuthNetworkDataSource {
@@ -805,6 +913,7 @@ class AssignmentRepositoryImplTest {
         var mutationItem: NetworkAssignedTodoMutationItem? = null
         var bundleItem: NetworkAssignedTodo? = null
         var receivedItems: List<NetworkAssignedTodo> = listOf(networkTodo())
+        var receivedException: Throwable? = null
         val directAssignmentOptInRequests = mutableListOf<Pair<String, Boolean>>()
 
         override suspend fun createBundle(
@@ -823,6 +932,7 @@ class AssignmentRepositoryImplTest {
             status: String
         ): NetworkAssignedTodosResponse {
             receivedTokens += accessToken
+            receivedException?.let { throw it }
             failAuthIfNeeded()
             lastReceivedStatus = status
             return NetworkAssignedTodosResponse(items = receivedItems)

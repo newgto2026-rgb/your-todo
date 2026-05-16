@@ -876,7 +876,8 @@ class TodoRepositoryImplTest {
         outboxDao: FakeTodoOutboxDao = FakeTodoOutboxDao(),
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeTodoSyncNetworkDataSource = FakeTodoSyncNetworkDataSource(),
-        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource()
+        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
+        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
     ): TodoRepositoryImpl =
         TodoRepositoryImpl(
             todoDao = todoDao,
@@ -884,7 +885,12 @@ class TodoRepositoryImplTest {
             todoOutboxDao = outboxDao,
             userPreferencesDataSource = prefs,
             todoSyncNetworkDataSource = network,
-            authNetworkDataSource = authNetwork
+            assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
+            authSessionRefresher = AuthSessionRefresher(
+                prefs,
+                authNetwork,
+                assignmentFeedFreshnessTracker
+            )
         )
 
     private class FakePreferencesDataSource : UserPreferencesDataSource {

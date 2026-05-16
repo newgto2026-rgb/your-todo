@@ -44,34 +44,29 @@ import com.neo.yourtodo.core.network.assignments.NetworkCreateAssignmentItem
 import com.neo.yourtodo.core.network.assignments.NetworkDecideAssignmentItemsRequest
 import com.neo.yourtodo.core.network.assignments.NetworkSetDirectAssignmentOptInRequest
 import com.neo.yourtodo.core.network.assignments.NetworkUpsertAssignedTodoReminderRequest
-import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import java.time.Instant
 import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AssignmentRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val assignmentNetworkDataSource: AssignmentNetworkDataSource,
     private val assignedTodoDao: AssignedTodoDao,
-    authNetworkDataSource: AuthNetworkDataSource,
-    private val authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
+    private val authSessionRefresher: AuthSessionRefresher
 ) : AssignmentRepository {
-    private val feedRefreshTimes = MutableStateFlow<Map<ScopedAssignmentFeedCacheKey, Long>>(emptyMap())
-
     override suspend fun createBundle(
         receiverUserId: String,
         items: List<AssignmentDraftItem>,
@@ -226,13 +221,9 @@ class AssignmentRepositoryImpl @Inject constructor(
                         lastUpdatedAtEpochMillis = null
                     )
                 )
-            val scopedKey = feed.toScopedKey(ownerUserId)
-            val refreshTimeFlow = feedRefreshTimes
-                .map { refreshTimes -> refreshTimes[scopedKey] }
-                .distinctUntilChanged()
             combine(
                 observePersistedFeedCacheUpdatedAt(ownerUserId, feed),
-                refreshTimeFlow
+                assignmentFeedFreshnessTracker.observeRefreshTime(ownerUserId, feed)
             ) { persistedUpdatedAt, refreshTime ->
                 AssignmentFeedCacheFreshness(
                     feed = feed,
@@ -539,7 +530,7 @@ class AssignmentRepositoryImpl @Inject constructor(
 
     private suspend fun <T> authenticatedRequest(block: suspend (String) -> T): Result<T> =
         runCatching {
-            val session = currentSession() ?: throw AuthRequiredException()
+            val session = currentSession() ?: authRequired(clearPersistedSession = false)
             try {
                 block(session.accessToken)
             } catch (throwable: AssignmentAuthRequiredException) {
@@ -551,14 +542,19 @@ class AssignmentRepositoryImpl @Inject constructor(
                     authRequired()
                 }
             }
+        }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
         }
 
     private suspend fun currentSession() =
         userPreferencesDataSource.authSession.first()
             ?.takeUnless { it.onboardingRequired }
 
-    private suspend fun authRequired(): Nothing {
-        userPreferencesDataSource.clearAuthSession()
+    private suspend fun authRequired(clearPersistedSession: Boolean = true): Nothing {
+        assignmentFeedFreshnessTracker.clear()
+        if (clearPersistedSession) {
+            userPreferencesDataSource.clearAuthSession()
+        }
         throw AuthRequiredException()
     }
 
@@ -794,21 +790,13 @@ class AssignmentRepositoryImpl @Inject constructor(
         friendUserId: String?,
         refreshedAt: Long
     ) {
-        val scopedKey = AssignmentFeedCacheKey(
-            direction = direction,
-            status = status,
-            friendUserId = friendUserId
-        ).toScopedKey(ownerUserId)
-        feedRefreshTimes.update { refreshTimes -> refreshTimes + (scopedKey to refreshedAt) }
-    }
-
-    private fun AssignmentFeedCacheKey.toScopedKey(ownerUserId: String) =
-        ScopedAssignmentFeedCacheKey(
-            ownerUserId = ownerUserId,
+        val feed = AssignmentFeedCacheKey(
             direction = direction,
             status = status,
             friendUserId = friendUserId
         )
+        assignmentFeedFreshnessTracker.recordRefresh(ownerUserId, feed, refreshedAt)
+    }
 
     private fun AssignmentFeedStatus.cacheStatuses(): List<String> = when (this) {
         AssignmentFeedStatus.ACTIVE -> listOf(
@@ -834,10 +822,4 @@ class AssignmentRepositoryImpl @Inject constructor(
         AssignedTodoStatus.CANCELED -> AssignmentFeedStatus.HISTORY
     }
 
-    private data class ScopedAssignmentFeedCacheKey(
-        val ownerUserId: String,
-        val direction: AssignmentDirection,
-        val status: AssignmentFeedStatus,
-        val friendUserId: String?
-    )
 }

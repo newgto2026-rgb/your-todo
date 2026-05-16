@@ -47,7 +47,8 @@ class AuthRepositoryImplTest {
             preferencesDataSource = FakeUserPreferencesDataSource(),
             todoDao = FakeTodoDao(),
             todoOutboxDao = FakeTodoOutboxDao(),
-            assignedTodoDao = FakeAssignedTodoDao()
+            assignedTodoDao = FakeAssignedTodoDao(),
+            assignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
         )
         repository.signInWithGoogle("google-token")
 
@@ -66,7 +67,8 @@ class AuthRepositoryImplTest {
             preferences = preferences,
             todoDao = todoDao,
             todoOutboxDao = todoOutboxDao,
-            assignedTodoDao = assignedTodoDao
+            assignedTodoDao = assignedTodoDao,
+            assignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
         )
         repository.signInWithGoogle("google-token")
         preferences.setTodoSyncCursor("3")
@@ -197,14 +199,16 @@ class AuthRepositoryImplTest {
         preferences: FakeUserPreferencesDataSource = FakeUserPreferencesDataSource(),
         todoDao: FakeTodoDao = FakeTodoDao(),
         todoOutboxDao: FakeTodoOutboxDao = FakeTodoOutboxDao(),
-        assignedTodoDao: FakeAssignedTodoDao = FakeAssignedTodoDao()
+        assignedTodoDao: FakeAssignedTodoDao = FakeAssignedTodoDao(),
+        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
     ): AuthRepositoryImpl =
         AuthRepositoryImpl(
             networkDataSource = network,
             preferencesDataSource = preferences,
             todoDao = todoDao,
             todoOutboxDao = todoOutboxDao,
-            assignedTodoDao = assignedTodoDao
+            assignedTodoDao = assignedTodoDao,
+            assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker
         )
 
     private class FakeAuthNetworkDataSource : AuthNetworkDataSource {

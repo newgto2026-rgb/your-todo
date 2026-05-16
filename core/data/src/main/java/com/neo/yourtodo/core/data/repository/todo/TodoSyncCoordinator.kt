@@ -1,5 +1,6 @@
 package com.neo.yourtodo.core.data.repository.todo
 
+import com.neo.yourtodo.core.data.repository.AssignmentFeedFreshnessTracker
 import com.neo.yourtodo.core.data.repository.AuthSessionRefresher
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.RESULT_APPLIED
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.RESULT_DUPLICATE_APPLIED
@@ -29,6 +30,7 @@ internal class TodoSyncCoordinator(
     private val todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
     private val authSessionRefresher: AuthSessionRefresher,
     private val syncSessionProvider: TodoSyncSessionProvider,
+    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
     private val json: Json
 ) {
     private val syncMutex = Mutex()
@@ -45,7 +47,7 @@ internal class TodoSyncCoordinator(
                 val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
                 if (refreshedSession == null) {
                     userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
-                    userPreferencesDataSource.clearAuthSession()
+                    clearAuthSession()
                     throw throwable
                 }
 
@@ -54,7 +56,7 @@ internal class TodoSyncCoordinator(
                     syncTodosWithSession(refreshedSession.accessToken, refreshedSession.userId)
                 } catch (retryThrowable: TodoSyncAuthRequiredException) {
                     userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
-                    userPreferencesDataSource.clearAuthSession()
+                    clearAuthSession()
                     throw retryThrowable
                 }
             }
@@ -67,6 +69,11 @@ internal class TodoSyncCoordinator(
         pullTodos(accessToken, ownerUserId)
         pushTodos(accessToken, ownerUserId)
         pullTodos(accessToken, ownerUserId)
+    }
+
+    private suspend fun clearAuthSession() {
+        assignmentFeedFreshnessTracker.clear()
+        userPreferencesDataSource.clearAuthSession()
     }
 
     private suspend fun pullTodos(accessToken: String, ownerUserId: String) {

@@ -23,7 +23,6 @@ import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSortOption
-import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
 import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
 import java.time.LocalDate
 import javax.inject.Inject
@@ -37,9 +36,8 @@ class TodoRepositoryImpl @Inject constructor(
     todoOutboxDao: TodoOutboxDao,
     userPreferencesDataSource: UserPreferencesDataSource,
     todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
-    authNetworkDataSource: AuthNetworkDataSource,
-    authSessionRefresher: AuthSessionRefresher =
-        AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
+    assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
+    authSessionRefresher: AuthSessionRefresher
 ) : TodoItemRepository, TodoCategoryRepository, TodoFilterRepository, TodoReminderRepository {
 
     private val json = Json {
@@ -62,6 +60,7 @@ class TodoRepositoryImpl @Inject constructor(
         todoSyncNetworkDataSource = todoSyncNetworkDataSource,
         authSessionRefresher = authSessionRefresher,
         syncSessionProvider = syncSessionProvider,
+        assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
         json = json
     )
     private val filterPreferences = TodoFilterPreferences(userPreferencesDataSource, categoryStore)
