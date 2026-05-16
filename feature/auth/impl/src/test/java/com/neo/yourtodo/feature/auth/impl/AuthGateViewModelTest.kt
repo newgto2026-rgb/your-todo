@@ -11,6 +11,7 @@ import com.neo.yourtodo.core.model.auth.AuthSession
 import com.neo.yourtodo.core.model.auth.AuthUser
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -107,6 +108,25 @@ class AuthGateViewModelTest {
             it.destination == AuthGateDestination.SIGNED_IN && !it.signInInProgress
         }
         assertThat(signedIn.error).isNull()
+        assertThat(repository.signInCalls).isEqualTo(1)
+    }
+
+    @Test
+    fun signInCancellationClearsInProgressWithoutShowingError() = runTest {
+        val signInGate = CompletableDeferred<Result<AuthSession>>()
+        val repository = FakeAuthRepository(signInGate = signInGate)
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { it.destination == AuthGateDestination.SIGNED_OUT }
+
+        viewModel.signInWithGoogleIdToken("google-token")
+        viewModel.uiState.first { it.signInInProgress }
+
+        signInGate.completeExceptionally(CancellationException("sign-in cancelled"))
+
+        val cancelled = viewModel.uiState.first { !it.signInInProgress }
+        assertThat(cancelled.destination).isEqualTo(AuthGateDestination.SIGNED_OUT)
+        assertThat(cancelled.error).isNull()
         assertThat(repository.signInCalls).isEqualTo(1)
     }
 

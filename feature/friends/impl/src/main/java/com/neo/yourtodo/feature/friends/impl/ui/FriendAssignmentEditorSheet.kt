@@ -61,7 +61,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -497,17 +496,10 @@ private fun utcMillisToIsoDate(value: Long?): String =
             .toString()
     }.orEmpty()
 
-private val DueTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-
-private fun editorDueTimeTextToMinutes(value: String): Int? {
-    if (value.isBlank()) return null
-    return runCatching {
-        val time = LocalTime.parse(value, DueTimeFormatter)
-        time.hour * 60 + time.minute
-    }.getOrNull()
-}
+private fun editorDueTimeTextToMinutes(value: String): Int? =
+    dueTimeTextToMinutes(value)
 
 private fun editorMinutesToDueTimeText(minutes: Int): String {
     val normalized = ((minutes % (24 * 60)) + (24 * 60)) % (24 * 60)
-    return LocalTime.of(normalized / 60, normalized % 60).format(DueTimeFormatter)
+    return LocalTime.of(normalized / 60, normalized % 60).toString()
 }

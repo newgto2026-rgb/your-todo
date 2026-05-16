@@ -89,10 +89,13 @@ class AuthGateViewModel @Inject constructor(
         viewModelScope.launch {
             inProgress.value = true
             error.value = null
-            val result = block()
-            inProgress.value = false
-            if (result.isFailure) {
-                error.value = failureError
+            try {
+                val result = block()
+                if (result.isFailure) {
+                    error.value = failureError
+                }
+            } finally {
+                inProgress.value = false
             }
         }
     }
