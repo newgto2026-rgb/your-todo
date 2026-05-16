@@ -9,10 +9,13 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSyncStatus
 import java.time.LocalDate
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-internal class TodoLocalTodoStore(
+@Singleton
+internal class TodoLocalTodoStore @Inject constructor(
     private val todoDao: TodoDao,
     private val categoryStore: TodoCategoryStore,
     private val outboxStore: TodoOutboxStore,
