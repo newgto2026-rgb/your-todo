@@ -95,7 +95,7 @@ internal class TodoSyncCoordinator @Inject constructor(
     private suspend fun pushTodos(accessToken: String, ownerUserId: String) {
         val outboxItems = outboxStore.getPendingMutations(ownerUserId)
         if (outboxItems.isEmpty()) return
-        val fallbackPriorityByTodoId = getFallbackPriorityByTodoId(outboxItems)
+        val fallbackFieldsByTodoId = getFallbackFieldsByTodoId(outboxItems)
 
         val response = todoSyncNetworkDataSource.pushTodos(
             accessToken = accessToken,
@@ -104,7 +104,7 @@ internal class TodoSyncCoordinator @Inject constructor(
                 mutations = outboxItems.map { outbox ->
                     outbox.toNetworkMutation(
                         json = json,
-                        fallbackPriority = outbox.todoLocalId?.let(fallbackPriorityByTodoId::get)
+                        fallbackFields = outbox.todoLocalId?.let(fallbackFieldsByTodoId::get)
                     )
                 }
             )
@@ -143,14 +143,20 @@ internal class TodoSyncCoordinator @Inject constructor(
         userPreferencesDataSource.setTodoSyncCursor(response.nextCursor)
     }
 
-    private suspend fun getFallbackPriorityByTodoId(
+    private suspend fun getFallbackFieldsByTodoId(
         outboxItems: List<TodoOutboxEntity>
-    ): Map<Long, String> {
+    ): Map<Long, TodoSyncFallbackFields> {
         val todoLocalIds = outboxItems.mapNotNull { it.todoLocalId }.distinct()
         if (todoLocalIds.isEmpty()) return emptyMap()
 
         return todoDao.getTodosByIds(todoLocalIds)
-            .associate { todo -> todo.id to todo.priority }
+            .associate { todo ->
+                todo.id to TodoSyncFallbackFields(
+                    priority = todo.priority,
+                    categoryId = todo.categoryId,
+                    dueTimeMinutes = todo.dueTimeMinutes
+                )
+            }
     }
 
     private suspend fun applyRemoteTodo(ownerUserId: String, remote: NetworkTodo) {
@@ -168,12 +174,25 @@ internal class TodoSyncCoordinator @Inject constructor(
         when {
             remoteDeleted -> {
                 outboxStore.deleteByTodoLocalId(existing.id)
-                todoDao.update(remote.toTodoEntity(ownerUserId, existing.id, existing.priority))
+                todoDao.update(
+                    remote.toTodoEntity(
+                        ownerUserId = ownerUserId,
+                        localId = existing.id,
+                        fallbackPriority = existing.priority
+                    )
+                )
             }
             localStatus == TodoSyncStatus.PENDING_DELETE -> Unit
             localStatus == TodoSyncStatus.PENDING_UPDATE -> Unit
             else -> {
-                todoDao.update(remote.toTodoEntity(ownerUserId, existing.id, existing.priority))
+                todoDao.update(
+                    remote.toTodoEntity(
+                        ownerUserId = ownerUserId,
+                        localId = existing.id,
+                        fallbackPriority = existing.priority,
+                        preservedLocalFields = existing
+                    )
+                )
                 outboxStore.deleteByTodoLocalId(existing.id)
             }
         }

@@ -12,12 +12,12 @@ internal object TodoSyncFieldPolicy {
         "description",
         "dueDate",
         "status",
-        "priority"
+        "priority",
+        "categoryId",
+        "dueTimeMinutes"
     )
 
     val localOnlyTodoFields: List<String> = listOf(
-        "categoryId",
-        "dueTimeMinutes",
         "reminderAtEpochMillis",
         "isReminderEnabled",
         "reminderRepeatType",
@@ -30,6 +30,8 @@ internal object TodoSyncFieldPolicy {
             title = todo.title,
             dueDate = todo.dueDateEpochDay?.let { LocalDate.ofEpochDay(it).toString() },
             status = if (todo.isDone) STATUS_COMPLETED else STATUS_ACTIVE,
-            priority = todo.priority
+            priority = todo.priority,
+            categoryId = todo.categoryId,
+            dueTimeMinutes = todo.dueTimeMinutes
         )
 }

@@ -26,7 +26,7 @@ internal fun TodoEntity.toSyncPayload(): TodoSyncPayload =
 
 internal fun TodoOutboxEntity.toNetworkMutation(
     json: Json,
-    fallbackPriority: String?
+    fallbackFields: TodoSyncFallbackFields?
 ): NetworkTodoMutation {
     val payload = if (type == MUTATION_DELETE) null else json.decodeFromString<TodoSyncPayload>(payloadJson)
     return NetworkTodoMutation(
@@ -40,16 +40,25 @@ internal fun TodoOutboxEntity.toNetworkMutation(
                 description = it.description,
                 dueDate = it.dueDate,
                 status = it.status,
-                priority = it.priority.toTodoPriorityNameOrNull(fallbackPriority)
+                priority = it.priority.toTodoPriorityNameOrNull(fallbackFields?.priority),
+                categoryId = it.categoryId ?: fallbackFields?.categoryId,
+                dueTimeMinutes = it.dueTimeMinutes ?: fallbackFields?.dueTimeMinutes
             )
         }
     )
 }
 
+internal data class TodoSyncFallbackFields(
+    val priority: String?,
+    val categoryId: Long?,
+    val dueTimeMinutes: Int?
+)
+
 internal fun NetworkTodo.toTodoEntity(
     ownerUserId: String,
     localId: Long = 0L,
-    fallbackPriority: String? = null
+    fallbackPriority: String? = null,
+    preservedLocalFields: TodoEntity? = null
 ): TodoEntity =
     TodoEntity(
         id = localId,
@@ -58,7 +67,13 @@ internal fun NetworkTodo.toTodoEntity(
         dueDateEpochDay = dueDate?.let(LocalDate::parse)?.toEpochDay(),
         createdAt = parseInstantMillis(createdAt),
         updatedAt = parseInstantMillis(updatedAt),
-        categoryId = null,
+        categoryId = categoryId,
+        reminderAtEpochMillis = preservedLocalFields?.reminderAtEpochMillis,
+        isReminderEnabled = preservedLocalFields?.isReminderEnabled ?: false,
+        reminderRepeatType = preservedLocalFields?.reminderRepeatType ?: "NONE",
+        reminderRepeatDaysMask = preservedLocalFields?.reminderRepeatDaysMask ?: 0,
+        dueTimeMinutes = dueTimeMinutes,
+        reminderLeadMinutes = preservedLocalFields?.reminderLeadMinutes,
         priority = priority.toTodoPriorityName(fallbackPriority),
         serverId = id,
         clientId = clientId,
