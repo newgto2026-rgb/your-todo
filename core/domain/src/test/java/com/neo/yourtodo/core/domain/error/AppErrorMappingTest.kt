@@ -96,11 +96,19 @@ class AppErrorMappingTest {
     @Test
     fun `illegal argument local category misses map before generic validation`() {
         val categoryNotFound = IllegalArgumentException("Category not found")
+        val categoryIdNotFound = IllegalArgumentException("category id not found")
         val staleCategoryId = IllegalArgumentException("Stale local category id")
+        val invalidCategoryValue = IllegalArgumentException("invalid category value")
+        val staleInvalidCategoryValue = IllegalArgumentException("Stale invalid category value")
         val genericValidation = IllegalArgumentException("Category name must not be blank")
 
         assertThat(categoryNotFound.toAppError()).isEqualTo(AppError.LocalDataMissing("Category not found"))
+        assertThat(categoryIdNotFound.toAppError()).isEqualTo(AppError.LocalDataMissing("category id not found"))
         assertThat(staleCategoryId.toAppError()).isEqualTo(AppError.LocalDataMissing("Stale local category id"))
+        assertThat(invalidCategoryValue.toAppError()).isEqualTo(AppError.ValidationError("invalid category value"))
+        assertThat(staleInvalidCategoryValue.toAppError()).isEqualTo(
+            AppError.ValidationError("Stale invalid category value")
+        )
         assertThat(genericValidation.toAppError()).isEqualTo(AppError.ValidationError("Category name must not be blank"))
     }
 

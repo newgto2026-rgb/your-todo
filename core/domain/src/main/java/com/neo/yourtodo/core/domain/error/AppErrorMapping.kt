@@ -112,8 +112,16 @@ private fun String?.looksLikeLocalDataMissing(): Boolean {
     val isStaleLocalReference =
         value.contains("stale", ignoreCase = true) &&
             KNOWN_LOCAL_DATA_NAMES.any { name -> value.contains(name, ignoreCase = true) } &&
-            LOCAL_DATA_REFERENCE_MARKERS.any { marker -> value.contains(marker, ignoreCase = true) }
+            LOCAL_DATA_REFERENCE_MARKERS.any { marker -> value.containsToken(marker) }
     return isKnownMissingMessage || isKnownLocalNotFound || isContextualMissing || isStaleLocalReference
+}
+
+private fun String.containsToken(token: String): Boolean {
+    val tokenPattern = Regex(
+        pattern = "(?<![A-Za-z0-9_])${Regex.escape(token)}(?![A-Za-z0-9_])",
+        option = RegexOption.IGNORE_CASE
+    )
+    return tokenPattern.containsMatchIn(this)
 }
 
 private val KNOWN_LOCAL_DATA_MISSING_MESSAGES = listOf(
