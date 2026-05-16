@@ -165,17 +165,236 @@ class RefreshWorkspaceUseCaseTest {
         assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(1)
     }
 
+    @Test
+    fun invokeSkipsFreshFullySyncedSnapshot() = runTest {
+        val events = mutableListOf<String>()
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(events = events),
+            friendRepository = FakeFriendRepository(events = events),
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events)
+        )
+
+        val firstResult = useCase()
+        val skippedResult = useCase()
+
+        assertThat(firstResult.isSuccess).isTrue()
+        assertThat(skippedResult.getOrThrow()).isEqualTo(firstResult.getOrThrow())
+        assertThat(events.count { it == "todo.sync" }).isEqualTo(1)
+        assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(1)
+    }
+
+    @Test
+    fun invokeForceRefreshBypassesFreshSnapshotSkip() = runTest {
+        val events = mutableListOf<String>()
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(events = events),
+            friendRepository = FakeFriendRepository(events = events),
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events)
+        )
+
+        val firstResult = useCase()
+        val forcedResult = useCase(forceRefresh = true)
+
+        assertThat(firstResult.isSuccess).isTrue()
+        assertThat(forcedResult.isSuccess).isTrue()
+        assertThat(events.count { it == "todo.sync" }).isEqualTo(2)
+        assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(2)
+    }
+
+    @Test
+    fun invokeDoesNotSkipPartialSnapshot() = runTest {
+        val events = mutableListOf<String>()
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(
+                events = events,
+                syncResult = Result.failure(IllegalStateException("todo sync failed"))
+            ),
+            friendRepository = FakeFriendRepository(events = events),
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events)
+        )
+
+        val firstResult = useCase()
+        val retryResult = useCase()
+
+        assertThat(firstResult.getOrThrow().isFullySynced).isFalse()
+        assertThat(retryResult.getOrThrow().isFullySynced).isFalse()
+        assertThat(events.count { it == "todo.sync" }).isEqualTo(2)
+        assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(2)
+    }
+
+    @Test
+    fun invokePublishesPartialSnapshotWhenOptionalFeedsFail() = runTest {
+        val notifier = WorkspaceSyncNotifier()
+        val friend = testFriend()
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(
+                events = mutableListOf(),
+                syncResult = Result.failure(IllegalStateException("todo sync failed"))
+            ),
+            friendRepository = FakeFriendRepository(friends = listOf(friend)),
+            assignmentRepository = FakeAssignmentRepository(
+                activeReceivedResult = Result.failure(IllegalStateException("active failed")),
+                historyReceived = listOf(testAssignedTodo(id = "history-1"))
+            ),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
+            syncNotifier = notifier
+        )
+
+        val result = useCase()
+
+        assertThat(result.isSuccess).isTrue()
+        val snapshot = result.getOrThrow()
+        assertThat(snapshot.isFullySynced).isFalse()
+        assertThat(snapshot.friends).containsExactly(friend)
+        assertThat(snapshot.visibleReceivedAssignedTodos)
+            .containsExactly(testAssignedTodo(id = "history-1"))
+        assertThat(notifier.snapshots.value).isEqualTo(snapshot)
+    }
+
+    @Test
+    fun invokeFailsWithoutPublishingWhenRequiredFriendFeedFails() = runTest {
+        val notifier = WorkspaceSyncNotifier()
+        val events = mutableListOf<String>()
+        val failure = IllegalStateException("friends failed")
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(events = events),
+            friendRepository = FakeFriendRepository(
+                events = events,
+                friendsResult = Result.failure(failure)
+            ),
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events),
+            syncNotifier = notifier
+        )
+
+        val result = useCase()
+
+        assertThat(result.exceptionOrNull()).isSameInstanceAs(failure)
+        assertThat(notifier.snapshots.value).isNull()
+        assertThat(events).doesNotContain("calendar.updateWidgets")
+    }
+
+    @Test
+    fun invokeKeepsRefreshSuccessfulWhenCalendarWidgetUpdateFails() = runTest {
+        val notifier = WorkspaceSyncNotifier()
+        val friend = testFriend()
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(events = mutableListOf()),
+            friendRepository = FakeFriendRepository(friends = listOf(friend)),
+            assignmentRepository = FakeAssignmentRepository(),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(
+                result = Result.failure(IllegalStateException("widget failed"))
+            ),
+            syncNotifier = notifier
+        )
+
+        val result = useCase()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrThrow().isFullySynced).isTrue()
+        assertThat(notifier.snapshots.value).isEqualTo(result.getOrThrow())
+    }
+
+    @Test
+    fun invokeKeepsRefreshSuccessfulWhenCalendarWidgetUpdateThrows() = runTest {
+        val notifier = WorkspaceSyncNotifier()
+        val friend = testFriend()
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(events = mutableListOf()),
+            friendRepository = FakeFriendRepository(friends = listOf(friend)),
+            assignmentRepository = FakeAssignmentRepository(),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(
+                throwable = IllegalStateException("widget crashed")
+            ),
+            syncNotifier = notifier
+        )
+
+        val result = useCase()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(result.getOrThrow().friends).containsExactly(friend)
+        assertThat(notifier.snapshots.value).isEqualTo(result.getOrThrow())
+    }
+
+    @Test
+    fun policySkipsFreshFullySyncedSnapshotBeforeStaleThreshold() {
+        val snapshot = testWorkspaceSnapshot(isFullySynced = true)
+        val lastRefresh = WorkspaceRefreshState(
+            snapshot = snapshot,
+            completedAtEpochMillis = 1_000
+        )
+
+        val decision = WorkspaceRefreshPolicy().decide(
+            forceRefresh = false,
+            lastRefresh = lastRefresh,
+            nowEpochMillis = 1_000 + WorkspaceRefreshPolicy.STALE_THRESHOLD_MILLIS - 1
+        )
+
+        assertThat(decision).isEqualTo(WorkspaceRefreshDecision.Skip(snapshot))
+    }
+
+    @Test
+    fun policyRefreshesAtStaleThreshold() {
+        val lastRefresh = WorkspaceRefreshState(
+            snapshot = testWorkspaceSnapshot(isFullySynced = true),
+            completedAtEpochMillis = 1_000
+        )
+
+        val decision = WorkspaceRefreshPolicy().decide(
+            forceRefresh = false,
+            lastRefresh = lastRefresh,
+            nowEpochMillis = 1_000 + WorkspaceRefreshPolicy.STALE_THRESHOLD_MILLIS
+        )
+
+        assertThat(decision).isEqualTo(WorkspaceRefreshDecision.Refresh)
+    }
+
+    @Test
+    fun policyRefreshesWhenForcedOrLastSnapshotWasPartial() {
+        val fullRefresh = WorkspaceRefreshState(
+            snapshot = testWorkspaceSnapshot(isFullySynced = true),
+            completedAtEpochMillis = 1_000
+        )
+        val partialRefresh = WorkspaceRefreshState(
+            snapshot = testWorkspaceSnapshot(isFullySynced = false),
+            completedAtEpochMillis = 1_000
+        )
+        val policy = WorkspaceRefreshPolicy()
+
+        assertThat(
+            policy.decide(
+                forceRefresh = true,
+                lastRefresh = fullRefresh,
+                nowEpochMillis = 1_001
+            )
+        ).isEqualTo(WorkspaceRefreshDecision.Refresh)
+        assertThat(
+            policy.decide(
+                forceRefresh = false,
+                lastRefresh = partialRefresh,
+                nowEpochMillis = 1_001
+            )
+        ).isEqualTo(WorkspaceRefreshDecision.Refresh)
+    }
+
     private class RecordingCalendarWidgetUpdater(
-        private val events: MutableList<String> = mutableListOf()
+        private val events: MutableList<String> = mutableListOf(),
+        private val result: Result<Unit> = Result.success(Unit),
+        private val throwable: Throwable? = null
     ) : CalendarWidgetUpdater {
         override suspend fun updateCalendarWidgets(): Result<Unit> {
             events += "calendar.updateWidgets"
-            return Result.success(Unit)
+            throwable?.let { throw it }
+            return result
         }
     }
 
     private class FakeTodoRepository(
         private val events: MutableList<String>,
+        private val syncResult: Result<Unit> = Result.success(Unit),
         private val onSync: suspend () -> Unit = {}
     ) : TodoItemRepository {
         override fun observeTodos(): Flow<List<TodoItem>> = flowOf(emptyList())
@@ -221,29 +440,32 @@ class RefreshWorkspaceUseCaseTest {
         override suspend fun syncTodos(): Result<Unit> {
             events += "todo.sync"
             onSync()
-            return Result.success(Unit)
+            return syncResult
         }
     }
 
     private class FakeFriendRepository(
         private val events: MutableList<String> = mutableListOf(),
-        private val friends: List<Friend> = emptyList(),
-        private val incoming: List<FriendRequest> = emptyList(),
-        private val outgoing: List<FriendRequest> = emptyList()
+        friends: List<Friend> = emptyList(),
+        incoming: List<FriendRequest> = emptyList(),
+        outgoing: List<FriendRequest> = emptyList(),
+        private val friendsResult: Result<List<Friend>> = Result.success(friends),
+        private val incomingResult: Result<List<FriendRequest>> = Result.success(incoming),
+        private val outgoingResult: Result<List<FriendRequest>> = Result.success(outgoing)
     ) : FriendRepository {
         override suspend fun getFriends(): Result<List<Friend>> {
             events += "friend.getFriends"
-            return Result.success(friends)
+            return friendsResult
         }
 
         override suspend fun getIncomingRequests(): Result<List<FriendRequest>> {
             events += "friend.getIncoming"
-            return Result.success(incoming)
+            return incomingResult
         }
 
         override suspend fun getOutgoingRequests(): Result<List<FriendRequest>> {
             events += "friend.getOutgoing"
-            return Result.success(outgoing)
+            return outgoingResult
         }
 
         override suspend fun sendRequest(nickname: String): Result<Unit> =
@@ -261,8 +483,11 @@ class RefreshWorkspaceUseCaseTest {
 
     private class FakeAssignmentRepository(
         private val events: MutableList<String> = mutableListOf(),
-        private val activeReceived: List<AssignedTodo> = emptyList(),
-        private val historyReceived: List<AssignedTodo> = emptyList()
+        activeReceived: List<AssignedTodo> = emptyList(),
+        historyReceived: List<AssignedTodo> = emptyList(),
+        private val pendingReceivedResult: Result<List<AssignedTodo>> = Result.success(emptyList()),
+        private val activeReceivedResult: Result<List<AssignedTodo>> = Result.success(activeReceived),
+        private val historyReceivedResult: Result<List<AssignedTodo>> = Result.success(historyReceived)
     ) : AssignmentRepository {
         override suspend fun createBundle(
             receiverUserId: String,
@@ -282,9 +507,9 @@ class RefreshWorkspaceUseCaseTest {
         override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> {
             events += "assignment.getReceived.${status.wireValue}"
             return when (status) {
-                AssignmentFeedStatus.ACTIVE -> Result.success(activeReceived)
-                AssignmentFeedStatus.HISTORY -> Result.success(historyReceived)
-                AssignmentFeedStatus.PENDING -> Result.success(emptyList())
+                AssignmentFeedStatus.ACTIVE -> activeReceivedResult
+                AssignmentFeedStatus.HISTORY -> historyReceivedResult
+                AssignmentFeedStatus.PENDING -> pendingReceivedResult
             }
         }
 
@@ -294,8 +519,8 @@ class RefreshWorkspaceUseCaseTest {
         override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
             flowOf(
                 when (status) {
-                    AssignmentFeedStatus.ACTIVE -> activeReceived
-                    AssignmentFeedStatus.HISTORY -> historyReceived
+                    AssignmentFeedStatus.ACTIVE -> activeReceivedResult.getOrDefault(emptyList())
+                    AssignmentFeedStatus.HISTORY -> historyReceivedResult.getOrDefault(emptyList())
                     AssignmentFeedStatus.PENDING -> emptyList()
                 }
             )
@@ -348,8 +573,19 @@ class RefreshWorkspaceUseCaseTest {
         removedAt = null
     )
 
-    private fun testAssignedTodo() = AssignedTodo(
-        id = "assigned-1",
+    private fun testWorkspaceSnapshot(isFullySynced: Boolean) = WorkspaceRefreshSnapshot(
+        isFullySynced = isFullySynced,
+        friends = emptyList(),
+        incomingRequests = emptyList(),
+        outgoingRequests = emptyList(),
+        visibleReceivedAssignedTodos = emptyList()
+    )
+
+    private fun testAssignedTodo(
+        id: String = "assigned-1",
+        status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED
+    ) = AssignedTodo(
+        id = id,
         bundleId = "bundle-1",
         title = "Shared todo",
         description = null,
@@ -357,7 +593,7 @@ class RefreshWorkspaceUseCaseTest {
         dueTimeMinutes = 9 * 60,
         priority = TodoPriority.MEDIUM,
         category = null,
-        status = AssignedTodoStatus.ACCEPTED,
+        status = status,
         terminalReason = null,
         progressPercent = 0,
         sender = AssignedTodoUser(id = "sender-id", nickname = "neo"),
