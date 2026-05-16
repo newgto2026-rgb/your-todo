@@ -59,6 +59,7 @@ class FriendsViewModel @Inject constructor(
     val sideEffect: SharedFlow<FriendsSideEffect> = mutableSideEffect
     private var friendDetailObservationJob: Job? = null
     private var friendDetailRefreshJob: Job? = null
+    private var isRefreshInFlight = false
     private var pendingIncomingAssignmentTarget: IncomingAssignmentTarget? = null
     private var pendingIncomingAssignmentResolutionJob: Job? = null
     private var pendingIncomingAssignmentBundleSelectionId: String? = null
@@ -244,7 +245,8 @@ class FriendsViewModel @Inject constructor(
     }
 
     private fun refresh(initial: Boolean) {
-        if (uiState.value.isRefreshing) return
+        if (isRefreshInFlight) return
+        isRefreshInFlight = true
         viewModelScope.launch {
             mutableUiState.update {
                 val blockingLoad = initial || !it.hasLoadedFriendsSnapshot
@@ -303,6 +305,7 @@ class FriendsViewModel @Inject constructor(
                         it
                     }
                 }
+                isRefreshInFlight = false
             }
         }
     }

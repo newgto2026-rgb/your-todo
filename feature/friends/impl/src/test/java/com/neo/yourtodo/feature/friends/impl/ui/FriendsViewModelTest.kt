@@ -20,6 +20,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -212,6 +213,46 @@ class FriendsViewModelTest {
         val loaded = viewModel.uiState.value
         assertThat(loaded.friendsSnapshotError).isNull()
         assertThat(loaded.showFriendsUnavailable).isFalse()
+        assertThat(loaded.friends).hasSize(1)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun retryBeforeFirstSnapshotIgnoresParallelRefreshTaps() = runTest {
+        val repository = FakeFriendRepository(
+            getFriendsResult = Result.failure(IllegalStateException("Network unavailable"))
+        )
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { it.showFriendsUnavailable }
+
+        val getFriendsGate = CompletableDeferred<Unit>()
+        repository.getFriendsResult = null
+        repository.getFriendsGate = getFriendsGate
+        repository.friends = listOf(friend())
+        val callsBeforeRetry = repository.getFriendsCalls
+
+        viewModel.onAction(FriendsAction.OnRefresh)
+        runCurrent()
+
+        val blockingRetry = viewModel.uiState.value
+        assertThat(blockingRetry.isLoading).isTrue()
+        assertThat(blockingRetry.isRefreshing).isFalse()
+        assertThat(blockingRetry.hasLoadedFriendsSnapshot).isFalse()
+        assertThat(repository.getFriendsCalls).isEqualTo(callsBeforeRetry + 1)
+
+        viewModel.onAction(FriendsAction.OnRefresh)
+        viewModel.onAction(FriendsAction.OnRefresh)
+        runCurrent()
+
+        assertThat(repository.getFriendsCalls).isEqualTo(callsBeforeRetry + 1)
+
+        getFriendsGate.complete(Unit)
+        advanceUntilIdle()
+
+        val loaded = viewModel.uiState.value
+        assertThat(loaded.isLoading).isFalse()
+        assertThat(loaded.hasLoadedFriendsSnapshot).isTrue()
         assertThat(loaded.friends).hasSize(1)
     }
 
