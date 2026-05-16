@@ -73,6 +73,27 @@ class AppErrorMappingTest {
     }
 
     @Test
+    fun `mapper rethrows cancellation exceptions from cause chain`() {
+        val cancellation = CancellationException("cancelled")
+        val wrappedCancellation = RuntimeException("wrapper", cancellation)
+
+        val thrown = catchThrowable { wrappedCancellation.toAppError() }
+
+        assertThat(thrown).isSameInstanceAs(cancellation)
+    }
+
+    @Test
+    fun `illegal state local missing messages are case insensitive and scoped`() {
+        val upperCaseNotFound = IllegalStateException("CATEGORY NOT FOUND")
+        val contextualMissing = IllegalStateException("Todo cache missing")
+        val broadMissingMessage = IllegalStateException("Profile is missing permission")
+
+        assertThat(upperCaseNotFound.toAppError()).isEqualTo(AppError.LocalDataMissing("CATEGORY NOT FOUND"))
+        assertThat(contextualMissing.toAppError()).isEqualTo(AppError.LocalDataMissing("Todo cache missing"))
+        assertThat(broadMissingMessage.toAppError()).isEqualTo(AppError.Unknown("Profile is missing permission"))
+    }
+
+    @Test
     fun `result helper wraps failures with app error exception`() {
         val result = Result.failure<Unit>(UnknownHostException("offline"))
             .mapFailureToAppError()
@@ -90,11 +111,23 @@ class AppErrorMappingTest {
     }
 
     @Test
-    fun `result helper preserves cancellation exceptions`() {
+    fun `result helper rethrows cancellation exceptions`() {
         val cancellation = CancellationException("cancelled")
 
-        val result = Result.failure<Unit>(cancellation).mapFailureToAppError()
+        val thrown = catchThrowable { Result.failure<Unit>(cancellation).mapFailureToAppError() }
+        val wrappedThrown = catchThrowable {
+            Result.failure<Unit>(RuntimeException("wrapper", cancellation)).mapFailureToAppError()
+        }
 
-        assertThat(result.exceptionOrNull()).isSameInstanceAs(cancellation)
+        assertThat(thrown).isSameInstanceAs(cancellation)
+        assertThat(wrappedThrown).isSameInstanceAs(cancellation)
     }
+
+    private fun catchThrowable(block: () -> Unit): Throwable? =
+        try {
+            block()
+            null
+        } catch (throwable: Throwable) {
+            throwable
+        }
 }
