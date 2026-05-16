@@ -3,6 +3,9 @@ package com.neo.yourtodo.core.domain.usecase
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCacheFreshness
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCacheKey
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCachePolicy
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.TodoItemRepository
@@ -122,6 +125,31 @@ class AssignmentUseCasesTest {
         assertThat(repository.sentStatuses).containsExactly(AssignmentFeedStatus.HISTORY)
         assertThat(repository.friendFeedRequests)
             .containsExactly(FriendFeedRequest("friend-1", AssignmentDirection.SENT, AssignmentFeedStatus.ACTIVE))
+    }
+
+    @Test
+    fun assignmentFeedCacheFreshnessDefinesStaleAndForceRefreshBoundary() {
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+        val refreshedAt = 1_000L
+        val freshness = AssignmentFeedCacheFreshness(
+            feed = feed,
+            lastUpdatedAtEpochMillis = refreshedAt
+        )
+        val unknown = AssignmentFeedCacheFreshness(
+            feed = feed,
+            lastUpdatedAtEpochMillis = null
+        )
+
+        assertThat(freshness.isStale(refreshedAt + AssignmentFeedCachePolicy.STALE_AFTER_MILLIS - 1))
+            .isFalse()
+        assertThat(freshness.isStale(refreshedAt + AssignmentFeedCachePolicy.STALE_AFTER_MILLIS))
+            .isTrue()
+        assertThat(freshness.shouldForceRefresh(refreshedAt + AssignmentFeedCachePolicy.STALE_AFTER_MILLIS))
+            .isTrue()
+        assertThat(unknown.isStale(refreshedAt)).isTrue()
     }
 
     @Test

@@ -5,10 +5,13 @@ import com.neo.yourtodo.core.database.dao.AssignedTodoDao
 import com.neo.yourtodo.core.database.entity.AssignedTodoChecklistItemEntity
 import com.neo.yourtodo.core.database.entity.AssignedTodoEntity
 import com.neo.yourtodo.core.database.entity.AssignedTodoWithChecklist
+import com.neo.yourtodo.core.database.entity.assignedTodoCacheKey
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCacheKey
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCachePolicy
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
@@ -333,6 +336,60 @@ class AssignmentRepositoryImplTest {
 
         assertThat(repository.observeReceivedAssignedTodos(AssignmentFeedStatus.PENDING).first().map { it.id })
             .containsExactly("assigned-1")
+    }
+
+    @Test
+    fun getReceivedAssignedTodosRecordsFeedFreshnessForEmptyRefresh() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeAssignmentNetworkDataSource().apply {
+            receivedItems = emptyList()
+        }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val repository = repository(prefs = prefs, network = network, assignedTodoDao = assignedTodoDao)
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+
+        val beforeRefresh = System.currentTimeMillis()
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE).getOrThrow()
+        val afterRefresh = System.currentTimeMillis()
+
+        val freshness = repository.observeFeedCacheFreshness(feed).first()
+        val lastUpdatedAt = freshness.lastUpdatedAtEpochMillis
+        assertThat(lastUpdatedAt).isNotNull()
+        assertThat(lastUpdatedAt!!).isAtLeast(beforeRefresh)
+        assertThat(lastUpdatedAt).isAtMost(afterRefresh)
+        assertThat(freshness.isStale(lastUpdatedAt + AssignmentFeedCachePolicy.STALE_AFTER_MILLIS - 1))
+            .isFalse()
+        assertThat(freshness.shouldForceRefresh(lastUpdatedAt + AssignmentFeedCachePolicy.STALE_AFTER_MILLIS))
+            .isTrue()
+    }
+
+    @Test
+    fun observeFeedCacheFreshnessUsesPersistedCacheUpdatedAtForCachedRows() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val repository = repository(prefs = prefs, assignedTodoDao = assignedTodoDao)
+
+        assignedTodoDao.upsertAssignedTodoGraph(
+            items = listOf(
+                cachedAssignedTodo(id = "newer", cacheUpdatedAt = 200L),
+                cachedAssignedTodo(id = "older", cacheUpdatedAt = 100L)
+            ),
+            checklistItems = emptyList()
+        )
+
+        val freshness = repository.observeFeedCacheFreshness(
+            AssignmentFeedCacheKey(
+                direction = AssignmentDirection.RECEIVED,
+                status = AssignmentFeedStatus.ACTIVE
+            )
+        ).first()
+
+        assertThat(freshness.lastUpdatedAtEpochMillis).isEqualTo(100L)
+        assertThat(freshness.isStale(100L + AssignmentFeedCachePolicy.STALE_AFTER_MILLIS))
+            .isTrue()
     }
 
     private fun repository(
@@ -663,6 +720,7 @@ class AssignmentRepositoryImplTest {
         var deletedReminderTodoId: String? = null
         var mutationItem: NetworkAssignedTodoMutationItem? = null
         var bundleItem: NetworkAssignedTodo? = null
+        var receivedItems: List<NetworkAssignedTodo> = listOf(networkTodo())
         val directAssignmentOptInRequests = mutableListOf<Pair<String, Boolean>>()
 
         override suspend fun createBundle(
@@ -683,7 +741,7 @@ class AssignmentRepositoryImplTest {
             receivedTokens += accessToken
             failAuthIfNeeded()
             lastReceivedStatus = status
-            return NetworkAssignedTodosResponse(items = listOf(networkTodo()))
+            return NetworkAssignedTodosResponse(items = receivedItems)
         }
 
         override suspend fun getSentAssignedTodos(
@@ -812,6 +870,40 @@ class AssignmentRepositoryImplTest {
         }
     }
 }
+
+private fun cachedAssignedTodo(
+    id: String,
+    cacheUpdatedAt: Long,
+    ownerUserId: String = "user-id",
+    status: String = "ACCEPTED"
+) = AssignedTodoEntity(
+    ownerUserId = ownerUserId,
+    id = id,
+    cacheKey = assignedTodoCacheKey(ownerUserId, id),
+    bundleId = "bundle-1",
+    title = "Cached $id",
+    description = null,
+    dueDateEpochDay = null,
+    dueTimeMinutes = null,
+    priority = TodoPriority.MEDIUM.name,
+    category = null,
+    status = status,
+    terminalReason = null,
+    progressPercent = 0,
+    senderUserId = "friend-1",
+    senderNickname = "monday",
+    receiverUserId = ownerUserId,
+    receiverNickname = "neo",
+    assignmentMode = AssignmentMode.REQUEST.name,
+    reminderAt = null,
+    reminderEnabled = null,
+    createdAtEpochMillis = null,
+    completedAtEpochMillis = null,
+    receivedCached = true,
+    receivedTaskHidden = false,
+    sentCached = false,
+    cacheUpdatedAt = cacheUpdatedAt
+)
 
 private fun bundleResponse(item: NetworkAssignedTodo? = null) = NetworkAssignmentBundleResponse(
     bundle = networkBundle(),

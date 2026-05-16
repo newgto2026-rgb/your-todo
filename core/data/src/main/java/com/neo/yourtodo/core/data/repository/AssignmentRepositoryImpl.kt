@@ -8,6 +8,8 @@ import com.neo.yourtodo.core.database.entity.assignedTodoCacheKey
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.error.AuthRequiredException
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCacheFreshness
+import com.neo.yourtodo.core.domain.repository.AssignmentFeedCacheKey
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.model.TodoPriority
@@ -50,10 +52,13 @@ import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AssignmentRepositoryImpl @Inject constructor(
@@ -64,6 +69,8 @@ class AssignmentRepositoryImpl @Inject constructor(
     private val authSessionRefresher: AuthSessionRefresher =
         AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
 ) : AssignmentRepository {
+    private val feedRefreshTimes = MutableStateFlow<Map<ScopedAssignmentFeedCacheKey, Long>>(emptyMap())
+
     override suspend fun createBundle(
         receiverUserId: String,
         items: List<AssignmentDraftItem>,
@@ -208,6 +215,27 @@ class AssignmentRepositoryImpl @Inject constructor(
                 )
             }
         }.map { items -> items.map { it.toDomain() } }
+
+    override fun observeFeedCacheFreshness(feed: AssignmentFeedCacheKey): Flow<AssignmentFeedCacheFreshness> =
+        userPreferencesDataSource.authSession.flatMapLatest { session ->
+            val ownerUserId = session?.takeUnless { it.onboardingRequired }?.userId
+                ?: return@flatMapLatest flowOf(
+                    AssignmentFeedCacheFreshness(
+                        feed = feed,
+                        lastUpdatedAtEpochMillis = null
+                    )
+                )
+            val scopedKey = feed.toScopedKey(ownerUserId)
+            combine(
+                observePersistedFeedCacheUpdatedAt(ownerUserId, feed),
+                feedRefreshTimes
+            ) { persistedUpdatedAt, refreshTimes ->
+                AssignmentFeedCacheFreshness(
+                    feed = feed,
+                    lastUpdatedAtEpochMillis = refreshTimes[scopedKey] ?: persistedUpdatedAt
+                )
+            }
+        }
 
     override suspend fun decideBundleItems(
         bundleId: String,
@@ -409,6 +437,9 @@ class AssignmentRepositoryImpl @Inject constructor(
             replaceCachedItems(ownerUserId, direction, status, friendUserId, ids, entities, checklistItems)
         } else {
             assignedTodoDao.upsertAssignedTodoGraph(entities, checklistItems)
+        }
+        if (replaceStale) {
+            recordFeedRefresh(ownerUserId, direction, status, friendUserId, now)
         }
     }
 
@@ -726,6 +757,55 @@ class AssignmentRepositoryImpl @Inject constructor(
             null
         }
 
+    private fun observePersistedFeedCacheUpdatedAt(
+        ownerUserId: String,
+        feed: AssignmentFeedCacheKey
+    ): Flow<Long?> {
+        val statuses = feed.status.cacheStatuses()
+        return when (feed.direction) {
+            AssignmentDirection.RECEIVED -> {
+                val friendUserId = feed.friendUserId
+                if (friendUserId == null) {
+                    assignedTodoDao.observeReceivedAssignedTodos(ownerUserId, statuses)
+                } else {
+                    assignedTodoDao.observeReceivedAssignedTodosByFriend(ownerUserId, friendUserId, statuses)
+                }
+            }
+
+            AssignmentDirection.SENT -> {
+                val friendUserId = feed.friendUserId
+                if (friendUserId == null) {
+                    assignedTodoDao.observeSentAssignedTodos(ownerUserId, statuses)
+                } else {
+                    assignedTodoDao.observeSentAssignedTodosByFriend(ownerUserId, friendUserId, statuses)
+                }
+            }
+        }.map { items -> items.minOfOrNull { it.assignedTodo.cacheUpdatedAt } }
+    }
+
+    private fun recordFeedRefresh(
+        ownerUserId: String,
+        direction: AssignmentDirection,
+        status: AssignmentFeedStatus,
+        friendUserId: String?,
+        refreshedAt: Long
+    ) {
+        val scopedKey = AssignmentFeedCacheKey(
+            direction = direction,
+            status = status,
+            friendUserId = friendUserId
+        ).toScopedKey(ownerUserId)
+        feedRefreshTimes.update { refreshTimes -> refreshTimes + (scopedKey to refreshedAt) }
+    }
+
+    private fun AssignmentFeedCacheKey.toScopedKey(ownerUserId: String) =
+        ScopedAssignmentFeedCacheKey(
+            ownerUserId = ownerUserId,
+            direction = direction,
+            status = status,
+            friendUserId = friendUserId
+        )
+
     private fun AssignmentFeedStatus.cacheStatuses(): List<String> = when (this) {
         AssignmentFeedStatus.ACTIVE -> listOf(
             AssignedTodoStatus.ACCEPTED.name,
@@ -749,4 +829,11 @@ class AssignmentRepositoryImpl @Inject constructor(
         AssignedTodoStatus.REJECTED,
         AssignedTodoStatus.CANCELED -> AssignmentFeedStatus.HISTORY
     }
+
+    private data class ScopedAssignmentFeedCacheKey(
+        val ownerUserId: String,
+        val direction: AssignmentDirection,
+        val status: AssignmentFeedStatus,
+        val friendUserId: String?
+    )
 }
