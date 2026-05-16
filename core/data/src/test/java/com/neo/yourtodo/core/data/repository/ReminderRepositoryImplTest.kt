@@ -5,6 +5,8 @@ import com.neo.yourtodo.core.database.entity.ReminderEntity
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.ReminderStatus
 import com.google.common.truth.Truth.assertThat
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -171,6 +173,46 @@ class ReminderRepositoryImplTest {
         assertThat(snoozed.status).isEqualTo(ReminderStatus.SCHEDULED.name)
         assertThat(snoozed.isEnabled).isTrue()
         assertThat(snoozed.triggerAtEpochMillis).isGreaterThan(now)
+    }
+
+    @Test
+    fun `complete reminder schedules custom days with shared recurrence policy`() = runTest {
+        val zoneId = ZoneId.systemDefault()
+        val triggerAt = LocalDateTime.now(zoneId)
+            .plusDays(2)
+            .withHour(9)
+            .withMinute(0)
+            .withSecond(0)
+            .withNano(0)
+        val expectedNextTriggerAt = triggerAt.plusDays(2)
+        val repeatDaysMask = 1 shl (expectedNextTriggerAt.dayOfWeek.value - 1)
+        val dao = FakeReminderDao().apply {
+            seed(
+                ReminderEntity(
+                    id = 31L,
+                    title = "Custom",
+                    note = null,
+                    triggerAtEpochMillis = triggerAt.atZone(zoneId).toInstant().toEpochMilli(),
+                    repeatType = ReminderRepeatType.CUSTOM_DAYS.name,
+                    repeatDaysMask = repeatDaysMask,
+                    isEnabled = true,
+                    status = ReminderStatus.SCHEDULED.name,
+                    lastTriggeredAtEpochMillis = null,
+                    createdAt = 1L,
+                    updatedAt = 1L
+                )
+            )
+        }
+        val repository = ReminderRepositoryImpl(dao)
+
+        val completeResult = repository.completeReminder(31L)
+
+        assertThat(completeResult.isSuccess).isTrue()
+        val repeated = dao.getReminderById(31L)!!
+        assertThat(repeated.status).isEqualTo(ReminderStatus.SCHEDULED.name)
+        assertThat(repeated.isEnabled).isTrue()
+        assertThat(repeated.triggerAtEpochMillis)
+            .isEqualTo(expectedNextTriggerAt.atZone(zoneId).toInstant().toEpochMilli())
     }
 
     private class FakeReminderDao : ReminderDao {

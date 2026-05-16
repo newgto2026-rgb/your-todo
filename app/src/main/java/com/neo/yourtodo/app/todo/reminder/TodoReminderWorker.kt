@@ -4,10 +4,10 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.neo.yourtodo.core.domain.reminder.ReminderRecurrenceCalculator
 import com.neo.yourtodo.core.model.ReminderRepeatType
+import com.neo.yourtodo.core.model.TodoItem
 import dagger.hilt.android.EntryPointAccessors
-import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneId
 
 class TodoReminderWorker(
@@ -61,17 +61,15 @@ class TodoReminderWorker(
         return Result.success()
     }
 
-    private fun computeNextReminderAt(todo: com.neo.yourtodo.core.model.TodoItem): Long? {
+    private fun computeNextReminderAt(todo: TodoItem): Long? {
         val current = todo.reminderAtEpochMillis ?: return null
-        val zoneId = ZoneId.systemDefault()
-        val anchor = maxOf(current, System.currentTimeMillis())
-        val base = LocalDateTime.ofInstant(Instant.ofEpochMilli(anchor), zoneId)
-        return when (todo.reminderRepeatType) {
-            ReminderRepeatType.NONE -> null
-            ReminderRepeatType.DAILY -> base.plusDays(1).atZone(zoneId).toInstant().toEpochMilli()
-            ReminderRepeatType.WEEKLY -> base.plusWeeks(1).atZone(zoneId).toInstant().toEpochMilli()
-            ReminderRepeatType.CUSTOM_DAYS -> null
-        }
+        return ReminderRecurrenceCalculator.nextTriggerAt(
+            currentTriggerAt = current,
+            repeatType = todo.reminderRepeatType,
+            repeatDaysMask = todo.reminderRepeatDaysMask,
+            nowEpochMillis = System.currentTimeMillis(),
+            zoneId = ZoneId.systemDefault()
+        )
     }
 
     companion object {

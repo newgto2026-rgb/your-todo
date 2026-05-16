@@ -4,12 +4,11 @@ import android.util.Log
 import com.neo.yourtodo.core.data.mapper.toDomain
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.entity.ReminderEntity
+import com.neo.yourtodo.core.domain.reminder.ReminderRecurrenceCalculator
 import com.neo.yourtodo.core.domain.repository.ReminderRepository
 import com.neo.yourtodo.core.model.Reminder
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.ReminderStatus
-import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -103,11 +102,12 @@ class ReminderRepositoryImpl @Inject constructor(
         val existing = reminderDao.getReminderById(id) ?: throw IllegalStateException("Reminder not found")
         val now = System.currentTimeMillis()
         val repeatType = ReminderRepeatType.valueOf(existing.repeatType)
-        val nextTrigger = computeNextTriggerAt(
+        val nextTrigger = ReminderRecurrenceCalculator.nextTriggerAt(
             currentTriggerAt = existing.triggerAtEpochMillis,
             repeatType = repeatType,
             repeatDaysMask = existing.repeatDaysMask,
-            nowEpochMillis = now
+            nowEpochMillis = now,
+            zoneId = ZoneId.systemDefault()
         )
         val shouldContinue = nextTrigger != null
 
@@ -138,35 +138,6 @@ class ReminderRepositoryImpl @Inject constructor(
         )
     }.onFailure { throwable ->
         logError("snoozeReminder", throwable)
-    }
-
-    private fun computeNextTriggerAt(
-        currentTriggerAt: Long,
-        repeatType: ReminderRepeatType,
-        repeatDaysMask: Int,
-        nowEpochMillis: Long
-    ): Long? {
-        val zoneId = ZoneId.systemDefault()
-        val anchor = maxOf(currentTriggerAt, nowEpochMillis)
-        val base = LocalDateTime.ofInstant(Instant.ofEpochMilli(anchor), zoneId)
-
-        return when (repeatType) {
-            ReminderRepeatType.NONE -> null
-            ReminderRepeatType.DAILY -> base.plusDays(1).atZone(zoneId).toInstant().toEpochMilli()
-            ReminderRepeatType.WEEKLY -> base.plusWeeks(1).atZone(zoneId).toInstant().toEpochMilli()
-            ReminderRepeatType.CUSTOM_DAYS -> {
-                if (repeatDaysMask == 0) return null
-                val start = base.plusDays(1)
-                val candidate = (0..13)
-                    .asSequence()
-                    .map { offset -> start.plusDays(offset.toLong()) }
-                    .firstOrNull { dateTime ->
-                        val bit = 1 shl (dateTime.dayOfWeek.value - 1)
-                        (repeatDaysMask and bit) != 0
-                    } ?: return null
-                candidate.atZone(zoneId).toInstant().toEpochMilli()
-            }
-        }
     }
 
     private fun logError(action: String, throwable: Throwable) {
