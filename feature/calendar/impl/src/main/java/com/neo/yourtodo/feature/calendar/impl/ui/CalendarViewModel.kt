@@ -4,11 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
+import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceDateTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
-import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,8 +38,9 @@ private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
 class CalendarViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     observeAuthSessionUseCase: ObserveAuthSessionUseCase,
-    observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase,
+    observeTaskSurfaceSummariesUseCase: ObserveTaskSurfaceSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
+    private val buildTaskSurfaceDateTodosUseCase: BuildTaskSurfaceDateTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
@@ -71,27 +73,17 @@ class CalendarViewModel @Inject constructor(
         )
 
     private val summariesByDate = monthState
-        .flatMapLatest { yearMonth -> observeMonthlyTodoSummariesUseCase(yearMonth) }
+        .flatMapLatest { yearMonth ->
+            observeTaskSurfaceSummariesUseCase(
+                yearMonth = yearMonth,
+                assignedTodos = receivedAssignedTodos
+            )
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap()
         )
-
-    private val mergedSummariesByDate = combine(
-        monthState,
-        summariesByDate,
-        receivedAssignedTodos
-    ) { currentMonth, summaries, assignedTodos ->
-        summaries.withAssignedTodos(
-            yearMonth = currentMonth,
-            assignedTodos = assignedTodos
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = emptyMap()
-    )
 
     private val selectedDateTodos = combine(
         selectedDateState,
@@ -99,9 +91,11 @@ class CalendarViewModel @Inject constructor(
         receivedAssignedTodos
     ) { selectedDate, todos, assignedTodos ->
         buildSelectedDateTodos(
-            selectedDate = selectedDate,
-            localTodos = todos,
-            assignedTodos = assignedTodos
+            taskSurfaceItems = buildTaskSurfaceDateTodosUseCase(
+                selectedDate = selectedDate,
+                localTodos = todos,
+                assignedTodos = assignedTodos
+            )
         )
     }.stateIn(
         scope = viewModelScope,
@@ -112,7 +106,7 @@ class CalendarViewModel @Inject constructor(
     private val calendarContentState = combine(
         monthState,
         selectedDateState,
-        mergedSummariesByDate,
+        summariesByDate,
         selectedDateTodos,
         observeAuthSessionUseCase()
     ) { currentMonth, selectedDate, summaries, dateTodos, authSession ->

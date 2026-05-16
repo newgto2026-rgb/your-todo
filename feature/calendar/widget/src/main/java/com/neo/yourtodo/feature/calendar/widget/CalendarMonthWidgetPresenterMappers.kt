@@ -3,7 +3,6 @@ package com.neo.yourtodo.feature.calendar.widget
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
-import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -12,7 +11,6 @@ import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.GregorianCalendar
 import java.util.Locale
-import kotlin.math.max
 
 internal fun formatWidgetMonthLabel(
     yearMonth: YearMonth,
@@ -64,29 +62,6 @@ internal fun calendarMonthWidgetPresentationErrorState(
         weeks = emptyList(),
         isError = true
     )
-
-internal fun Map<LocalDate, DateTodoSummary>.withWidgetAssignedTodos(
-    yearMonth: YearMonth,
-    assignedTodos: List<AssignedTodo>
-): Map<LocalDate, DateTodoSummary> {
-    val mutable = toMutableMap()
-    assignedTodos
-        .filter { it.dueDate != null && YearMonth.from(it.dueDate) == yearMonth }
-        .groupBy { checkNotNull(it.dueDate) }
-        .forEach { (date, dateAssignedTodos) ->
-            val existing = mutable[date]
-            val assignedSummaries = dateAssignedTodos.map { it.toWidgetTodoSummary() }
-            val todos = existing?.todos.orEmpty() + assignedSummaries
-            val indicatorCount = minOf(todos.size, MAX_INLINE_INDICATORS)
-            mutable[date] = DateTodoSummary(
-                date = date,
-                todos = todos,
-                indicatorCount = indicatorCount,
-                overflowCount = max(todos.size - indicatorCount, 0)
-            )
-        }
-    return mutable
-}
 
 private fun buildWeekdayLabels(locale: Locale): List<String> {
     val firstDayOfWeek = WeekFields.of(locale).firstDayOfWeek
@@ -148,16 +123,6 @@ private fun DateTodoSummary.toTodoChips(): List<CalendarMonthWidgetTodoChip> {
 private val DateTodoSummary.totalCount: Int
     get() = indicatorCount + overflowCount
 
-private fun AssignedTodo.toWidgetTodoSummary(): TodoSummary =
-    TodoSummary(
-        id = stableAssignedRowId(id),
-        title = title,
-        isDone = isDone,
-        dueTimeMinutes = dueTimeMinutes,
-        priority = priority,
-        createdAt = createdAt?.toEpochMilli() ?: 0L
-    )
-
 private val todoPreviewComparator: Comparator<TodoSummary> =
     compareBy<TodoSummary> { it.isDone }
         .thenBy { it.dueTimeMinutes ?: Int.MAX_VALUE }
@@ -168,11 +133,6 @@ private fun TodoPriority.sortRank(): Int = when (this) {
     TodoPriority.HIGH -> 3
     TodoPriority.MEDIUM -> 2
     TodoPriority.LOW -> 1
-}
-
-private fun stableAssignedRowId(id: String): Long {
-    val positiveHash = id.hashCode().toLong().let { if (it == Long.MIN_VALUE) 0 else kotlin.math.abs(it) }
-    return -positiveHash - 1
 }
 
 internal fun String.toWidgetMonthYearPattern(): String {
@@ -316,7 +276,6 @@ private sealed interface DatePatternToken {
 private const val WEEK_DAY_COUNT = 7
 private const val MAX_VISIBLE_TASK_COUNT = 9
 private const val MAX_EXPANDED_TODO_LINES = 4
-private const val MAX_INLINE_INDICATORS = 3
 private const val DAY_OF_MONTH_PATTERN_SYMBOL = 'd'
 private const val PATTERN_QUOTE = '\''
 private const val DEFAULT_MONTH_YEAR_PATTERN = "MMMM y"

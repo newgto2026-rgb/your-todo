@@ -5,11 +5,13 @@ import com.neo.yourtodo.core.domain.repository.AssignmentDirection
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
+import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceDateTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
@@ -589,15 +591,20 @@ class CalendarViewModelTest {
         calendarWidgetUpdater: RecordingCalendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
         workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
     ): CalendarViewModel {
+        val getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository)
         val viewModel = CalendarViewModel(
             savedStateHandle = SavedStateHandle(),
             observeAuthSessionUseCase = ObserveAuthSessionUseCase(authRepository),
-            observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
-                observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
+            observeTaskSurfaceSummariesUseCase = ObserveTaskSurfaceSummariesUseCase(
+                observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
+                    observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
+                ),
+                getAssignedTodosUseCase = getAssignedTodosUseCase
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
+            buildTaskSurfaceDateTodosUseCase = BuildTaskSurfaceDateTodosUseCase(),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
-            getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository),
+            getAssignedTodosUseCase = getAssignedTodosUseCase,
             manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
                 assignmentRepository,
                 RefreshWorkspaceUseCase(

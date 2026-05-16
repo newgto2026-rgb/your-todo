@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceListUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
@@ -56,6 +57,7 @@ class TodoListViewModel @Inject constructor(
     observeSelectedTodoSortOptionUseCase: ObserveSelectedTodoSortOptionUseCase,
     private val updateSelectedTodoSortOptionUseCase: UpdateSelectedTodoSortOptionUseCase,
     private val getTodoUseCase: GetTodoUseCase,
+    private val buildTaskSurfaceListUseCase: BuildTaskSurfaceListUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
     private val calendarWidgetUpdater: CalendarWidgetUpdater
 ) : ViewModel() {
@@ -112,7 +114,8 @@ class TodoListViewModel @Inject constructor(
             assignedItems = assignedItems,
             selectedFilter = localState.selectedFilter,
             selectedPriorityFilter = selectedPreferences.priorityFilter,
-            profileInitial = session?.user?.nickname
+            profileInitial = session?.user?.nickname,
+            buildTaskSurfaceListUseCase = buildTaskSurfaceListUseCase
         )
     }.stateIn(
         scope = viewModelScope,
