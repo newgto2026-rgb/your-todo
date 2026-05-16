@@ -5,7 +5,6 @@ import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.entity.CategoryEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.Category
-import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -62,15 +61,6 @@ internal class TodoCategoryStore(
     private suspend fun ensureUniqueCategoryName(name: String, excludeCategoryId: Long?) {
         val duplicate = categoryDao.getCategoryByName(name)
         if (duplicate != null && duplicate.id != excludeCategoryId) {
-            throw IllegalArgumentException("Category name already exists")
-        }
-
-        val normalized = name.lowercase(Locale.ROOT)
-        if (
-            duplicate != null &&
-            duplicate.id != excludeCategoryId &&
-            duplicate.name.lowercase(Locale.ROOT) == normalized
-        ) {
             throw IllegalArgumentException("Category name already exists")
         }
     }

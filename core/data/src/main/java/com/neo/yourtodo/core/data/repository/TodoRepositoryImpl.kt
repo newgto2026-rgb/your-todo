@@ -196,6 +196,7 @@ class TodoRepositoryImpl @Inject constructor(
 
     private suspend fun <T> loggedResult(action: String, block: suspend () -> T): Result<T> =
         runCatching { block() }.onFailure { throwable ->
+            if (throwable is CancellationException) throw throwable
             logError(action, throwable)
         }
 

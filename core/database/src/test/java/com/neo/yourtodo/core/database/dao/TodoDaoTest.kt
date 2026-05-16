@@ -55,6 +55,45 @@ class TodoDaoTest {
     }
 
     @Test
+    fun getTodosByIds_returnsMatchingTodosOnly() = runTest {
+        val firstId = dao.insert(
+            TodoEntity(
+                title = "first",
+                isDone = false,
+                dueDateEpochDay = null,
+                createdAt = 100L,
+                updatedAt = 100L,
+                categoryId = null
+            )
+        )
+        dao.insert(
+            TodoEntity(
+                title = "ignored",
+                isDone = false,
+                dueDateEpochDay = null,
+                createdAt = 200L,
+                updatedAt = 200L,
+                categoryId = null
+            )
+        )
+        val thirdId = dao.insert(
+            TodoEntity(
+                title = "third",
+                isDone = false,
+                dueDateEpochDay = null,
+                createdAt = 300L,
+                updatedAt = 300L,
+                categoryId = null
+            )
+        )
+
+        val saved = dao.getTodosByIds(listOf(thirdId, 999L, firstId))
+
+        assertThat(saved.map { it.id }).containsExactly(firstId, thirdId)
+        assertThat(saved.map { it.title }).containsExactly("first", "third")
+    }
+
+    @Test
     fun observeTodos_ordersByCreatedAtDesc() = runTest {
         dao.insert(
             TodoEntity(

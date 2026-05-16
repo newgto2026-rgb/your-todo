@@ -4,7 +4,6 @@ import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.MUTATION_DEL
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.STATUS_ACTIVE
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.STATUS_COMPLETED
 import com.neo.yourtodo.core.data.sync.TodoSyncPayload
-import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import com.neo.yourtodo.core.model.TodoPriority
@@ -31,12 +30,11 @@ internal fun TodoEntity.toSyncPayload(): TodoSyncPayload =
         priority = priority
     )
 
-internal suspend fun TodoOutboxEntity.toNetworkMutation(
-    todoDao: TodoDao,
-    json: Json
+internal fun TodoOutboxEntity.toNetworkMutation(
+    json: Json,
+    fallbackPriority: String?
 ): NetworkTodoMutation {
     val payload = if (type == MUTATION_DELETE) null else json.decodeFromString<TodoSyncPayload>(payloadJson)
-    val fallbackPriority = todoLocalId?.let { todoDao.getTodoById(it)?.priority }
     return NetworkTodoMutation(
         clientMutationId = clientMutationId,
         type = type,

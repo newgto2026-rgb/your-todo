@@ -11,6 +11,7 @@ import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.RESULT_REJEC
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.STATUS_DELETED
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.SYNC_HALT_AUTH_REQUIRED
 import com.neo.yourtodo.core.database.dao.TodoDao
+import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoSyncStatus
 import com.neo.yourtodo.core.network.sync.NetworkTodo
@@ -81,12 +82,18 @@ internal class TodoSyncCoordinator(
     private suspend fun pushTodos(accessToken: String, ownerUserId: String) {
         val outboxItems = outboxStore.getPendingMutations(ownerUserId)
         if (outboxItems.isEmpty()) return
+        val fallbackPriorityByTodoId = getFallbackPriorityByTodoId(outboxItems)
 
         val response = todoSyncNetworkDataSource.pushTodos(
             accessToken = accessToken,
             request = NetworkTodoSyncPushRequest(
                 baseCursor = userPreferencesDataSource.todoSyncCursor.first(),
-                mutations = outboxItems.map { it.toNetworkMutation(todoDao, json) }
+                mutations = outboxItems.map { outbox ->
+                    outbox.toNetworkMutation(
+                        json = json,
+                        fallbackPriority = outbox.todoLocalId?.let(fallbackPriorityByTodoId::get)
+                    )
+                }
             )
         )
 
@@ -121,6 +128,16 @@ internal class TodoSyncCoordinator(
             }
         }
         userPreferencesDataSource.setTodoSyncCursor(response.nextCursor)
+    }
+
+    private suspend fun getFallbackPriorityByTodoId(
+        outboxItems: List<TodoOutboxEntity>
+    ): Map<Long, String> {
+        val todoLocalIds = outboxItems.mapNotNull { it.todoLocalId }.distinct()
+        if (todoLocalIds.isEmpty()) return emptyMap()
+
+        return todoDao.getTodosByIds(todoLocalIds)
+            .associate { todo -> todo.id to todo.priority }
     }
 
     private suspend fun applyRemoteTodo(ownerUserId: String, remote: NetworkTodo) {
