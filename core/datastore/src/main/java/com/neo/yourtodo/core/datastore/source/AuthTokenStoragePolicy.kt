@@ -8,6 +8,7 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TOKEN
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 data class AuthTokenPair(
     val accessToken: String,
@@ -148,6 +149,7 @@ class AuthTokenStoragePolicy @Inject constructor(
                 failure = null
             )
         }.getOrElse { exception ->
+            if (exception is CancellationException) throw exception
             AuthTokenMigrationResult(
                 preferences = preferences,
                 failure = (exception as? AuthTokenCipherException)?.failure

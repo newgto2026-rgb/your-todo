@@ -6,6 +6,7 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ACCESS_TOK
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_ACCESS_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_REFRESH_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TOKEN
+import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -223,6 +224,27 @@ class AuthTokenStoragePolicyTest {
     }
 
     @Test
+    fun migrateLegacyPlaintextTokensRethrowsCancellationAndKeepsLegacyState() {
+        val failingPolicy = AuthTokenStoragePolicy(
+            FakeAuthTokenCipher(encryptException = CancellationException("Migration cancelled"))
+        )
+        val preferences = preferencesOf(
+            AUTH_ACCESS_TOKEN to "legacy-access-token",
+            AUTH_REFRESH_TOKEN to "legacy-refresh-token"
+        )
+
+        val thrown = assertThrows(CancellationException::class.java) {
+            failingPolicy.migrateLegacyPlaintextTokensResult(preferences)
+        }
+
+        assertThat(thrown).hasMessageThat().isEqualTo("Migration cancelled")
+        assertThat(preferences[AUTH_ACCESS_TOKEN]).isEqualTo("legacy-access-token")
+        assertThat(preferences[AUTH_REFRESH_TOKEN]).isEqualTo("legacy-refresh-token")
+        assertThat(preferences[AUTH_ENCRYPTED_ACCESS_TOKEN]).isNull()
+        assertThat(preferences[AUTH_ENCRYPTED_REFRESH_TOKEN]).isNull()
+    }
+
+    @Test
     fun clearTokensRemovesEncryptedAndLegacyValues() {
         val preferences = preferencesOf(
             AUTH_ENCRYPTED_ACCESS_TOKEN to "encrypted:access-token",
@@ -242,9 +264,11 @@ class AuthTokenStoragePolicyTest {
 
     private class FakeAuthTokenCipher(
         private val encryptFailure: AuthTokenCipherFailure? = null,
+        private val encryptException: RuntimeException? = null,
         private val decryptFailure: AuthTokenCipherFailure? = null
     ) : AuthTokenCipher {
         override fun encrypt(plainText: String): String {
+            encryptException?.let { throw it }
             encryptFailure?.let { throw AuthTokenCipherException(it) }
             return "encrypted:$plainText"
         }
