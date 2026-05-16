@@ -1,6 +1,6 @@
 package com.neo.yourtodo.feature.calendar.widget
 
-import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.model.DateTodoSummary
 import java.time.LocalDate
 import java.time.YearMonth
@@ -12,8 +12,8 @@ internal interface CalendarMonthSummarySource {
 }
 
 internal class DomainCalendarMonthSummarySource @Inject constructor(
-    private val observeMonthlyTodoSummariesUseCase: ObserveMonthlyTodoSummariesUseCase
+    private val observeTaskSurfaceSummariesUseCase: ObserveTaskSurfaceSummariesUseCase
 ) : CalendarMonthSummarySource {
     override suspend fun summariesFor(yearMonth: YearMonth): Map<LocalDate, DateTodoSummary> =
-        observeMonthlyTodoSummariesUseCase(yearMonth).first()
+        observeTaskSurfaceSummariesUseCase(yearMonth).first()
 }

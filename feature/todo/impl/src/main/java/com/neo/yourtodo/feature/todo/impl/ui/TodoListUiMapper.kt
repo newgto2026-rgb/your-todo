@@ -1,15 +1,16 @@
 package com.neo.yourtodo.feature.todo.impl.ui
 
+import com.neo.yourtodo.core.domain.usecase.AssignedTaskSurfaceOverrides
+import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceListUseCase
+import com.neo.yourtodo.core.domain.usecase.TaskSurfaceItem
+import com.neo.yourtodo.core.domain.usecase.TaskSurfaceSection
+import com.neo.yourtodo.core.domain.usecase.TaskSurfaceSectionKey
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
-import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
-import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
-import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -19,191 +20,55 @@ internal fun buildTodoListUiState(
     assignedItems: List<AssignedTodo>,
     selectedFilter: TodoFilter,
     selectedPriorityFilter: TodoPriorityFilter,
-    profileInitial: String?
+    profileInitial: String?,
+    today: LocalDate,
+    zoneId: ZoneId,
+    buildTaskSurfaceListUseCase: BuildTaskSurfaceListUseCase
 ): TodoListUiState {
-    val optimisticCompletedAssignedTodoIds = localState.optimisticCompletedAssignedTodoIds
-    val optimisticActiveAssignedTodoIds = localState.optimisticActiveAssignedTodoIds
-    val optimisticDeletedAssignedTodoIds = localState.optimisticDeletedAssignedTodoIds
-    val uiItems = items.map { it.toUiModel() } + assignedItems.map {
-        it.toUiModel(
-            isOptimisticallyDone = it.id in optimisticCompletedAssignedTodoIds,
-            isOptimisticallyActive = it.id in optimisticActiveAssignedTodoIds
+    val taskSurface = buildTaskSurfaceListUseCase(
+        localTodos = items,
+        assignedTodos = assignedItems,
+        selectedFilter = selectedFilter,
+        selectedPriorityFilter = selectedPriorityFilter,
+        selectedSortOption = localState.selectedSortOption,
+        today = today,
+        zoneId = zoneId,
+        assignedOverrides = AssignedTaskSurfaceOverrides(
+            completedIds = localState.optimisticCompletedAssignedTodoIds,
+            activeIds = localState.optimisticActiveAssignedTodoIds,
+            hiddenIds = localState.optimisticDeletedAssignedTodoIds
         )
-    }.filterNot { it.assignedTodoId in optimisticDeletedAssignedTodoIds }
-    val filteredItems = uiItems
-        .filterBy(selectedFilter)
-        .filterByPriority(selectedPriorityFilter)
-    val sections = filteredItems.sectionsFor(
-        filter = selectedFilter,
-        sortOption = localState.selectedSortOption
     )
-    val sortedItems = if (sections.isEmpty()) {
-        filteredItems.sortedWith(localState.selectedSortOption.comparatorFor(selectedFilter))
-    } else {
-        sections.flatMap { it.items }
-    }
 
     return localState.copy(
         profileInitial = profileInitial,
-        items = sortedItems,
-        sections = sections,
-        completedTodoIds = items.filter { it.isDone }.map { it.id },
-        completedAssignedTodoIds = assignedItems
-            .filter {
-                it.id !in optimisticDeletedAssignedTodoIds &&
-                    it.id !in optimisticActiveAssignedTodoIds &&
-                    (it.isDone || it.id in optimisticCompletedAssignedTodoIds)
-            }
-            .map { it.id },
+        items = taskSurface.items.map { it.toUiModel() },
+        sections = taskSurface.sections.map { it.toUiSection() },
+        completedTodoIds = taskSurface.completedLocalTodoIds,
+        completedAssignedTodoIds = taskSurface.completedAssignedTodoIds,
         selectedFilter = selectedFilter,
         selectedPriorityFilter = selectedPriorityFilter,
         isLoading = false
     )
 }
 
-private fun List<TodoItemUiModel>.filterBy(filter: TodoFilter): List<TodoItemUiModel> {
-    val today = LocalDate.now()
-    return when (filter) {
-        TodoFilter.ALL -> this
-        TodoFilter.TODAY -> filter {
-            !it.isDone && (
-                it.dueDate == today ||
-                    it.dueDate?.isBefore(today) == true
-                )
-        }
-        TodoFilter.COMPLETED -> filter { it.isDone }
-    }
-}
+private fun TaskSurfaceSection.toUiSection(): TodoListSection =
+    TodoListSection(
+        key = key.toUiSectionKey(),
+        items = items.map { it.toUiModel() }
+    )
 
-private fun List<TodoItemUiModel>.filterByPriority(filter: TodoPriorityFilter): List<TodoItemUiModel> = when (filter) {
-    TodoPriorityFilter.ALL -> this
-    TodoPriorityFilter.LOW -> filter { it.priority == TodoPriority.LOW }
-    TodoPriorityFilter.MEDIUM -> filter { it.priority == TodoPriority.MEDIUM }
-    TodoPriorityFilter.HIGH -> filter { it.priority == TodoPriority.HIGH }
-}
-
-private fun TodoSortOption.comparatorFor(filter: TodoFilter): Comparator<TodoItemUiModel> =
-    if (filter == TodoFilter.ALL) {
-        completionLastComparator(
-            itemComparator()
-        )
-    } else {
-        contextualTodoComparator()
-    }
-
-private fun List<TodoItemUiModel>.sectionsFor(
-    filter: TodoFilter,
-    sortOption: TodoSortOption
-): List<TodoListSection> {
-    if (filter != TodoFilter.ALL) return emptyList()
-
-    val itemComparator = sortOption.itemComparator()
-    val activeItems = filterNot { it.isDone }.sortedWith(itemComparator)
-    val completedItems = filter { it.isDone }.sortedWith(itemComparator)
-    val activeSections = when (sortOption) {
-        TodoSortOption.DEFAULT -> if (completedItems.isEmpty()) {
-            emptyList()
-        } else {
-            listOfNotNull(
-                activeItems.takeIf { it.isNotEmpty() }?.let { TodoListSection(TodoListSectionKey.Open, it) }
-            )
-        }
-        TodoSortOption.DUE_DATE -> activeItems.groupByInOrder(
-            keySelector = { TodoListSectionKey.DueDate(it.dueDate) }
-        )
-        TodoSortOption.PRIORITY -> listOf(
-            TodoPriority.HIGH,
-            TodoPriority.MEDIUM,
-            TodoPriority.LOW
-        ).mapNotNull { priority ->
-            activeItems
-                .filter { it.priority == priority }
-                .takeIf { it.isNotEmpty() }
-                ?.let { TodoListSection(TodoListSectionKey.Priority(priority), it) }
-        }
-        TodoSortOption.FRIEND -> activeItems.groupByInOrder(
-            keySelector = { it.friendSectionKey() }
-        )
-    }
-    val completedSection = completedItems
-        .takeIf { it.isNotEmpty() }
-        ?.let { TodoListSection(TodoListSectionKey.Completed, it) }
-
-    return activeSections + listOfNotNull(completedSection)
-}
-
-private fun List<TodoItemUiModel>.groupByInOrder(
-    keySelector: (TodoItemUiModel) -> TodoListSectionKey
-): List<TodoListSection> {
-    val sections = linkedMapOf<TodoListSectionKey, MutableList<TodoItemUiModel>>()
-    forEach { item ->
-        sections.getOrPut(keySelector(item)) { mutableListOf() }.add(item)
-    }
-    return sections.map { (key, items) -> TodoListSection(key, items) }
-}
-
-private fun TodoSortOption.itemComparator(): Comparator<TodoItemUiModel> =
+private fun TaskSurfaceSectionKey.toUiSectionKey(): TodoListSectionKey =
     when (this) {
-        TodoSortOption.DEFAULT -> defaultTodoComparator()
-        TodoSortOption.DUE_DATE -> dueDateTodoComparator()
-        TodoSortOption.PRIORITY -> priorityTodoComparator()
-        TodoSortOption.FRIEND -> friendTodoComparator()
+        TaskSurfaceSectionKey.Open -> TodoListSectionKey.Open
+        TaskSurfaceSectionKey.Completed -> TodoListSectionKey.Completed
+        is TaskSurfaceSectionKey.Priority -> TodoListSectionKey.Priority(priority)
+        is TaskSurfaceSectionKey.DueDate -> TodoListSectionKey.DueDate(date)
+        is TaskSurfaceSectionKey.Friend -> TodoListSectionKey.Friend(nickname)
+        TaskSurfaceSectionKey.Self -> TodoListSectionKey.Self
     }
 
-private fun completionLastComparator(
-    itemComparator: Comparator<TodoItemUiModel>
-): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.isDone }
-        .then(itemComparator)
-
-private fun defaultTodoComparator(): Comparator<TodoItemUiModel> =
-    compareByDescending { it.id }
-
-private fun contextualTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.isDone }
-        .thenByDescending { it.priority.sortRank() }
-        .thenBy { it.id }
-
-private fun dueDateTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { it.dueDate == null }
-        .thenBy { it.dueDate ?: LocalDate.MAX }
-        .thenBy { it.dueTimeText == null }
-        .thenBy { it.dueTimeText.orEmpty() }
-        .thenByDescending { it.priority.sortRank() }
-        .thenBy { it.id }
-
-private fun priorityTodoComparator(): Comparator<TodoItemUiModel> =
-    compareByDescending<TodoItemUiModel> { it.priority.sortRank() }
-        .thenBy { it.dueDate == null }
-        .thenBy { it.dueDate ?: LocalDate.MAX }
-        .thenBy { it.dueTimeText == null }
-        .thenBy { it.dueTimeText.orEmpty() }
-        .thenBy { it.id }
-
-private fun friendTodoComparator(): Comparator<TodoItemUiModel> =
-    compareBy<TodoItemUiModel> { if (it.isAssigned) 0 else 1 }
-        .thenBy { it.senderNickname?.trim()?.lowercase().orEmpty() }
-        .thenBy { it.dueDate == null }
-        .thenBy { it.dueDate ?: LocalDate.MAX }
-        .thenBy { it.dueTimeText == null }
-        .thenBy { it.dueTimeText.orEmpty() }
-        .thenByDescending { it.priority.sortRank() }
-        .thenBy { it.id }
-
-private fun TodoItemUiModel.friendSectionKey(): TodoListSectionKey =
-    if (isAssigned) {
-        TodoListSectionKey.Friend(senderNickname?.trim()?.takeIf { it.isNotEmpty() })
-    } else {
-        TodoListSectionKey.Self
-    }
-
-private fun TodoPriority.sortRank(): Int = when (this) {
-    TodoPriority.HIGH -> 3
-    TodoPriority.MEDIUM -> 2
-    TodoPriority.LOW -> 1
-}
-
-private fun TodoItem.toUiModel(): TodoItemUiModel =
+private fun TaskSurfaceItem.toUiModel(): TodoItemUiModel =
     TodoItemUiModel(
         id = id,
         title = title,
@@ -216,54 +81,8 @@ private fun TodoItem.toUiModel(): TodoItemUiModel =
         isReminderEnabled = isReminderEnabled,
         reminderLeadMinutes = reminderLeadMinutes,
         reminderRepeatType = reminderRepeatType,
-        priority = priority
+        priority = priority,
+        assignedTodoId = assignedTodoId,
+        senderNickname = senderNickname,
+        assignmentMode = assignmentMode
     )
-
-private fun AssignedTodo.toUiModel(
-    isOptimisticallyDone: Boolean,
-    isOptimisticallyActive: Boolean
-): TodoItemUiModel =
-    reminderAtEpochMillis().let { reminderEpochMillis ->
-        val reminderLeadMinutes = reminderLeadMinutes(reminderEpochMillis)
-        TodoItemUiModel(
-            id = stableAssignedRowId(id),
-            title = title,
-            isDone = !isOptimisticallyActive && (isDone || isOptimisticallyDone),
-            dueDate = dueDate,
-            dueDateText = dueDate?.format(DateTimeFormatter.ISO_LOCAL_DATE),
-            dueTimeText = dueTimeMinutes?.let(::minutesToDueTimeText),
-            reminderAtEpochMillis = reminderEpochMillis,
-            reminderDateTimeText = epochMillisToReminderDateTime(reminderEpochMillis),
-            isReminderEnabled = reminder?.enabled == true,
-            reminderLeadMinutes = reminderLeadMinutes,
-            reminderRepeatType = com.neo.yourtodo.core.model.ReminderRepeatType.NONE,
-            priority = priority,
-            assignedTodoId = id,
-            senderNickname = sender?.nickname,
-            assignmentMode = assignmentMode
-        )
-    }
-
-private fun AssignedTodo.reminderAtEpochMillis(): Long? =
-    reminder
-        ?.takeIf { it.enabled }
-        ?.reminderAt
-        ?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
-
-private fun AssignedTodo.reminderLeadMinutes(reminderEpochMillis: Long?): Int? {
-    val dueDate = dueDate ?: return null
-    val dueTimeMinutes = dueTimeMinutes ?: return null
-    val reminderMillis = reminderEpochMillis ?: return null
-    val dueMillis = dueDate
-        .atTime(LocalTime.of(dueTimeMinutes / 60, dueTimeMinutes % 60))
-        .atZone(ZoneId.systemDefault())
-        .toInstant()
-        .toEpochMilli()
-    val leadMinutes = ((dueMillis - reminderMillis) / 60_000L).toInt()
-    return leadMinutes.takeIf { it in setOf(0, 5, 10, 30, 60) }
-}
-
-private fun stableAssignedRowId(id: String): Long {
-    val positiveHash = id.hashCode().toLong().let { if (it == Long.MIN_VALUE) 0 else kotlin.math.abs(it) }
-    return -positiveHash - 1
-}

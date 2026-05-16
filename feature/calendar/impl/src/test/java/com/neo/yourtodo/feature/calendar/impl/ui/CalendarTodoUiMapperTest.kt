@@ -1,10 +1,9 @@
 package com.neo.yourtodo.feature.calendar.impl.ui
 
 import com.google.common.truth.Truth.assertThat
-import com.neo.yourtodo.core.model.DateTodoSummary
+import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceDateTodosUseCase
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
-import com.neo.yourtodo.core.model.TodoSummary
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoReminder
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
@@ -12,7 +11,6 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoUser
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.YearMonth
 import java.time.ZoneId
 import org.junit.Test
 
@@ -21,9 +19,10 @@ class CalendarTodoUiMapperTest {
     @Test
     fun buildSelectedDateTodos_filtersSortsAndMapsLocalThenAssignedTodos() {
         val selectedDate = LocalDate.of(2026, 5, 9)
+        val zoneId = ZoneId.of("Asia/Seoul")
         val reminderAt = selectedDate
             .atTime(LocalTime.of(8, 30))
-            .atZone(ZoneId.systemDefault())
+            .atZone(zoneId)
             .toInstant()
             .toString()
         val todos = listOf(
@@ -57,11 +56,13 @@ class CalendarTodoUiMapperTest {
             )
         )
 
-        val uiModels = buildSelectedDateTodos(
+        val taskSurfaceItems = BuildTaskSurfaceDateTodosUseCase()(
             selectedDate = selectedDate,
             localTodos = todos,
-            assignedTodos = assignedTodos
+            assignedTodos = assignedTodos,
+            zoneId = zoneId
         )
+        val uiModels = buildSelectedDateTodos(taskSurfaceItems)
 
         assertThat(uiModels.map { it.title })
             .containsExactly("Selected high", "Selected low", "Done high", "Assigned high", "Assigned low")
@@ -71,38 +72,6 @@ class CalendarTodoUiMapperTest {
         assertThat(uiModels[3].sourceLabel).isEqualTo("@monday")
         assertThat(uiModels[3].assignmentMode).isEqualTo(AssignmentMode.DIRECT)
         assertThat(uiModels[3].reminderLeadMinutes).isEqualTo(30)
-    }
-
-    @Test
-    fun withAssignedTodos_mergesOnlyTargetMonthAndRecomputesOverflow() {
-        val date = LocalDate.of(2026, 5, 9)
-        val outOfMonthDate = LocalDate.of(2026, 6, 1)
-        val summaries = mapOf(
-            date to DateTodoSummary(
-                date = date,
-                todos = listOf(todoSummary(id = 1, title = "Local")),
-                indicatorCount = 1,
-                overflowCount = 0
-            )
-        )
-
-        val merged = summaries.withAssignedTodos(
-            yearMonth = YearMonth.of(2026, 5),
-            assignedTodos = listOf(
-                assignedTodo(id = "assigned-1", title = "Assigned 1", dueDate = date),
-                assignedTodo(id = "assigned-2", title = "Assigned 2", dueDate = date),
-                assignedTodo(id = "assigned-3", title = "Assigned 3", dueDate = date),
-                assignedTodo(id = "assigned-out", title = "Assigned out", dueDate = outOfMonthDate)
-            )
-        )
-
-        val summary = merged.getValue(date)
-        assertThat(summary.todos.map { it.title })
-            .containsExactly("Local", "Assigned 1", "Assigned 2", "Assigned 3")
-            .inOrder()
-        assertThat(summary.indicatorCount).isEqualTo(3)
-        assertThat(summary.overflowCount).isEqualTo(1)
-        assertThat(merged).doesNotContainKey(outOfMonthDate)
     }
 
     private fun todo(
@@ -121,14 +90,6 @@ class CalendarTodoUiMapperTest {
             updatedAt = id,
             categoryId = null,
             priority = priority
-        )
-
-    private fun todoSummary(id: Long, title: String): TodoSummary =
-        TodoSummary(
-            id = id,
-            title = title,
-            isDone = false,
-            priority = TodoPriority.MEDIUM
         )
 
     private fun assignedTodo(

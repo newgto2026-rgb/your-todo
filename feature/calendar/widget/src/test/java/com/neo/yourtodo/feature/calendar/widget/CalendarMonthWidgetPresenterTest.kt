@@ -1,19 +1,8 @@
 package com.neo.yourtodo.feature.calendar.widget
 
-import com.neo.yourtodo.core.domain.repository.AssignmentDirection
-import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
-import com.neo.yourtodo.core.domain.repository.AssignmentRepository
-import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
-import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
-import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
-import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
-import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
-import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
-import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
-import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.google.common.truth.Truth.assertThat
 import java.time.Clock
 import java.time.Instant
@@ -22,8 +11,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -230,107 +217,11 @@ class CalendarMonthWidgetPresenterTest {
         assertThat(thrown).isSameInstanceAs(cancellation)
     }
 
-    @Test
-    fun present_includesVisibleReceivedAssignedTodos() = runTest {
-        val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = presenter(
-            summarySource = FakeCalendarMonthSummarySource(),
-            assignedTodos = listOf(
-                assignedTodo(
-                    id = "assigned-1",
-                    title = "From friend",
-                    dueDate = targetDate
-                )
-            ),
-            clock = fixedClock("2026-05-07T00:00:00Z")
-        )
-
-        val state = presenter.present(Locale.US)
-        val day = state.weeks.flatten().single { it.date == targetDate }
-
-        assertThat(day.taskCountLabel).isEqualTo("1")
-        assertThat(day.todoChips.map { it.label }).containsExactly("From friend")
-    }
-
-    @Test
-    fun present_includesDirectAssignedTodos() = runTest {
-        val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = presenter(
-            summarySource = FakeCalendarMonthSummarySource(),
-            assignedTodos = listOf(
-                assignedTodo(
-                    id = "assigned-direct",
-                    title = "Direct from friend",
-                    dueDate = targetDate,
-                    assignmentMode = AssignmentMode.DIRECT
-                )
-            ),
-            clock = fixedClock("2026-05-07T00:00:00Z")
-        )
-
-        val state = presenter.present(Locale.US)
-        val day = state.weeks.flatten().single { it.date == targetDate }
-
-        assertThat(day.taskCountLabel).isEqualTo("1")
-        assertThat(day.todoChips.map { it.label }).containsExactly("Direct from friend")
-    }
-
-    @Test
-    fun present_excludesPendingAssignedTodos() = runTest {
-        val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = presenter(
-            summarySource = FakeCalendarMonthSummarySource(),
-            assignedTodos = listOf(
-                assignedTodo(
-                    id = "assigned-pending",
-                    title = "Pending request",
-                    dueDate = targetDate,
-                    status = AssignedTodoStatus.PENDING_ACCEPTANCE
-                )
-            ),
-            clock = fixedClock("2026-05-07T00:00:00Z")
-        )
-
-        val state = presenter.present(Locale.US)
-        val day = state.weeks.flatten().single { it.date == targetDate }
-
-        assertThat(day.taskCountLabel).isNull()
-        assertThat(day.todoChips).isEmpty()
-    }
-
-    @Test
-    fun present_includesCompletedReceivedAssignedTodosFromHistoryFeed() = runTest {
-        val targetDate = LocalDate.of(2026, 5, 8)
-        val presenter = presenter(
-            summarySource = FakeCalendarMonthSummarySource(),
-            assignedTodos = listOf(
-                assignedTodo(
-                    id = "assigned-done",
-                    title = "Done from friend",
-                    dueDate = targetDate,
-                    status = AssignedTodoStatus.DONE
-                )
-            ),
-            clock = fixedClock("2026-05-07T00:00:00Z")
-        )
-
-        val state = presenter.present(Locale.US)
-        val day = state.weeks.flatten().single { it.date == targetDate }
-
-        assertThat(day.taskCountLabel).isEqualTo("1")
-        assertThat(day.todoChips.map { it.label }).containsExactly("Done from friend")
-        assertThat(day.todoChips.single().isDone).isTrue()
-    }
-
     private fun presenter(
         summarySource: CalendarMonthSummarySource,
-        assignedTodos: List<AssignedTodo> = emptyList(),
         clock: Clock
     ) = CalendarMonthWidgetPresenter(
         summarySource = summarySource,
-        getAssignedTodosUseCase = GetAssignedTodosUseCase(
-            FakeAssignmentRepository(assignedTodos)
-        ),
         clock = clock
     )
 
@@ -366,108 +257,4 @@ class CalendarMonthWidgetPresenterTest {
             createdAt = createdAt
         )
 
-    private fun assignedTodo(
-        id: String,
-        title: String,
-        dueDate: LocalDate,
-        status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
-        assignmentMode: AssignmentMode = AssignmentMode.REQUEST
-    ): AssignedTodo =
-        AssignedTodo(
-            id = id,
-            bundleId = "bundle-$id",
-            title = title,
-            description = null,
-            dueDate = dueDate,
-            dueTimeMinutes = null,
-            priority = TodoPriority.MEDIUM,
-            category = null,
-            status = status,
-            terminalReason = null,
-            progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
-            sender = null,
-            receiver = null,
-            assignmentMode = assignmentMode,
-            reminder = null,
-            createdAt = Instant.parse("2026-05-07T00:00:00Z"),
-            completedAt = null
-        )
-
-    private class FakeAssignmentRepository(
-        private val assignedTodos: List<AssignedTodo>
-    ) : AssignmentRepository {
-        override suspend fun createBundle(
-            receiverUserId: String,
-            items: List<AssignmentDraftItem>,
-            assignmentMode: AssignmentMode
-        ): Result<AssignmentBundle> = error("unused")
-
-        override suspend fun getFriendSummary(friendUserId: String): Result<FriendAssignmentSummary> =
-            error("unused")
-
-        override suspend fun getFriendAssignedTodos(
-            friendUserId: String,
-            direction: AssignmentDirection,
-            status: AssignmentFeedStatus
-        ): Result<List<AssignedTodo>> = error("unused")
-
-        override suspend fun getReceivedAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
-            Result.success(
-                when (status) {
-                    AssignmentFeedStatus.ACTIVE -> assignedTodos.filter { it.status != AssignedTodoStatus.DONE }
-                    AssignmentFeedStatus.HISTORY -> assignedTodos.filter { it.status == AssignedTodoStatus.DONE }
-                    AssignmentFeedStatus.PENDING -> emptyList()
-                }
-            )
-
-        override suspend fun getSentAssignedTodos(status: AssignmentFeedStatus): Result<List<AssignedTodo>> =
-            error("unused")
-
-        override fun observeReceivedAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
-            flowOf(
-                when (status) {
-                    AssignmentFeedStatus.ACTIVE -> assignedTodos.filter { it.status != AssignedTodoStatus.DONE }
-                    AssignmentFeedStatus.HISTORY -> assignedTodos.filter { it.status == AssignedTodoStatus.DONE }
-                    AssignmentFeedStatus.PENDING -> emptyList()
-                }
-            )
-
-        override fun observeSentAssignedTodos(status: AssignmentFeedStatus): Flow<List<AssignedTodo>> =
-            flowOf(emptyList())
-
-        override fun observeFriendAssignedTodos(
-            friendUserId: String,
-            direction: AssignmentDirection,
-            status: AssignmentFeedStatus
-        ): Flow<List<AssignedTodo>> = flowOf(emptyList())
-
-        override suspend fun decideBundleItems(
-            bundleId: String,
-            decisions: Map<String, AssignmentDecision>
-        ): Result<AssignmentBundle> = error("unused")
-
-        override suspend fun completeAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-            error("unused")
-
-        override suspend fun reopenAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-            error("unused")
-
-        override suspend fun deleteReceivedAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-            error("unused")
-
-        override suspend fun hideReceivedAssignedTodoFromTaskSurface(assignedTodoId: String): Result<Unit> =
-            error("unused")
-
-        override suspend fun cancelAssignedTodo(assignedTodoId: String): Result<AssignedTodo> =
-            error("unused")
-
-        override suspend fun upsertAssignedTodoReminder(
-            assignedTodoId: String,
-            reminderAt: String,
-            enabled: Boolean
-        ): Result<Unit> = error("unused")
-
-        override suspend fun deleteAssignedTodoReminder(assignedTodoId: String): Result<Unit> =
-            error("unused")
-    }
 }

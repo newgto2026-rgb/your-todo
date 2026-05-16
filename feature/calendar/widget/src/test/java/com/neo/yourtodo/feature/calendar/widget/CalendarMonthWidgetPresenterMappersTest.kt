@@ -4,11 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.model.DateTodoSummary
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
-import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
-import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
-import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import java.text.SimpleDateFormat
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.util.GregorianCalendar
@@ -56,42 +52,6 @@ class CalendarMonthWidgetPresenterMappersTest {
         assertThat(todayDay.todoChips.map { it.label }).containsExactly("Today todo")
         assertThat(adjacentDay.isCurrentMonth).isFalse()
         assertThat(adjacentDay.taskCountLabel).isEqualTo("1")
-    }
-
-    @Test
-    fun withWidgetAssignedTodos_mergesAssignedTodosWithExistingSummaryAndOverflow() {
-        val date = LocalDate.of(2026, 5, 8)
-        val outOfMonthDate = LocalDate.of(2026, 6, 1)
-        val summaries = mapOf(
-            date to DateTodoSummary(
-                date = date,
-                todos = listOf(todo(id = 1, title = "Local")),
-                indicatorCount = 1,
-                overflowCount = 0
-            )
-        )
-
-        val merged = summaries.withWidgetAssignedTodos(
-            yearMonth = YearMonth.of(2026, 5),
-            assignedTodos = listOf(
-                assignedTodo(id = "assigned-1", title = "Assigned 1", dueDate = date),
-                assignedTodo(id = "assigned-2", title = "Assigned 2", dueDate = date),
-                assignedTodo(id = "assigned-3", title = "Assigned 3", dueDate = date),
-                assignedTodo(id = "assigned-out", title = "Assigned out", dueDate = outOfMonthDate)
-            )
-        )
-
-        val summary = merged.getValue(date)
-        assertThat(summary.todos.map { it.title })
-            .containsExactly("Local", "Assigned 1", "Assigned 2", "Assigned 3")
-            .inOrder()
-        assertThat(summary.indicatorCount).isEqualTo(3)
-        assertThat(summary.overflowCount).isEqualTo(1)
-        val assignedCreatedAt = Instant.parse("2026-05-07T00:00:00Z").toEpochMilli()
-        assertThat(summary.todos.drop(1).map { it.createdAt })
-            .containsExactly(assignedCreatedAt, assignedCreatedAt, assignedCreatedAt)
-            .inOrder()
-        assertThat(merged).doesNotContainKey(outOfMonthDate)
     }
 
     @Test
@@ -158,33 +118,6 @@ class CalendarMonthWidgetPresenterMappersTest {
             isDone = isDone,
             priority = priority,
             createdAt = createdAt
-        )
-
-    private fun assignedTodo(
-        id: String,
-        title: String,
-        dueDate: LocalDate,
-        status: AssignedTodoStatus = AssignedTodoStatus.ACCEPTED,
-        assignmentMode: AssignmentMode = AssignmentMode.REQUEST
-    ): AssignedTodo =
-        AssignedTodo(
-            id = id,
-            bundleId = "bundle-$id",
-            title = title,
-            description = null,
-            dueDate = dueDate,
-            dueTimeMinutes = null,
-            priority = TodoPriority.MEDIUM,
-            category = null,
-            status = status,
-            terminalReason = null,
-            progressPercent = if (status == AssignedTodoStatus.DONE) 100 else 0,
-            sender = null,
-            receiver = null,
-            assignmentMode = assignmentMode,
-            reminder = null,
-            createdAt = Instant.parse("2026-05-07T00:00:00Z"),
-            completedAt = null
         )
 
     private fun formatPattern(

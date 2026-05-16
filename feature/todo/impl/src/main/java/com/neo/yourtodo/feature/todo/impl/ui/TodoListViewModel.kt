@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.scheduler.TodoReminderScheduler
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceListUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
@@ -28,6 +29,7 @@ import com.neo.yourtodo.feature.todo.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -56,6 +58,7 @@ class TodoListViewModel @Inject constructor(
     observeSelectedTodoSortOptionUseCase: ObserveSelectedTodoSortOptionUseCase,
     private val updateSelectedTodoSortOptionUseCase: UpdateSelectedTodoSortOptionUseCase,
     private val getTodoUseCase: GetTodoUseCase,
+    private val buildTaskSurfaceListUseCase: BuildTaskSurfaceListUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
     private val calendarWidgetUpdater: CalendarWidgetUpdater
 ) : ViewModel() {
@@ -112,7 +115,10 @@ class TodoListViewModel @Inject constructor(
             assignedItems = assignedItems,
             selectedFilter = localState.selectedFilter,
             selectedPriorityFilter = selectedPreferences.priorityFilter,
-            profileInitial = session?.user?.nickname
+            profileInitial = session?.user?.nickname,
+            today = LocalDate.now(),
+            zoneId = ZoneId.systemDefault(),
+            buildTaskSurfaceListUseCase = buildTaskSurfaceListUseCase
         )
     }.stateIn(
         scope = viewModelScope,

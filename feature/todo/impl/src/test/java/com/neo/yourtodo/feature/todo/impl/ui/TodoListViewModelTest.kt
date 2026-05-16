@@ -8,6 +8,7 @@ import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceListUseCase
 import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
@@ -113,6 +114,7 @@ class TodoListViewModelTest {
             observeSelectedTodoSortOptionUseCase = ObserveSelectedTodoSortOptionUseCase(repository),
             updateSelectedTodoSortOptionUseCase = UpdateSelectedTodoSortOptionUseCase(repository),
             getTodoUseCase = GetTodoUseCase(repository),
+            buildTaskSurfaceListUseCase = BuildTaskSurfaceListUseCase(),
             todoReminderScheduler = reminderScheduler,
             calendarWidgetUpdater = calendarWidgetUpdater
         )
