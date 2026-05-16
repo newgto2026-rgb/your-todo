@@ -23,6 +23,8 @@ import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoPriorityFilterUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateSelectedTodoSortOptionUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
@@ -106,6 +108,8 @@ class TodoListViewModelTest {
                     friendRepository = FakeFriendRepository(),
                     assignmentRepository = assignmentRepository,
                     calendarWidgetUpdater = calendarWidgetUpdater,
+                    refreshPolicy = WorkspaceRefreshPolicy(),
+                    refreshClock = WorkspaceRefreshClock(),
                     syncNotifier = workspaceSyncNotifier
                 )
             ),
@@ -1335,6 +1339,8 @@ class TodoListViewModelTest {
             friendRepository = FakeFriendRepository(),
             assignmentRepository = assignmentRepository,
             calendarWidgetUpdater = calendarWidgetUpdater,
+            refreshPolicy = WorkspaceRefreshPolicy(),
+            refreshClock = WorkspaceRefreshClock(),
             syncNotifier = workspaceSyncNotifier
         )()
         advanceUntilIdle()

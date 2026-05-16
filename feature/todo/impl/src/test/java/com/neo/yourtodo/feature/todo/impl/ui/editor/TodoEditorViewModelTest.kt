@@ -13,6 +13,9 @@ import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
+import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
@@ -73,7 +76,10 @@ class TodoEditorViewModelTest {
                     todoRepository = repository,
                     friendRepository = FakeFriendRepository(),
                     assignmentRepository = assignmentRepository,
-                    calendarWidgetUpdater = calendarWidgetUpdater
+                    calendarWidgetUpdater = calendarWidgetUpdater,
+                    refreshPolicy = WorkspaceRefreshPolicy(),
+                    refreshClock = WorkspaceRefreshClock(),
+                    syncNotifier = WorkspaceSyncNotifier()
                 )
             ),
             todoReminderScheduler = reminderScheduler,

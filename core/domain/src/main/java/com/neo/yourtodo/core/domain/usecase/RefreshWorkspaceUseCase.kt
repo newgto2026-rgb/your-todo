@@ -25,34 +25,73 @@ class RefreshWorkspaceUseCase @Inject constructor(
     private val friendRepository: FriendRepository,
     private val assignmentRepository: AssignmentRepository,
     private val calendarWidgetUpdater: CalendarWidgetUpdater,
-    private val syncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
+    private val refreshPolicy: WorkspaceRefreshPolicy,
+    private val refreshClock: WorkspaceRefreshClock,
+    private val syncNotifier: WorkspaceSyncNotifier
 ) {
     private val inFlightMutex = Mutex()
     private var inFlightRefresh: CompletableDeferred<Result<WorkspaceRefreshSnapshot>>? = null
+    private var lastRefresh: WorkspaceRefreshState? = null
 
-    suspend operator fun invoke(): Result<WorkspaceRefreshSnapshot> {
-        val (refresh, shouldStart) = inFlightMutex.withLock {
+    suspend operator fun invoke(
+        forceRefresh: Boolean = false,
+        allowCachedResult: Boolean = false
+    ): Result<WorkspaceRefreshSnapshot> {
+        val (refresh, shouldStart, skippedSnapshot) = inFlightMutex.withLock {
             val activeRefresh = inFlightRefresh
             if (activeRefresh != null) {
-                activeRefresh to false
+                RefreshStart(activeRefresh, shouldStart = false)
             } else {
-                val newRefresh = CompletableDeferred<Result<WorkspaceRefreshSnapshot>>()
-                inFlightRefresh = newRefresh
-                newRefresh to true
+                val decision = if (allowCachedResult) {
+                    refreshPolicy.decide(
+                        forceRefresh = forceRefresh,
+                        lastRefresh = lastRefresh,
+                        nowEpochMillis = refreshClock.nowEpochMillis()
+                    )
+                } else {
+                    WorkspaceRefreshDecision.Refresh
+                }
+                when (decision) {
+                    is WorkspaceRefreshDecision.Refresh -> {
+                        val newRefresh = CompletableDeferred<Result<WorkspaceRefreshSnapshot>>()
+                        inFlightRefresh = newRefresh
+                        RefreshStart(newRefresh, shouldStart = true)
+                    }
+                    is WorkspaceRefreshDecision.Skip -> RefreshStart(
+                        refresh = null,
+                        shouldStart = false,
+                        skippedSnapshot = decision.snapshot
+                    )
+                }
             }
         }
+        if (skippedSnapshot != null) {
+            return Result.success(skippedSnapshot)
+        }
         if (!shouldStart) {
-            return refresh.await()
+            return checkNotNull(refresh).await()
         }
 
         return try {
-            performRefresh()
-                .also { refresh.complete(it) }
+            val result = performRefresh()
+            inFlightMutex.withLock {
+                lastRefresh = result.getOrNull()?.let { snapshot ->
+                    WorkspaceRefreshState(
+                        snapshot = snapshot,
+                        completedAtEpochMillis = refreshClock.nowEpochMillis()
+                    )
+                }
+            }
+            checkNotNull(refresh).complete(result)
+            result
         } catch (exception: CancellationException) {
-            refresh.cancel(exception)
+            checkNotNull(refresh).completeExceptionally(exception)
             throw exception
         } catch (throwable: Throwable) {
-            refresh.completeExceptionally(throwable)
+            inFlightMutex.withLock {
+                lastRefresh = null
+            }
+            checkNotNull(refresh).completeExceptionally(throwable)
             throw throwable
         } finally {
             withContext(NonCancellable) {
@@ -115,8 +154,13 @@ class RefreshWorkspaceUseCase @Inject constructor(
             )
         )
         syncNotifier.publish(snapshot)
-        calendarWidgetUpdater.updateCalendarWidgets()
+        updateCalendarWidgetsBestEffort()
         Result.success(snapshot)
+    }
+
+    private suspend fun updateCalendarWidgetsBestEffort() {
+        runCatching { calendarWidgetUpdater.updateCalendarWidgets() }
+            .onFailure { if (it is CancellationException) throw it }
     }
 }
 
@@ -127,3 +171,49 @@ data class WorkspaceRefreshSnapshot(
     val outgoingRequests: List<FriendRequest>,
     val visibleReceivedAssignedTodos: List<AssignedTodo>
 )
+
+private data class RefreshStart(
+    val refresh: CompletableDeferred<Result<WorkspaceRefreshSnapshot>>?,
+    val shouldStart: Boolean,
+    val skippedSnapshot: WorkspaceRefreshSnapshot? = null
+)
+
+data class WorkspaceRefreshState(
+    val snapshot: WorkspaceRefreshSnapshot,
+    val completedAtEpochMillis: Long
+)
+
+sealed interface WorkspaceRefreshDecision {
+    data object Refresh : WorkspaceRefreshDecision
+
+    data class Skip(
+        val snapshot: WorkspaceRefreshSnapshot
+    ) : WorkspaceRefreshDecision
+}
+
+class WorkspaceRefreshPolicy @Inject constructor() {
+    fun decide(
+        forceRefresh: Boolean,
+        lastRefresh: WorkspaceRefreshState?,
+        nowEpochMillis: Long
+    ): WorkspaceRefreshDecision {
+        if (forceRefresh) return WorkspaceRefreshDecision.Refresh
+        if (lastRefresh == null) return WorkspaceRefreshDecision.Refresh
+        if (!lastRefresh.snapshot.isFullySynced) return WorkspaceRefreshDecision.Refresh
+
+        val ageMillis = nowEpochMillis - lastRefresh.completedAtEpochMillis
+        return if (ageMillis in 0 until STALE_THRESHOLD_MILLIS) {
+            WorkspaceRefreshDecision.Skip(lastRefresh.snapshot)
+        } else {
+            WorkspaceRefreshDecision.Refresh
+        }
+    }
+
+    companion object {
+        const val STALE_THRESHOLD_MILLIS: Long = 5 * 60 * 1000
+    }
+}
+
+open class WorkspaceRefreshClock @Inject constructor() {
+    open fun nowEpochMillis(): Long = System.currentTimeMillis()
+}

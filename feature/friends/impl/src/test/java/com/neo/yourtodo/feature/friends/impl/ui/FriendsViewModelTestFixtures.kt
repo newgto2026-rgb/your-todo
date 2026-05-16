@@ -18,6 +18,8 @@ import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SetDirectAssignmentOptInUseCase
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
+import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
@@ -68,6 +70,8 @@ internal fun FakeFriendRepository.createViewModel(
             friendRepository = this,
             assignmentRepository = assignmentRepository,
             calendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
+            refreshPolicy = WorkspaceRefreshPolicy(),
+            refreshClock = WorkspaceRefreshClock(),
             syncNotifier = workspaceSyncNotifier
         ),
         workspaceSyncNotifier = workspaceSyncNotifier,
