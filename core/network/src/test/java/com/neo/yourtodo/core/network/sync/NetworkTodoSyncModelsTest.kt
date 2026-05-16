@@ -3,8 +3,11 @@ package com.neo.yourtodo.core.network.sync
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.network.di.NetworkProvidesModule
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import org.junit.Test
 
 class NetworkTodoSyncModelsTest {
@@ -146,8 +149,77 @@ class NetworkTodoSyncModelsTest {
         assertThat(requestJson).contains("\"priority\":\"HIGH\"")
     }
 
+    @Test
+    fun `mutation payload contract excludes android local only todo fields`() {
+        val requestJson = NetworkProvidesModule.provideJson().encodeToString(
+            NetworkTodoSyncPushRequest(
+                baseCursor = "20",
+                mutations = listOf(
+                    NetworkTodoMutation(
+                        clientMutationId = "mutation-sync-fields",
+                        type = "UPDATE",
+                        id = "todo-1",
+                        clientId = "client-1",
+                        payload = NetworkTodoMutationPayload(
+                            title = "contract fields",
+                            description = null,
+                            dueDate = "2026-05-10",
+                            status = "COMPLETED",
+                            priority = "LOW"
+                        )
+                    )
+                )
+            )
+        )
+        val payloadFields = NetworkProvidesModule.provideJson()
+            .parseToJsonElement(requestJson)
+            .jsonObject["mutations"]!!
+            .jsonArray
+            .single()
+            .jsonObject["payload"]!!
+            .jsonObject
+            .keys
+
+        assertThat(descriptorElementNames(NetworkTodoMutationPayload.serializer().descriptor))
+            .containsExactlyElementsIn(TODO_SYNC_PAYLOAD_FIELDS)
+            .inOrder()
+        assertThat(payloadFields).containsExactlyElementsIn(TODO_SYNC_PAYLOAD_FIELDS)
+        ANDROID_LOCAL_ONLY_TODO_FIELDS.forEach { field ->
+            assertThat(requestJson).doesNotContain("\"$field\"")
+        }
+    }
+
+    @Test
+    fun `todo snapshot dto does not expose android local only todo fields`() {
+        assertThat(descriptorElementNames(NetworkTodo.serializer().descriptor))
+            .containsNoneIn(ANDROID_LOCAL_ONLY_TODO_FIELDS)
+    }
+
     @Serializable
     private data class ErrorResponse(
         val error: NetworkTodoMutationError
     )
+
+    private fun descriptorElementNames(descriptor: SerialDescriptor): List<String> =
+        (0 until descriptor.elementsCount).map(descriptor::getElementName)
+
+    private companion object {
+        val TODO_SYNC_PAYLOAD_FIELDS = listOf(
+            "title",
+            "description",
+            "dueDate",
+            "status",
+            "priority"
+        )
+
+        val ANDROID_LOCAL_ONLY_TODO_FIELDS = listOf(
+            "categoryId",
+            "dueTimeMinutes",
+            "reminderAtEpochMillis",
+            "isReminderEnabled",
+            "reminderRepeatType",
+            "reminderRepeatDaysMask",
+            "reminderLeadMinutes"
+        )
+    }
 }
