@@ -1,5 +1,8 @@
 package com.neo.yourtodo.core.domain.usecase
 
+import com.neo.yourtodo.core.domain.error.AppError
+import com.neo.yourtodo.core.domain.error.mapFailureToAppError
+import com.neo.yourtodo.core.domain.error.toException
 import com.neo.yourtodo.core.domain.repository.TodoItemRepository
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoPriority
@@ -24,10 +27,12 @@ class UpdateTodoUseCase @Inject constructor(
     ): Result<Unit> {
         val normalizedTitle = title.trim()
         if (normalizedTitle.isBlank()) {
-            return Result.failure(IllegalArgumentException("Title must not be blank"))
+            return Result.failure(AppError.ValidationError("Title must not be blank").toException())
         }
         if (normalizedTitle.length > MAX_TITLE_LENGTH) {
-            return Result.failure(IllegalArgumentException("Title must be $MAX_TITLE_LENGTH characters or less"))
+            return Result.failure(
+                AppError.ValidationError("Title must be $MAX_TITLE_LENGTH characters or less").toException()
+            )
         }
         return repository.updateTodo(
             id = id,
@@ -41,7 +46,7 @@ class UpdateTodoUseCase @Inject constructor(
             reminderRepeatDaysMask = reminderRepeatDaysMask,
             reminderLeadMinutes = reminderLeadMinutes,
             priority = priority
-        )
+        ).mapFailureToAppError()
     }
 
     private companion object {

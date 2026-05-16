@@ -1,11 +1,13 @@
 package com.neo.yourtodo.core.domain.usecase
 
 import app.cash.turbine.test
+import com.google.common.truth.Truth.assertThat
+import com.neo.yourtodo.core.domain.error.AppError
+import com.neo.yourtodo.core.domain.error.appErrorOrNull
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
-import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.LocalDate
@@ -20,6 +22,7 @@ class TodoUseCasesTest {
         val result = useCase("a".repeat(201), null, null)
 
         assertThat(result.isFailure).isTrue()
+        assertThat(result.appErrorOrNull()).isEqualTo(AppError.ValidationError("Title must be 200 characters or less"))
     }
 
     @Test
@@ -30,6 +33,7 @@ class TodoUseCasesTest {
         val result = useCase(1L, "   ", null, null)
 
         assertThat(result.isFailure).isTrue()
+        assertThat(result.appErrorOrNull()).isEqualTo(AppError.ValidationError("Title must not be blank"))
     }
 
     @Test
