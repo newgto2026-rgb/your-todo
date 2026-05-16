@@ -164,6 +164,69 @@ class AssignedTodoDaoTest {
     }
 
     @Test
+    fun observeFeedCacheUpdatedAtUsesOldestRowInFeedScope() = runTest {
+        dao.upsertAssignedTodoGraph(
+            items = listOf(
+                assignedTodo(ownerUserId = "owner-a", id = "received-old", cacheUpdatedAt = 100L),
+                assignedTodo(ownerUserId = "owner-a", id = "received-new", cacheUpdatedAt = 200L),
+                assignedTodo(
+                    ownerUserId = "owner-a",
+                    id = "sent-old",
+                    receivedCached = false,
+                    sentCached = true,
+                    receiverUserId = "friend-a",
+                    cacheUpdatedAt = 300L
+                ),
+                assignedTodo(
+                    ownerUserId = "owner-a",
+                    id = "sent-new",
+                    receivedCached = false,
+                    sentCached = true,
+                    receiverUserId = "friend-a",
+                    cacheUpdatedAt = 400L
+                ),
+                assignedTodo(ownerUserId = "owner-b", id = "other-owner", cacheUpdatedAt = 50L)
+            ),
+            checklistItems = emptyList()
+        )
+
+        assertThat(dao.observeReceivedFeedCacheUpdatedAt("owner-a", listOf("ACCEPTED")).first())
+            .isEqualTo(100L)
+        assertThat(dao.observeSentFeedCacheUpdatedAt("owner-a", listOf("ACCEPTED")).first())
+            .isEqualTo(300L)
+        assertThat(dao.observeSentFriendFeedCacheUpdatedAt("owner-a", "friend-a", listOf("ACCEPTED")).first())
+            .isEqualTo(300L)
+        assertThat(dao.observeReceivedFeedCacheUpdatedAt("owner-b", listOf("ACCEPTED")).first())
+            .isEqualTo(50L)
+    }
+
+    @Test
+    fun observeReceivedFeedCacheUpdatedAtIgnoresTaskSurfaceHiddenRows() = runTest {
+        dao.upsertAssignedTodoGraph(
+            items = listOf(
+                assignedTodo(
+                    ownerUserId = "owner-a",
+                    id = "hidden-history",
+                    status = "DONE",
+                    cacheUpdatedAt = 100L
+                )
+            ),
+            checklistItems = emptyList()
+        )
+
+        dao.hideReceivedFromTaskSurface(ownerUserId = "owner-a", id = "hidden-history")
+
+        assertThat(dao.observeReceivedFeedCacheUpdatedAt("owner-a", listOf("DONE")).first()).isNull()
+        assertThat(
+            dao.observeReceivedFriendFeedCacheUpdatedAt(
+                ownerUserId = "owner-a",
+                friendUserId = "sender",
+                statuses = listOf("DONE")
+            ).first()
+        ).isEqualTo(100L)
+    }
+
+    @Test
     fun deleteByOwner_cascadesChecklistOnlyForThatOwner() = runTest {
         dao.upsertAssignedTodoGraph(
             items = listOf(
@@ -192,7 +255,8 @@ class AssignedTodoDaoTest {
         sentCached: Boolean = false,
         senderUserId: String? = "sender",
         receiverUserId: String? = ownerUserId,
-        createdAtEpochMillis: Long = 100L
+        createdAtEpochMillis: Long = 100L,
+        cacheUpdatedAt: Long = 200L
     ) = AssignedTodoEntity(
         ownerUserId = ownerUserId,
         id = id,
@@ -219,7 +283,7 @@ class AssignedTodoDaoTest {
         receivedCached = receivedCached,
         receivedTaskHidden = false,
         sentCached = sentCached,
-        cacheUpdatedAt = 200L
+        cacheUpdatedAt = cacheUpdatedAt
     )
 
     private fun checklistItem(

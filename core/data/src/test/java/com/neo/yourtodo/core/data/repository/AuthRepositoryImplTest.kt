@@ -399,6 +399,28 @@ class AuthRepositoryImplTest {
 
         override suspend fun getAssignedTodoById(ownerUserId: String, id: String): AssignedTodoEntity? = null
 
+        override fun observeReceivedFeedCacheUpdatedAt(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> = flowOf(null)
+
+        override fun observeSentFeedCacheUpdatedAt(
+            ownerUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> = flowOf(null)
+
+        override fun observeSentFriendFeedCacheUpdatedAt(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> = flowOf(null)
+
+        override fun observeReceivedFriendFeedCacheUpdatedAt(
+            ownerUserId: String,
+            friendUserId: String,
+            statuses: List<String>
+        ): Flow<Long?> = flowOf(null)
+
         override suspend fun deleteByOwner(ownerUserId: String) {
             deletedOwnerUserId = ownerUserId
         }
