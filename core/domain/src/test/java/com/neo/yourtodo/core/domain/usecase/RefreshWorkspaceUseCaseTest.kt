@@ -23,9 +23,11 @@ import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -114,6 +116,52 @@ class RefreshWorkspaceUseCaseTest {
 
         assertThat(results.all { it.isSuccess }).isTrue()
         assertThat(events.count { it == "todo.sync" }).isEqualTo(1)
+        assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(1)
+    }
+
+    @Test
+    fun invokeClearsInFlightAndCancelsWaiterWhenStarterIsCancelled() = runTest {
+        val events = mutableListOf<String>()
+        val firstSyncStarted = CompletableDeferred<Unit>()
+        val firstSyncCancelled = CompletableDeferred<Unit>()
+        var syncAttempts = 0
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(
+                events = events,
+                onSync = {
+                    syncAttempts += 1
+                    if (syncAttempts == 1) {
+                        firstSyncStarted.complete(Unit)
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            firstSyncCancelled.complete(Unit)
+                        }
+                    }
+                }
+            ),
+            friendRepository = FakeFriendRepository(events = events),
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events)
+        )
+
+        val starter = async { useCase() }
+        firstSyncStarted.await()
+        val waitingCaller = async {
+            runCatching { useCase() }.exceptionOrNull()
+        }
+        yield()
+
+        starter.cancel(CancellationException("starter cancelled"))
+        starter.join()
+        firstSyncCancelled.await()
+
+        assertThat(waitingCaller.await()).isInstanceOf(CancellationException::class.java)
+
+        val retryResult = useCase()
+
+        assertThat(retryResult.isSuccess).isTrue()
+        assertThat(events.count { it == "todo.sync" }).isEqualTo(2)
         assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(1)
     }
 
