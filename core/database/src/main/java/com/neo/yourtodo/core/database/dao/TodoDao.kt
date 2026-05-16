@@ -44,6 +44,9 @@ interface TodoDao {
     @Query("SELECT * FROM todo WHERE id = :id LIMIT 1")
     suspend fun getTodoById(id: Long): TodoEntity?
 
+    @Query("SELECT * FROM todo WHERE id IN (:ids)")
+    suspend fun getTodosByIds(ids: List<Long>): List<TodoEntity>
+
     @Query("SELECT * FROM todo WHERE ownerUserId = :ownerUserId AND serverId = :serverId LIMIT 1")
     suspend fun getTodoByServerId(ownerUserId: String, serverId: String): TodoEntity?
 

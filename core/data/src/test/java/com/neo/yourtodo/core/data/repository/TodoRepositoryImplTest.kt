@@ -82,6 +82,53 @@ class TodoRepositoryImplTest {
     }
 
     @Test
+    fun `getTodosWithActiveReminder maps active reminder entities`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 1L,
+                    title = "disabled",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    reminderAtEpochMillis = 100L,
+                    isReminderEnabled = false
+                ),
+                TodoEntity(
+                    id = 2L,
+                    title = "active later",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 2L,
+                    updatedAt = 2L,
+                    categoryId = null,
+                    reminderAtEpochMillis = 200L,
+                    isReminderEnabled = true
+                ),
+                TodoEntity(
+                    id = 3L,
+                    title = "active earlier",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 3L,
+                    updatedAt = 3L,
+                    categoryId = null,
+                    reminderAtEpochMillis = 100L,
+                    isReminderEnabled = true
+                )
+            )
+        }
+        val repository = repository(todoDao = todoDao)
+
+        val reminders = repository.getTodosWithActiveReminder()
+
+        assertThat(reminders.map { it.title }).containsExactly("active earlier", "active later").inOrder()
+        assertThat(reminders.map { it.reminderAtEpochMillis }).containsExactly(100L, 200L).inOrder()
+    }
+
+    @Test
     fun `addTodo inserts entity and returns id`() = runTest {
         val todoDao = FakeTodoDao()
         val categoryDao = FakeCategoryDao().apply {
@@ -161,6 +208,23 @@ class TodoRepositoryImplTest {
     }
 
     @Test
+    fun `updateTodo rethrows cancellation and preserves existing todo`() = runTest {
+        val cancellation = CancellationException("cancelled")
+        val todoDao = FakeTodoDao().apply {
+            seed(TodoEntity(5L, "before", false, null, 1L, 1L, null))
+            updateFailure = cancellation
+        }
+        val repository = repository(todoDao = todoDao)
+
+        val thrown = runCatching {
+            repository.updateTodo(5L, "after", null, null)
+        }.exceptionOrNull()
+
+        assertThat(thrown).isSameInstanceAs(cancellation)
+        assertThat(todoDao.getTodoById(5L)?.title).isEqualTo("before")
+    }
+
+    @Test
     fun `observe and set selected todo filter works`() = runTest {
         val prefs = FakePreferencesDataSource()
         val repository = repository(prefs = prefs)
@@ -178,6 +242,16 @@ class TodoRepositoryImplTest {
         repository.setSelectedSortOption(TodoSortOption.PRIORITY)
 
         assertThat(repository.observeSelectedSortOption().first()).isEqualTo(TodoSortOption.PRIORITY)
+    }
+
+    @Test
+    fun `observe and set selected todo priority filter works`() = runTest {
+        val prefs = FakePreferencesDataSource()
+        val repository = repository(prefs = prefs)
+
+        repository.setSelectedPriorityFilter(TodoPriorityFilter.HIGH)
+
+        assertThat(repository.observeSelectedPriorityFilter().first()).isEqualTo(TodoPriorityFilter.HIGH)
     }
 
     @Test
@@ -216,6 +290,18 @@ class TodoRepositoryImplTest {
         assertThat(deleteResult.isSuccess).isTrue()
         assertThat(repository.observeCategories().first()).isEmpty()
         assertThat(repository.observeSelectedCategoryFilter().first()).isNull()
+    }
+
+    @Test
+    fun `addCategory rejects duplicate name case insensitively`() = runTest {
+        val repository = repository()
+
+        val first = repository.addCategory("Work", null, null)
+        val duplicate = repository.addCategory("work", null, null)
+
+        assertThat(first.isSuccess).isTrue()
+        assertThat(duplicate.isFailure).isTrue()
+        assertThat(repository.observeCategories().first().map { it.name }).containsExactly("Work")
     }
 
     @Test
@@ -602,6 +688,8 @@ class TodoRepositoryImplTest {
         val result = repository.syncTodos()
 
         assertThat(result.isSuccess).isTrue()
+        assertThat(todoDao.getTodosByIdsRequests).containsExactly(listOf(10L))
+        assertThat(todoDao.getTodoByIdCallCount).isEqualTo(0)
         assertThat(network.lastPushRequest?.mutations?.single()?.payload?.priority).isEqualTo("HIGH")
         assertThat(todoDao.getTodoById(10L)?.priority).isEqualTo(TodoPriority.HIGH.name)
         assertThat(outboxDao.items).isEmpty()
@@ -859,6 +947,9 @@ class TodoRepositoryImplTest {
     private class FakeTodoDao : TodoDao {
         private val itemsFlow = MutableStateFlow<List<TodoEntity>>(emptyList())
         private var nextId: Long = 1L
+        val getTodosByIdsRequests = mutableListOf<List<Long>>()
+        var getTodoByIdCallCount = 0
+        var updateFailure: Throwable? = null
 
         fun seed(vararg entities: TodoEntity) {
             itemsFlow.value = entities.toList()
@@ -887,6 +978,7 @@ class TodoRepositoryImplTest {
         }
 
         override suspend fun update(todo: TodoEntity) {
+            updateFailure?.let { throw it }
             itemsFlow.value = itemsFlow.value.map { if (it.id == todo.id) todo else it }
         }
 
@@ -894,7 +986,15 @@ class TodoRepositoryImplTest {
             itemsFlow.value = itemsFlow.value.filterNot { it.id == todo.id }
         }
 
-        override suspend fun getTodoById(id: Long): TodoEntity? = itemsFlow.value.firstOrNull { it.id == id }
+        override suspend fun getTodoById(id: Long): TodoEntity? {
+            getTodoByIdCallCount += 1
+            return itemsFlow.value.firstOrNull { it.id == id }
+        }
+
+        override suspend fun getTodosByIds(ids: List<Long>): List<TodoEntity> {
+            getTodosByIdsRequests += ids
+            return itemsFlow.value.filter { it.id in ids }
+        }
 
         override suspend fun getTodoByServerId(ownerUserId: String, serverId: String): TodoEntity? =
             itemsFlow.value.firstOrNull { it.ownerUserId == ownerUserId && it.serverId == serverId }

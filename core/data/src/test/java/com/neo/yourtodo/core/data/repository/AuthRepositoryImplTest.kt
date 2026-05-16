@@ -320,6 +320,7 @@ class AuthRepositoryImplTest {
         }
 
         override suspend fun getTodoById(id: Long): TodoEntity? = items.firstOrNull { it.id == id }
+        override suspend fun getTodosByIds(ids: List<Long>): List<TodoEntity> = items.filter { it.id in ids }
         override suspend fun getTodoByServerId(ownerUserId: String, serverId: String): TodoEntity? = null
         override suspend fun getTodoByClientId(ownerUserId: String, clientId: String): TodoEntity? = null
         override suspend fun deleteSyncedTodosByOwner(ownerUserId: String) {
