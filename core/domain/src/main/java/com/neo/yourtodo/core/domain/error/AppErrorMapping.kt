@@ -41,7 +41,8 @@ fun Throwable.toAppError(): AppError {
     chain
         .firstOrNull { throwable ->
             throwable is NoSuchElementException ||
-                (throwable is IllegalStateException && throwable.message.looksLikeLocalDataMissing())
+                (throwable is IllegalStateException && throwable.message.looksLikeLocalDataMissing()) ||
+                (throwable is IllegalArgumentException && throwable.message.looksLikeLocalDataMissing())
         }
         ?.let { return AppError.LocalDataMissing(message = it.message) }
 
@@ -108,7 +109,19 @@ private fun String?.looksLikeLocalDataMissing(): Boolean {
     val isContextualMissing =
         value.contains("missing", ignoreCase = true) &&
             LOCAL_DATA_CONTEXTS.any { context -> value.contains(context, ignoreCase = true) }
-    return isKnownMissingMessage || isKnownLocalNotFound || isContextualMissing
+    val isStaleLocalReference =
+        value.contains("stale", ignoreCase = true) &&
+            KNOWN_LOCAL_DATA_NAMES.any { name -> value.contains(name, ignoreCase = true) } &&
+            LOCAL_DATA_REFERENCE_MARKERS.any { marker -> value.containsToken(marker) }
+    return isKnownMissingMessage || isKnownLocalNotFound || isContextualMissing || isStaleLocalReference
+}
+
+private fun String.containsToken(token: String): Boolean {
+    val tokenPattern = Regex(
+        pattern = "(?<![A-Za-z0-9_])${Regex.escape(token)}(?![A-Za-z0-9_])",
+        option = RegexOption.IGNORE_CASE
+    )
+    return tokenPattern.containsMatchIn(this)
 }
 
 private val KNOWN_LOCAL_DATA_MISSING_MESSAGES = listOf(
@@ -126,6 +139,11 @@ private val KNOWN_LOCAL_DATA_NAMES = listOf(
 private val LOCAL_DATA_CONTEXTS = listOf(
     "local",
     "cache"
+)
+
+private val LOCAL_DATA_REFERENCE_MARKERS = listOf(
+    "id",
+    "reference"
 )
 
 private const val MAX_CAUSE_DEPTH = 32
