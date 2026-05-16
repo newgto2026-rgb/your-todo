@@ -194,10 +194,11 @@ internal fun FriendsStaleSnapshotBanner(
     error: FriendsError,
     onRetry: () -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFFF8E8),
-        border = BorderStroke(1.dp, Color(0xFFECCB81)),
+        color = colorScheme.tertiaryContainer,
+        border = BorderStroke(1.dp, colorScheme.outlineVariant),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("friends_stale_snapshot")
@@ -209,13 +210,13 @@ internal fun FriendsStaleSnapshotBanner(
             Text(
                 text = stringResource(error.staleTitleRes),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = Color(0xFF6F4E12)
+                color = colorScheme.onTertiaryContainer
             )
             Text(
                 text = stringResource(error.staleDescriptionRes),
                 modifier = Modifier.padding(top = 4.dp),
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF755B25)
+                color = colorScheme.onTertiaryContainer.copy(alpha = 0.82f)
             )
             TextButton(
                 onClick = onRetry,

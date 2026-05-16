@@ -275,7 +275,7 @@ class FriendsViewModelTest {
         assertThat(failedRefresh.hasLoadedFriendsSnapshot).isTrue()
         assertThat(failedRefresh.friendsSnapshotError).isEqualTo(FriendsError.NETWORK)
         assertThat(failedRefresh.showFriendsUnavailable).isFalse()
-        assertThat(failedRefresh.showStaleFriendsSnapshot).isTrue()
+        assertThat(failedRefresh.staleSnapshotError).isEqualTo(FriendsError.NETWORK)
         assertThat(failedRefresh.friends).hasSize(1)
     }
 
@@ -300,7 +300,7 @@ class FriendsViewModelTest {
         assertThat(failedRefresh.error).isEqualTo(FriendsError.NETWORK)
         assertThat(failedRefresh.friendsSnapshotError).isEqualTo(FriendsError.NETWORK)
         assertThat(failedRefresh.showFriendsUnavailable).isFalse()
-        assertThat(failedRefresh.showStaleFriendsSnapshot).isTrue()
+        assertThat(failedRefresh.staleSnapshotError).isEqualTo(FriendsError.NETWORK)
         assertThat(failedRefresh.friends).hasSize(1)
         assertThat(failedRefresh.incomingRequests).hasSize(1)
         assertThat(failedRefresh.outgoingRequests).hasSize(1)
@@ -319,7 +319,7 @@ class FriendsViewModelTest {
         repository.getFriendsResult = Result.failure(IllegalStateException("Network unavailable"))
         viewModel.onAction(FriendsAction.OnRefresh)
         advanceUntilIdle()
-        assertThat(viewModel.uiState.value.showStaleFriendsSnapshot).isTrue()
+        assertThat(viewModel.uiState.value.staleSnapshotError).isEqualTo(FriendsError.NETWORK)
 
         repository.getFriendsResult = null
         repository.friends = listOf(friend())
@@ -329,7 +329,7 @@ class FriendsViewModelTest {
         val refreshed = viewModel.uiState.value
         assertThat(refreshed.error).isNull()
         assertThat(refreshed.friendsSnapshotError).isNull()
-        assertThat(refreshed.showStaleFriendsSnapshot).isFalse()
+        assertThat(refreshed.staleSnapshotError).isNull()
         assertThat(refreshed.friends).hasSize(1)
     }
 
@@ -553,7 +553,7 @@ class FriendsViewModelTest {
                 failedRefresh = awaitItem()
             }
             assertThat(failedRefresh.error).isEqualTo(FriendsError.NETWORK)
-            assertThat(failedRefresh.showStaleFriendsSnapshot).isTrue()
+            assertThat(failedRefresh.staleSnapshotError).isEqualTo(FriendsError.NETWORK)
             assertThat(failedRefresh.friends).hasSize(1)
             assertThat(failedRefresh.showFriendsUnavailable).isFalse()
             assertThat(failedRefresh.showEmptyFriends).isFalse()

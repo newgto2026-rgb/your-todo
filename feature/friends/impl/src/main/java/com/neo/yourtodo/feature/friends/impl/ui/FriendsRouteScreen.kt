@@ -194,10 +194,10 @@ private fun FriendsScreen(
                         )
                     }
                 } else {
-                    if (uiState.showStaleFriendsSnapshot) {
+                    uiState.staleSnapshotError?.let { error ->
                         item {
                             FriendsStaleSnapshotBanner(
-                                error = checkNotNull(uiState.friendsSnapshotError),
+                                error = error,
                                 onRetry = { onAction(FriendsAction.OnRefresh) }
                             )
                         }

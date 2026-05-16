@@ -52,8 +52,8 @@ data class FriendsUiState(
     val showFriendsUnavailable: Boolean
         get() = !isLoading && !hasLoadedFriendsSnapshot && friendsSnapshotError != null
 
-    val showStaleFriendsSnapshot: Boolean
-        get() = !isLoading && hasLoadedFriendsSnapshot && friendsSnapshotError != null
+    val staleSnapshotError: FriendsError?
+        get() = if (!isLoading && hasLoadedFriendsSnapshot) friendsSnapshotError else null
 
     val showEmptyFriends: Boolean
         get() = hasLoadedFriendsSnapshot && friends.isEmpty()
