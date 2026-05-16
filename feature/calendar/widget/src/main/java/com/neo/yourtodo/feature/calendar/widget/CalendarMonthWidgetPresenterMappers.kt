@@ -20,7 +20,7 @@ internal fun formatWidgetMonthLabel(
 ): String {
     val monthYearPattern = (DateFormat.getDateInstance(DateFormat.LONG, locale) as? SimpleDateFormat)
         ?.toPattern()
-        ?.toMonthYearPattern()
+        ?.toWidgetMonthYearPattern()
         ?.takeIf { it.isNotBlank() }
         ?: DEFAULT_MONTH_YEAR_PATTERN
     val date = GregorianCalendar(locale).apply {
@@ -175,19 +175,15 @@ private fun stableAssignedRowId(id: String): Long {
     return -positiveHash - 1
 }
 
-private fun String.toMonthYearPattern(): String {
+internal fun String.toWidgetMonthYearPattern(): String {
     val tokens = parseDatePattern()
     val dayIndex = tokens.indexOfFirst { it is DatePatternToken.Field && it.symbol == DAY_OF_MONTH_PATTERN_SYMBOL }
     if (dayIndex == -1) return this
 
-    val withoutDay = tokens.toMutableList()
-    withoutDay.removeAt(dayIndex)
-    if (dayIndex < withoutDay.size && withoutDay[dayIndex] is DatePatternToken.Literal) {
-        withoutDay.removeAt(dayIndex)
-    }
-
-    return withoutDay
-        .trimBlankLiterals()
+    return tokens
+        .removeDayOfMonthToken(dayIndex)
+        .trimOuterLiteralWhitespace()
+        .mergeAdjacentLiterals()
         .joinToString(separator = "") { it.patternText }
 }
 
@@ -236,12 +232,51 @@ private fun String.parseDatePattern(): List<DatePatternToken> {
     return tokens
 }
 
-private fun List<DatePatternToken>.trimBlankLiterals(): List<DatePatternToken> {
-    var start = 0
-    var end = size
-    while (start < end && (this[start] as? DatePatternToken.Literal)?.text?.isBlank() == true) start++
-    while (end > start && (this[end - 1] as? DatePatternToken.Literal)?.text?.isBlank() == true) end--
-    return subList(start, end)
+private fun List<DatePatternToken>.removeDayOfMonthToken(dayIndex: Int): List<DatePatternToken> {
+    val withoutDay = toMutableList()
+    withoutDay.removeAt(dayIndex)
+    when {
+        dayIndex < withoutDay.size && withoutDay[dayIndex] is DatePatternToken.Literal -> {
+            withoutDay.removeAt(dayIndex)
+        }
+
+        dayIndex > 0 && withoutDay[dayIndex - 1] is DatePatternToken.Literal -> {
+            withoutDay.removeAt(dayIndex - 1)
+        }
+    }
+    return withoutDay
+}
+
+private fun List<DatePatternToken>.trimOuterLiteralWhitespace(): List<DatePatternToken> {
+    val trimmed = toMutableList()
+    while (trimmed.firstOrNull()?.isBlankLiteral == true) {
+        trimmed.removeAt(0)
+    }
+    while (trimmed.lastOrNull()?.isBlankLiteral == true) {
+        trimmed.removeAt(trimmed.lastIndex)
+    }
+
+    (trimmed.firstOrNull() as? DatePatternToken.Literal)
+        ?.trimStart()
+        ?.let { trimmed[0] = it }
+    (trimmed.lastOrNull() as? DatePatternToken.Literal)
+        ?.trimEnd()
+        ?.let { trimmed[trimmed.lastIndex] = it }
+
+    return trimmed
+}
+
+private fun List<DatePatternToken>.mergeAdjacentLiterals(): List<DatePatternToken> {
+    val merged = mutableListOf<DatePatternToken>()
+    for (token in this) {
+        val previous = merged.lastOrNull()
+        if (token is DatePatternToken.Literal && previous is DatePatternToken.Literal) {
+            merged[merged.lastIndex] = DatePatternToken.Literal(previous.text + token.text)
+        } else {
+            merged += token
+        }
+    }
+    return merged
 }
 
 private val DatePatternToken.patternText: String
@@ -260,6 +295,9 @@ private fun String.quoteDatePatternLiteral(): String =
 private fun Char.isAsciiPatternLetter(): Boolean =
     this in 'A'..'Z' || this in 'a'..'z'
 
+private val DatePatternToken.isBlankLiteral: Boolean
+    get() = (this as? DatePatternToken.Literal)?.text?.isBlank() == true
+
 private sealed interface DatePatternToken {
     data class Field(
         val symbol: Char,
@@ -268,7 +306,11 @@ private sealed interface DatePatternToken {
 
     data class Literal(
         val text: String
-    ) : DatePatternToken
+    ) : DatePatternToken {
+        fun trimStart(): Literal = copy(text = text.trimStart())
+
+        fun trimEnd(): Literal = copy(text = text.trimEnd())
+    }
 }
 
 private const val WEEK_DAY_COUNT = 7

@@ -7,9 +7,11 @@ import com.neo.yourtodo.core.model.TodoSummary
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodoStatus
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.util.GregorianCalendar
 import java.util.Locale
 import org.junit.Test
 
@@ -117,6 +119,32 @@ class CalendarMonthWidgetPresenterMappersTest {
         assertThat(koreanLabel).doesNotContain("1")
     }
 
+    @Test
+    fun toWidgetMonthYearPattern_preservesQuotedLocaleLiteral() {
+        val monthYearPattern = "d MMMM y 'г'.".toWidgetMonthYearPattern()
+
+        val label = formatPattern(
+            pattern = monthYearPattern,
+            locale = Locale.forLanguageTag("ru-RU")
+        )
+
+        assertThat(label).contains("2026")
+        assertThat(label).contains("г.")
+        assertThat(label).doesNotContain("'")
+    }
+
+    @Test
+    fun toWidgetMonthYearPattern_removesDelimiterBeforeTrailingDayField() {
+        val monthYearPattern = "y-MMMM-dd".toWidgetMonthYearPattern()
+
+        val label = formatPattern(
+            pattern = monthYearPattern,
+            locale = Locale.US
+        )
+
+        assertThat(label).isEqualTo("2026-May")
+    }
+
     private fun todo(
         id: Long,
         title: String,
@@ -158,4 +186,15 @@ class CalendarMonthWidgetPresenterMappersTest {
             createdAt = Instant.parse("2026-05-07T00:00:00Z"),
             completedAt = null
         )
+
+    private fun formatPattern(
+        pattern: String,
+        locale: Locale
+    ): String {
+        val date = GregorianCalendar(locale).apply {
+            clear()
+            set(2026, 4, 1)
+        }.time
+        return SimpleDateFormat(pattern, locale).format(date)
+    }
 }
