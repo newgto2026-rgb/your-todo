@@ -26,9 +26,9 @@ class ReminderRecurrenceCalculatorTest {
     }
 
     @Test
-    fun `daily and weekly repeat from latest of current trigger and now`() {
+    fun `daily and weekly repeat preserve scheduled time while skipping past occurrences`() {
         val current = epochMillis(2026, 5, 18, 9, 0)
-        val now = epochMillis(2026, 5, 18, 10, 30)
+        val now = epochMillis(2026, 5, 20, 10, 30)
 
         val daily = ReminderRecurrenceCalculator.nextTriggerAt(
             currentTriggerAt = current,
@@ -45,8 +45,8 @@ class ReminderRecurrenceCalculatorTest {
             zoneId = zoneId
         )
 
-        assertThat(daily).isEqualTo(epochMillis(2026, 5, 19, 10, 30))
-        assertThat(weekly).isEqualTo(epochMillis(2026, 5, 25, 10, 30))
+        assertThat(daily).isEqualTo(epochMillis(2026, 5, 21, 9, 0))
+        assertThat(weekly).isEqualTo(epochMillis(2026, 5, 25, 9, 0))
     }
 
     @Test
@@ -64,6 +64,24 @@ class ReminderRecurrenceCalculatorTest {
         )
 
         assertThat(nextTrigger).isEqualTo(epochMillis(2026, 5, 21, 9, 15))
+    }
+
+    @Test
+    fun `custom days repeat preserves scheduled time when matching day is already past`() {
+        val current = epochMillis(2026, 5, 18, 9, 15)
+        val now = epochMillis(2026, 5, 21, 10, 30)
+        val monday = 1 shl 0
+        val thursday = 1 shl 3
+
+        val nextTrigger = ReminderRecurrenceCalculator.nextTriggerAt(
+            currentTriggerAt = current,
+            repeatType = ReminderRepeatType.CUSTOM_DAYS,
+            repeatDaysMask = monday or thursday,
+            nowEpochMillis = now,
+            zoneId = zoneId
+        )
+
+        assertThat(nextTrigger).isEqualTo(epochMillis(2026, 5, 25, 9, 15))
     }
 
     @Test

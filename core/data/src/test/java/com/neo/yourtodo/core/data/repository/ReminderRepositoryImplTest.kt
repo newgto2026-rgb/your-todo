@@ -178,12 +178,7 @@ class ReminderRepositoryImplTest {
     @Test
     fun `complete reminder schedules custom days with shared recurrence policy`() = runTest {
         val zoneId = ZoneId.systemDefault()
-        val triggerAt = LocalDateTime.now(zoneId)
-            .plusDays(2)
-            .withHour(9)
-            .withMinute(0)
-            .withSecond(0)
-            .withNano(0)
+        val triggerAt = LocalDateTime.of(2100, 1, 4, 9, 0)
         val expectedNextTriggerAt = triggerAt.plusDays(2)
         val repeatDaysMask = 1 shl (expectedNextTriggerAt.dayOfWeek.value - 1)
         val dao = FakeReminderDao().apply {
