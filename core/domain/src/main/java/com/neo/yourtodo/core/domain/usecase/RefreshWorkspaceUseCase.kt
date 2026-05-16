@@ -33,17 +33,25 @@ class RefreshWorkspaceUseCase @Inject constructor(
     private var inFlightRefresh: CompletableDeferred<Result<WorkspaceRefreshSnapshot>>? = null
     private var lastRefresh: WorkspaceRefreshState? = null
 
-    suspend operator fun invoke(forceRefresh: Boolean = false): Result<WorkspaceRefreshSnapshot> {
+    suspend operator fun invoke(
+        forceRefresh: Boolean = false,
+        allowCachedResult: Boolean = false
+    ): Result<WorkspaceRefreshSnapshot> {
         val (refresh, shouldStart, skippedSnapshot) = inFlightMutex.withLock {
             val activeRefresh = inFlightRefresh
             if (activeRefresh != null) {
                 RefreshStart(activeRefresh, shouldStart = false)
             } else {
-                when (val decision = refreshPolicy.decide(
-                    forceRefresh = forceRefresh,
-                    lastRefresh = lastRefresh,
-                    nowEpochMillis = refreshClock.nowEpochMillis()
-                )) {
+                val decision = if (allowCachedResult) {
+                    refreshPolicy.decide(
+                        forceRefresh = forceRefresh,
+                        lastRefresh = lastRefresh,
+                        nowEpochMillis = refreshClock.nowEpochMillis()
+                    )
+                } else {
+                    WorkspaceRefreshDecision.Refresh
+                }
+                when (decision) {
                     is WorkspaceRefreshDecision.Refresh -> {
                         val newRefresh = CompletableDeferred<Result<WorkspaceRefreshSnapshot>>()
                         inFlightRefresh = newRefresh
@@ -66,10 +74,10 @@ class RefreshWorkspaceUseCase @Inject constructor(
 
         return try {
             val result = performRefresh()
-            if (result.isSuccess) {
-                inFlightMutex.withLock {
-                    lastRefresh = WorkspaceRefreshState(
-                        snapshot = result.getOrThrow(),
+            inFlightMutex.withLock {
+                lastRefresh = result.getOrNull()?.let { snapshot ->
+                    WorkspaceRefreshState(
+                        snapshot = snapshot,
                         completedAtEpochMillis = refreshClock.nowEpochMillis()
                     )
                 }
@@ -80,6 +88,9 @@ class RefreshWorkspaceUseCase @Inject constructor(
             checkNotNull(refresh).completeExceptionally(exception)
             throw exception
         } catch (throwable: Throwable) {
+            inFlightMutex.withLock {
+                lastRefresh = null
+            }
             checkNotNull(refresh).completeExceptionally(throwable)
             throw throwable
         } finally {

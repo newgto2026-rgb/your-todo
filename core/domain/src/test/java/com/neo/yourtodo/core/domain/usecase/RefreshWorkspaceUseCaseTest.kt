@@ -166,7 +166,7 @@ class RefreshWorkspaceUseCaseTest {
     }
 
     @Test
-    fun invokeSkipsFreshFullySyncedSnapshot() = runTest {
+    fun invokeRefreshesByDefaultWhenFreshSnapshotExists() = runTest {
         val events = mutableListOf<String>()
         val clock = FakeWorkspaceRefreshClock(nowEpochMillis = 1_000)
         val useCase = testUseCase(
@@ -179,7 +179,29 @@ class RefreshWorkspaceUseCaseTest {
 
         val firstResult = useCase()
         clock.nowEpochMillis += WorkspaceRefreshPolicy.STALE_THRESHOLD_MILLIS - 1
-        val skippedResult = useCase()
+        val defaultResult = useCase()
+
+        assertThat(firstResult.isSuccess).isTrue()
+        assertThat(defaultResult.isSuccess).isTrue()
+        assertThat(events.count { it == "todo.sync" }).isEqualTo(2)
+        assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(2)
+    }
+
+    @Test
+    fun invokeSkipsFreshFullySyncedSnapshotWhenCachedResultAllowed() = runTest {
+        val events = mutableListOf<String>()
+        val clock = FakeWorkspaceRefreshClock(nowEpochMillis = 1_000)
+        val useCase = testUseCase(
+            todoRepository = FakeTodoRepository(events = events),
+            friendRepository = FakeFriendRepository(events = events),
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events),
+            refreshClock = clock
+        )
+
+        val firstResult = useCase()
+        clock.nowEpochMillis += WorkspaceRefreshPolicy.STALE_THRESHOLD_MILLIS - 1
+        val skippedResult = useCase(allowCachedResult = true)
 
         assertThat(firstResult.isSuccess).isTrue()
         assertThat(skippedResult.getOrThrow()).isEqualTo(firstResult.getOrThrow())
@@ -201,7 +223,7 @@ class RefreshWorkspaceUseCaseTest {
 
         val firstResult = useCase()
         clock.nowEpochMillis += WorkspaceRefreshPolicy.STALE_THRESHOLD_MILLIS
-        val staleResult = useCase()
+        val staleResult = useCase(allowCachedResult = true)
 
         assertThat(firstResult.isSuccess).isTrue()
         assertThat(staleResult.isSuccess).isTrue()
@@ -220,7 +242,7 @@ class RefreshWorkspaceUseCaseTest {
         )
 
         val firstResult = useCase()
-        val forcedResult = useCase(forceRefresh = true)
+        val forcedResult = useCase(forceRefresh = true, allowCachedResult = true)
 
         assertThat(firstResult.isSuccess).isTrue()
         assertThat(forcedResult.isSuccess).isTrue()
@@ -242,7 +264,7 @@ class RefreshWorkspaceUseCaseTest {
         )
 
         val firstResult = useCase()
-        val retryResult = useCase()
+        val retryResult = useCase(allowCachedResult = true)
 
         assertThat(firstResult.getOrThrow().isFullySynced).isFalse()
         assertThat(retryResult.getOrThrow().isFullySynced).isFalse()
@@ -361,13 +383,40 @@ class RefreshWorkspaceUseCaseTest {
 
         val failure = runCatching { useCase(forceRefresh = true) }.exceptionOrNull()
         updater.throwable = null
-        val cachedResult = useCase()
+        val cachedResult = useCase(allowCachedResult = true)
 
         assertThat(firstResult.isSuccess).isTrue()
         assertThat(failure).isInstanceOf(CancellationException::class.java)
         assertThat(failure).hasMessageThat().isEqualTo(cancellation.message)
         assertThat(cachedResult.getOrThrow()).isEqualTo(firstResult.getOrThrow())
         assertThat(events.count { it == "todo.sync" }).isEqualTo(2)
+        assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(2)
+    }
+
+    @Test
+    fun invokeInvalidatesCachedSnapshotWhenRequiredFeedFails() = runTest {
+        val events = mutableListOf<String>()
+        val friendRepository = FakeFriendRepository(events = events)
+        val failure = IllegalStateException("friends failed")
+        val useCase = testUseCase(
+            todoRepository = FakeTodoRepository(events = events),
+            friendRepository = friendRepository,
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events),
+            refreshClock = FakeWorkspaceRefreshClock(nowEpochMillis = 1_000)
+        )
+
+        val firstResult = useCase()
+        friendRepository.friendsResult = Result.failure(failure)
+        val failedResult = useCase(forceRefresh = true)
+        friendRepository.friendsResult = Result.success(emptyList())
+        val retryResult = useCase(allowCachedResult = true)
+
+        assertThat(firstResult.isSuccess).isTrue()
+        assertThat(failedResult.exceptionOrNull()).isSameInstanceAs(failure)
+        assertThat(retryResult.isSuccess).isTrue()
+        assertThat(events.count { it == "todo.sync" }).isEqualTo(3)
+        assertThat(events.count { it == "friend.getFriends" }).isEqualTo(3)
         assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(2)
     }
 
@@ -526,7 +575,7 @@ class RefreshWorkspaceUseCaseTest {
         friends: List<Friend> = emptyList(),
         incoming: List<FriendRequest> = emptyList(),
         outgoing: List<FriendRequest> = emptyList(),
-        private val friendsResult: Result<List<Friend>> = Result.success(friends),
+        var friendsResult: Result<List<Friend>> = Result.success(friends),
         private val incomingResult: Result<List<FriendRequest>> = Result.success(incoming),
         private val outgoingResult: Result<List<FriendRequest>> = Result.success(outgoing)
     ) : FriendRepository {
