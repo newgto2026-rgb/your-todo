@@ -121,21 +121,24 @@ class GetAssignedTodosUseCase @Inject constructor(
 
     private fun mergeVisibleAssignedTodos(
         results: List<Result<List<AssignedTodo>>>
-    ): Result<List<AssignedTodo>> {
-        val failure = results.firstOrNull { it.isFailure }?.exceptionOrNull()
-        if (failure != null) return Result.failure(failure)
-        return Result.success(
-            visibleTaskSurfaceAssignedTodos(*results.map { it.getOrThrow() }.toTypedArray())
-        )
-    }
+    ): Result<List<AssignedTodo>> =
+        mergeAssignedTodoResults(results) { groups ->
+            visibleTaskSurfaceAssignedTodos(*groups)
+        }
 
     private fun mergeVisibleFriendDetailAssignedTodos(
         results: List<Result<List<AssignedTodo>>>
+    ): Result<List<AssignedTodo>> =
+        mergeAssignedTodoResults(results) { groups ->
+            visibleFriendDetailAssignedTodos(*groups)
+        }
+
+    private fun mergeAssignedTodoResults(
+        results: List<Result<List<AssignedTodo>>>,
+        merge: (Array<List<AssignedTodo>>) -> List<AssignedTodo>
     ): Result<List<AssignedTodo>> {
         val failure = results.firstOrNull { it.isFailure }?.exceptionOrNull()
         if (failure != null) return Result.failure(failure)
-        return Result.success(
-            visibleFriendDetailAssignedTodos(*results.map { it.getOrThrow() }.toTypedArray())
-        )
+        return Result.success(merge(results.map { it.getOrThrow() }.toTypedArray()))
     }
 }

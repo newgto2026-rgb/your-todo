@@ -373,20 +373,10 @@ class AssignmentRepositoryImpl @Inject constructor(
             )
             assignedTodoDao.upsertAssignedTodos(listOf(entity))
             item.checklist?.let { checklist ->
-                val cacheKey = assignedTodoCacheKey(ownerUserId, item.id)
-                assignedTodoDao.deleteChecklistItems(listOf(cacheKey))
-                assignedTodoDao.upsertChecklistItems(
-                    checklist.mapIndexed { index, checklistItem ->
-                        AssignedTodoChecklistItemEntity(
-                            ownerUserId = ownerUserId,
-                            assignedTodoId = item.id,
-                            assignedTodoCacheKey = cacheKey,
-                            id = checklistItem.id,
-                            title = checklistItem.title,
-                            completed = checklistItem.completed,
-                            sortOrder = index
-                        )
-                    }
+                replaceChecklistItems(
+                    ownerUserId = ownerUserId,
+                    assignedTodoId = item.id,
+                    checklist = checklist.map { it.toDomain() }
                 )
             }
         }
@@ -413,23 +403,42 @@ class AssignmentRepositoryImpl @Inject constructor(
             )
         }
         val checklistItems = items.flatMap { item ->
-            val cacheKey = assignedTodoCacheKey(ownerUserId, item.id)
-            item.checklist.mapIndexed { index, checklist ->
-                AssignedTodoChecklistItemEntity(
-                    ownerUserId = ownerUserId,
-                    assignedTodoId = item.id,
-                    assignedTodoCacheKey = cacheKey,
-                    id = checklist.id,
-                    title = checklist.title,
-                    completed = checklist.completed,
-                    sortOrder = index
-                )
-            }
+            item.checklist.toChecklistEntities(ownerUserId, item.id)
         }
         if (replaceStale) {
             replaceCachedItems(ownerUserId, direction, status, friendUserId, ids, entities, checklistItems)
         } else {
             assignedTodoDao.upsertAssignedTodoGraph(entities, checklistItems)
+        }
+    }
+
+    private suspend fun replaceChecklistItems(
+        ownerUserId: String,
+        assignedTodoId: String,
+        checklist: List<AssignedTodoChecklistItem>
+    ) {
+        val cacheKey = assignedTodoCacheKey(ownerUserId, assignedTodoId)
+        assignedTodoDao.replaceChecklistItems(
+            assignedTodoCacheKey = cacheKey,
+            checklistItems = checklist.toChecklistEntities(ownerUserId, assignedTodoId)
+        )
+    }
+
+    private fun List<AssignedTodoChecklistItem>.toChecklistEntities(
+        ownerUserId: String,
+        assignedTodoId: String
+    ): List<AssignedTodoChecklistItemEntity> {
+        val cacheKey = assignedTodoCacheKey(ownerUserId, assignedTodoId)
+        return mapIndexed { index, checklist ->
+            AssignedTodoChecklistItemEntity(
+                ownerUserId = ownerUserId,
+                assignedTodoId = assignedTodoId,
+                assignedTodoCacheKey = cacheKey,
+                id = checklist.id,
+                title = checklist.title,
+                completed = checklist.completed,
+                sortOrder = index
+            )
         }
     }
 

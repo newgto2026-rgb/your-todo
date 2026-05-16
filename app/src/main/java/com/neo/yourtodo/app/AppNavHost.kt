@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.NavigationBar
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import com.neo.yourtodo.R
@@ -47,9 +49,11 @@ import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.feature.calendar.api.CalendarDateRoute
 import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.todo.api.TodoEditorRoute
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavHost(
@@ -214,13 +218,7 @@ fun AppNavHost(
         }
     ) { innerPadding ->
         val activeRoute = navigationState.currentStack.last()
-        val activeContentKey = navEntries
-            .lastOrNull { entry ->
-                entry.contentKey == activeRoute ||
-                    entry.contentKey.toString() == activeRoute.toString()
-            }
-            ?.contentKey
-            ?: activeRoute
+        val activeContentKey = navEntries.activeContentKeyFor(activeRoute)
         ImmediateNavDisplay(
             entries = navEntries,
             activeContentKey = activeContentKey,
@@ -229,18 +227,14 @@ fun AppNavHost(
                     isExitConfirmationPending = false
                     snackbarHostState.currentSnackbarData?.dismiss()
                 } else if (isExitConfirmationPending) {
-                    (context as? android.app.Activity)?.finish()
-                        ?: backPressedDispatcherOwner?.onBackPressedDispatcher?.onBackPressed()
+                    finishActivityOrDispatchBack(context, backPressedDispatcherOwner)
                 } else {
-                    isExitConfirmationPending = true
-                    coroutineScope.launch {
-                        snackbarHostState.currentSnackbarData?.dismiss()
-                        snackbarHostState.showSnackbar(
-                            message = appExitConfirmationMessage,
-                            duration = SnackbarDuration.Short
-                        )
-                        isExitConfirmationPending = false
-                    }
+                    requestExitConfirmation(
+                        snackbarHostState = snackbarHostState,
+                        coroutineScope = coroutineScope,
+                        message = appExitConfirmationMessage,
+                        setPending = { isExitConfirmationPending = it }
+                    )
                 }
             },
             modifier = Modifier
@@ -289,6 +283,40 @@ fun AppNavHost(
             },
             onLogoutConfirm = profileMenuViewModel::signOut
         )
+    }
+}
+
+internal fun List<NavEntry<NavKey>>.activeContentKeyFor(activeRoute: NavKey): Any =
+    lastOrNull { entry -> entry.matchesRoute(activeRoute) }?.contentKey ?: activeRoute
+
+private fun NavEntry<NavKey>.matchesRoute(route: NavKey): Boolean =
+    contentKey == route || contentKey.toString() == route.toString()
+
+private fun finishActivityOrDispatchBack(
+    context: Context,
+    backPressedDispatcherOwner: OnBackPressedDispatcherOwner?
+) {
+    (context as? android.app.Activity)?.finish()
+        ?: backPressedDispatcherOwner?.onBackPressedDispatcher?.onBackPressed()
+}
+
+internal fun requestExitConfirmation(
+    snackbarHostState: SnackbarHostState,
+    coroutineScope: CoroutineScope,
+    message: String,
+    setPending: (Boolean) -> Unit
+): Job {
+    setPending(true)
+    return coroutineScope.launch {
+        try {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+        } finally {
+            setPending(false)
+        }
     }
 }
 

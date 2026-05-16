@@ -356,6 +356,70 @@ class TodoRepositoryImplTest {
     }
 
     @Test
+    fun `synced update without remote identity falls back to local only without outbox`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 12L,
+                    title = "orphan synced todo",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    serverId = null,
+                    clientId = "client-12",
+                    ownerUserId = "user-id",
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+
+        val result = repository.updateTodo(12L, "edited local fallback", null, null)
+
+        assertThat(result.isSuccess).isTrue()
+        val saved = todoDao.getTodoById(12L)!!
+        assertThat(saved.title).isEqualTo("edited local fallback")
+        assertThat(saved.syncStatus).isEqualTo("LOCAL_ONLY")
+        assertThat(outboxDao.items).isEmpty()
+    }
+
+    @Test
+    fun `synced delete without remote identity deletes locally without outbox`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 13L,
+                    title = "orphan delete todo",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    serverId = "server-13",
+                    clientId = "client-13",
+                    ownerUserId = null,
+                    syncStatus = "SYNCED",
+                    serverRevision = "1"
+                )
+            )
+        }
+        val outboxDao = FakeTodoOutboxDao()
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+
+        val result = repository.deleteTodo(13L)
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(todoDao.getTodoById(13L)).isNull()
+        assertThat(outboxDao.items).isEmpty()
+    }
+
+    @Test
     fun `pendingUpdate second update merges update payload`() = runTest {
         val todoDao = FakeTodoDao().apply {
             seed(
