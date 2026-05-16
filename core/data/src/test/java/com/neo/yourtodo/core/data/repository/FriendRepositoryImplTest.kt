@@ -21,6 +21,7 @@ import com.neo.yourtodo.core.network.friends.NetworkFriendUser
 import com.neo.yourtodo.core.network.friends.NetworkFriendsResponse
 import com.neo.yourtodo.core.network.friends.NetworkRemoveFriendResponse
 import com.neo.yourtodo.core.network.friends.NetworkSendFriendRequestResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,6 +80,25 @@ class FriendRepositoryImplTest {
         assertThat(outgoing.exceptionOrNull()).isSameInstanceAs(outgoingFailure)
         assertThat(network.incomingTokens).containsExactly("access-token")
         assertThat(network.outgoingTokens).containsExactly("access-token")
+        assertThat(prefs.authSession.first()).isNotNull()
+    }
+
+    @Test
+    fun getFriendsRethrowsCancellationException() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val cancellation = CancellationException("Friends refresh cancelled")
+        val network = FakeFriendNetworkDataSource().apply {
+            getFriendsFailure = cancellation
+        }
+        val repository = repository(prefs = prefs, network = network)
+
+        try {
+            repository.getFriends()
+            throw AssertionError("Expected CancellationException")
+        } catch (exception: CancellationException) {
+            assertThat(exception).isSameInstanceAs(cancellation)
+        }
+        assertThat(network.friendTokens).containsExactly("access-token")
         assertThat(prefs.authSession.first()).isNotNull()
     }
 

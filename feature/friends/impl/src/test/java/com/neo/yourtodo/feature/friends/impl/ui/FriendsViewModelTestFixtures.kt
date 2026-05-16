@@ -140,6 +140,7 @@ internal class FakeFriendRepository(
     var incomingResult: Result<List<FriendRequest>>? = null,
     var outgoingResult: Result<List<FriendRequest>>? = null,
     private val sendResult: Result<Unit> = Result.success(Unit),
+    private val sendException: Throwable? = null,
     private val acceptResult: Result<Unit> = Result.success(Unit),
     private val removeResult: Result<Unit> = Result.success(Unit)
 ) : FriendRepository {
@@ -148,9 +149,12 @@ internal class FakeFriendRepository(
     var outgoing = emptyList<FriendRequest>()
     var lastSentNickname: String? = null
     var acceptedRequestId: String? = null
+    var getFriendsException: Throwable? = null
 
-    override suspend fun getFriends(): Result<List<Friend>> =
-        getFriendsResult ?: Result.success(friends)
+    override suspend fun getFriends(): Result<List<Friend>> {
+        getFriendsException?.let { throw it }
+        return getFriendsResult ?: Result.success(friends)
+    }
 
     override suspend fun getIncomingRequests(): Result<List<FriendRequest>> =
         incomingResult ?: Result.success(incoming)
@@ -160,6 +164,7 @@ internal class FakeFriendRepository(
 
     override suspend fun sendRequest(nickname: String): Result<Unit> {
         lastSentNickname = nickname
+        sendException?.let { throw it }
         return sendResult
     }
 

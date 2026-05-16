@@ -14,8 +14,9 @@ import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -236,6 +237,67 @@ class FriendsViewModelTest {
         assertThat(failedRefresh.friends).hasSize(1)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun initialRefreshCancellationResetsLoadingWithoutUiError() = runTest {
+        val repository = FakeFriendRepository().apply {
+            getFriendsException = CancellationException("Initial refresh cancelled")
+        }
+        val viewModel = repository.createViewModel()
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isLoading).isFalse()
+        assertThat(state.isRefreshing).isFalse()
+        assertThat(state.error).isNull()
+        assertThat(state.hasLoadedFriendsSnapshot).isFalse()
+        assertThat(state.showFriendsUnavailable).isFalse()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun refreshCancellationFailureKeepsSnapshotAndDoesNotShowUiError() = runTest {
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { it.hasLoadedFriendsSnapshot && it.friends.isNotEmpty() }
+
+        repository.getFriendsResult = Result.failure(CancellationException("Refresh cancelled"))
+        viewModel.onAction(FriendsAction.OnRefresh)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isLoading).isFalse()
+        assertThat(state.isRefreshing).isFalse()
+        assertThat(state.error).isNull()
+        assertThat(state.friends).hasSize(1)
+        assertThat(state.hasLoadedFriendsSnapshot).isTrue()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun refreshThrownCancellationResetsRefreshingWithoutUiError() = runTest {
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { it.hasLoadedFriendsSnapshot && it.friends.isNotEmpty() }
+
+        repository.getFriendsException = CancellationException("Refresh cancelled")
+        viewModel.onAction(FriendsAction.OnRefresh)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertThat(state.isLoading).isFalse()
+        assertThat(state.isRefreshing).isFalse()
+        assertThat(state.error).isNull()
+        assertThat(state.friends).hasSize(1)
+    }
+
     @Test
     fun acceptFailureKeepsPreviousStateAndShowsNetworkError() = runTest {
         val repository = FakeFriendRepository(
@@ -304,6 +366,50 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun sendCancellationFailureResetsRunningActionWithoutUiError() = runTest {
+        val repository = FakeFriendRepository(
+            sendResult = Result.failure(CancellationException("Send cancelled"))
+        )
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.test {
+            skipItems(2)
+            viewModel.onAction(FriendsAction.OnNicknameChanged("monday"))
+            assertThat(awaitItem().nicknameInput).isEqualTo("monday")
+
+            viewModel.onAction(FriendsAction.OnSendRequest)
+            assertThat(awaitItem().runningActionKey).isEqualTo("send")
+
+            val cancelled = awaitItem()
+            assertThat(cancelled.runningActionKey).isNull()
+            assertThat(cancelled.error).isNull()
+            assertThat(cancelled.nicknameInput).isEqualTo("monday")
+        }
+    }
+
+    @Test
+    fun sendThrownCancellationResetsRunningActionWithoutUiError() = runTest {
+        val repository = FakeFriendRepository(
+            sendException = CancellationException("Send cancelled")
+        )
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.test {
+            skipItems(2)
+            viewModel.onAction(FriendsAction.OnNicknameChanged("monday"))
+            assertThat(awaitItem().nicknameInput).isEqualTo("monday")
+
+            viewModel.onAction(FriendsAction.OnSendRequest)
+            assertThat(awaitItem().runningActionKey).isEqualTo("send")
+
+            val cancelled = awaitItem()
+            assertThat(cancelled.runningActionKey).isNull()
+            assertThat(cancelled.error).isNull()
+            assertThat(cancelled.nicknameInput).isEqualTo("monday")
+        }
+    }
+
+    @Test
     fun refreshAfterSuccessfulMutationMapsAuthFailureToAuthError() = runTest {
         val repository = FakeFriendRepository()
         val viewModel = repository.createViewModel()
@@ -323,6 +429,29 @@ class FriendsViewModelTest {
             }
             assertThat(failedRefresh.runningActionKey).isNull()
             assertThat(failedRefresh.error).isEqualTo(FriendsError.AUTH_REQUIRED)
+        }
+    }
+
+    @Test
+    fun mutationRefreshCancellationResetsRunningActionWithoutUiError() = runTest {
+        val repository = FakeFriendRepository()
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.test {
+            skipItems(2)
+            viewModel.onAction(FriendsAction.OnNicknameChanged("monday"))
+            assertThat(awaitItem().nicknameInput).isEqualTo("monday")
+
+            repository.getFriendsResult = Result.failure(CancellationException("Mutation refresh cancelled"))
+            viewModel.onAction(FriendsAction.OnSendRequest)
+            assertThat(awaitItem().runningActionKey).isEqualTo("send")
+
+            var cancelled = awaitItem()
+            while (cancelled.runningActionKey != null) {
+                cancelled = awaitItem()
+            }
+            assertThat(cancelled.error).isNull()
+            assertThat(cancelled.nicknameInput).isEmpty()
         }
     }
 

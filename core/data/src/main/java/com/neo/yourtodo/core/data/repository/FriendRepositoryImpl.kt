@@ -16,6 +16,7 @@ import com.neo.yourtodo.core.network.friends.FriendAuthRequiredException
 import com.neo.yourtodo.core.network.friends.FriendNetworkDataSource
 import com.neo.yourtodo.core.network.friends.NetworkFriend
 import com.neo.yourtodo.core.network.friends.NetworkFriendRequest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
@@ -73,20 +74,28 @@ class FriendRepositoryImpl @Inject constructor(
         }
 
     private suspend fun <T> onlineOnlyAuthenticatedRequest(block: suspend (String) -> T): Result<T> =
-        runCatching {
-            val session = currentSession() ?: throw AuthRequiredException()
+        try {
+            Result.success(onlineOnlyAuthenticatedValue(block))
+        } catch (throwable: CancellationException) {
+            throw throwable
+        } catch (throwable: Throwable) {
+            Result.failure(throwable)
+        }
+
+    private suspend fun <T> onlineOnlyAuthenticatedValue(block: suspend (String) -> T): T {
+        val session = currentSession() ?: throw AuthRequiredException()
+        return try {
+            block(session.accessToken)
+        } catch (throwable: FriendAuthRequiredException) {
+            val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
+                ?: authRequired()
             try {
-                block(session.accessToken)
-            } catch (throwable: FriendAuthRequiredException) {
-                val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
-                    ?: authRequired()
-                try {
-                    block(refreshedSession.accessToken)
-                } catch (retryThrowable: FriendAuthRequiredException) {
-                    authRequired()
-                }
+                block(refreshedSession.accessToken)
+            } catch (retryThrowable: FriendAuthRequiredException) {
+                authRequired()
             }
         }
+    }
 
     private suspend fun currentSession() =
         userPreferencesDataSource.authSession.first()

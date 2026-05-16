@@ -26,6 +26,7 @@ import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.feature.friends.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -254,42 +255,53 @@ class FriendsViewModel @Inject constructor(
                 )
             }
 
-            val friendsResult = getFriends()
-            val incomingRequestsResult = getFriendRequests.incoming()
-            val outgoingRequestsResult = getFriendRequests.outgoing()
-            val requiredFailure = listOf(
-                friendsResult,
-                incomingRequestsResult,
-                outgoingRequestsResult
-            ).firstOrNull { it.isFailure }?.exceptionOrNull()
+            try {
+                val friendsResult = getFriends()
+                val incomingRequestsResult = getFriendRequests.incoming()
+                val outgoingRequestsResult = getFriendRequests.outgoing()
+                val requiredFailure = listOf(
+                    friendsResult,
+                    incomingRequestsResult,
+                    outgoingRequestsResult
+                ).firstOrNull { it.isFailure }?.exceptionOrNull()
+                requiredFailure.throwIfCancellation()
 
-            if (requiredFailure == null) {
-                mutableUiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        friends = friendsResult.getOrDefault(emptyList()),
-                        incomingRequests = incomingRequestsResult.getOrDefault(emptyList()),
-                        outgoingRequests = outgoingRequestsResult.getOrDefault(emptyList()),
-                        hasLoadedFriendsSnapshot = true,
-                        friendsSnapshotError = null,
-                        error = null
-                    )
+                if (requiredFailure == null) {
+                    mutableUiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            friends = friendsResult.getOrDefault(emptyList()),
+                            incomingRequests = incomingRequestsResult.getOrDefault(emptyList()),
+                            outgoingRequests = outgoingRequestsResult.getOrDefault(emptyList()),
+                            hasLoadedFriendsSnapshot = true,
+                            friendsSnapshotError = null,
+                            error = null
+                        )
+                    }
+                    openPendingIncomingAssignmentIfReady()
+                } else {
+                    val uiError = requiredFailure.toUiError()
+                    mutableUiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            friendsSnapshotError = if (it.hasLoadedFriendsSnapshot) {
+                                it.friendsSnapshotError
+                            } else {
+                                uiError
+                            },
+                            error = uiError
+                        )
+                    }
                 }
-                openPendingIncomingAssignmentIfReady()
-            } else {
-                val uiError = requiredFailure.toUiError()
+            } finally {
                 mutableUiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        friendsSnapshotError = if (it.hasLoadedFriendsSnapshot) {
-                            it.friendsSnapshotError
-                        } else {
-                            uiError
-                        },
-                        error = uiError
-                    )
+                    if (it.isLoading || it.isRefreshing) {
+                        it.copy(isLoading = false, isRefreshing = false)
+                    } else {
+                        it
+                    }
                 }
             }
         }
@@ -743,17 +755,28 @@ class FriendsViewModel @Inject constructor(
         if (uiState.value.runningActionKey != null) return
         viewModelScope.launch {
             mutableUiState.update { it.copy(runningActionKey = key, error = null) }
-            val result = block()
-            if (result.isSuccess) {
-                onSuccess()
-                refreshAfterMutation()
-                mutableSideEffect.emit(FriendsSideEffect.ShowSnackbar(successMessage.messageRes))
-            } else {
+            try {
+                val result = block()
+                result.exceptionOrNull().throwIfCancellation()
+                if (result.isSuccess) {
+                    onSuccess()
+                    refreshAfterMutation()
+                    mutableSideEffect.emit(FriendsSideEffect.ShowSnackbar(successMessage.messageRes))
+                } else {
+                    mutableUiState.update {
+                        it.copy(
+                            runningActionKey = null,
+                            error = result.exceptionOrNull().toUiError()
+                        )
+                    }
+                }
+            } finally {
                 mutableUiState.update {
-                    it.copy(
-                        runningActionKey = null,
-                        error = result.exceptionOrNull().toUiError()
-                    )
+                    if (it.runningActionKey == key) {
+                        it.copy(runningActionKey = null)
+                    } else {
+                        it
+                    }
                 }
             }
         }
@@ -787,6 +810,7 @@ class FriendsViewModel @Inject constructor(
                 val failure = listOf(friends, incoming, outgoing)
                     .firstOrNull { result -> result.isFailure }
                     ?.exceptionOrNull()
+                failure.throwIfCancellation()
                 val uiError = failure.toUiError()
                 it.copy(
                     runningActionKey = null,
@@ -804,6 +828,10 @@ class FriendsViewModel @Inject constructor(
     private suspend fun refreshWorkspaceAfterAssignmentDecision() {
         refreshWorkspaceUseCase()
         refreshAfterMutation()
+    }
+
+    private fun Throwable?.throwIfCancellation() {
+        if (this is CancellationException) throw this
     }
 
     private fun Throwable?.toUiError(): FriendsError =
