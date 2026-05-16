@@ -1469,7 +1469,8 @@ class TodoListViewModelTest {
         override suspend fun completeNicknameOnboarding(nickname: String): Result<AuthSession> =
             Result.failure(UnsupportedOperationException())
 
-        override suspend fun signOut() = Unit
+        override suspend fun deleteUserScopedLocalData() = Unit
+        override suspend fun clearAuthSession() = Unit
     }
 
     private class FakeFriendRepository : FriendRepository {

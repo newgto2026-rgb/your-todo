@@ -13,6 +13,7 @@ import com.neo.yourtodo.core.network.auth.NetworkAuthSession
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 class AuthRepositoryImpl @Inject constructor(
@@ -31,7 +32,7 @@ class AuthRepositoryImpl @Inject constructor(
         runCatching {
             val networkSession = networkDataSource.signInWithGoogle(idToken)
             val authSession = networkSession.toDomain()
-            preferencesDataSource.saveAuthSession(authSession.toData())
+            saveAuthSessionOrClearAuth(authSession.toData())
             authSession
         }
 
@@ -53,20 +54,34 @@ class AuthRepositoryImpl @Inject constructor(
                     onboardingRequired = networkUser.onboardingRequired
                 )
                 .toDomain()
-            preferencesDataSource.saveAuthSession(authSession.toData())
+            saveAuthSessionOrClearAuth(authSession.toData())
             authSession
         }
 
-    override suspend fun signOut() {
+    override suspend fun deleteUserScopedLocalData() {
         preferencesDataSource.authSession.first()?.let { session ->
             todoOutboxDao.deleteByOwner(session.userId)
-            todoDao.deleteSyncedTodosByOwner(session.userId)
+            todoDao.deleteByOwner(session.userId)
             assignedTodoDao.deleteByOwner(session.userId)
         }
         preferencesDataSource.clearTodoSyncState()
         assignmentFeedFreshnessTracker.clear()
         preferencesDataSource.clearAssignmentFeedRefreshTimes()
+    }
+
+    override suspend fun clearAuthSession() {
         preferencesDataSource.clearAuthSession()
+    }
+
+    private suspend fun saveAuthSessionOrClearAuth(session: AuthSessionData) {
+        try {
+            preferencesDataSource.saveAuthSession(session)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            preferencesDataSource.clearAuthSession()
+            throw exception
+        }
     }
 
     private fun NetworkAuthSession.toDomain(): AuthSession =

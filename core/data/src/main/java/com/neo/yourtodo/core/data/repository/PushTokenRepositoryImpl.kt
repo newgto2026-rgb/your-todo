@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.first
 class PushTokenRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val pushNetworkDataSource: PushNetworkDataSource,
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
     private val authSessionRefresher: AuthSessionRefresher
 ) : PushTokenRepository {
     override suspend fun saveCurrentToken(token: String): Result<Unit> =
@@ -81,8 +80,6 @@ class PushTokenRepositoryImpl @Inject constructor(
         }
 
     private suspend fun authRequired(): Nothing {
-        assignmentFeedFreshnessTracker.clear()
-        userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
         userPreferencesDataSource.clearAuthSession()
         throw AuthRequiredException()
     }

@@ -136,7 +136,8 @@ internal class FakeAuthRepository : AuthRepository {
     override suspend fun completeNicknameOnboarding(nickname: String): Result<AuthSession> =
         error("Not used.")
 
-    override suspend fun signOut() = Unit
+    override suspend fun deleteUserScopedLocalData() = Unit
+    override suspend fun clearAuthSession() = Unit
 }
 
 internal class FakeFriendRepository(

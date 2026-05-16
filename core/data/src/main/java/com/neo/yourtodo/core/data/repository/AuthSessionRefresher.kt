@@ -14,8 +14,7 @@ import kotlinx.coroutines.sync.withLock
 @Singleton
 class AuthSessionRefresher @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
-    private val authNetworkDataSource: AuthNetworkDataSource,
-    private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker
+    private val authNetworkDataSource: AuthNetworkDataSource
 ) {
     private val refreshMutex = Mutex()
 
@@ -23,8 +22,6 @@ class AuthSessionRefresher @Inject constructor(
         refreshMutex.withLock {
             val currentSession = userPreferencesDataSource.authSession.first()
             if (currentSession == null) {
-                assignmentFeedFreshnessTracker.clear()
-                userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
                 return@withLock null
             }
             if (currentSession.refreshToken != refreshToken) {
@@ -38,8 +35,6 @@ class AuthSessionRefresher @Inject constructor(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
-                assignmentFeedFreshnessTracker.clear()
-                userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
                 userPreferencesDataSource.clearAuthSession()
                 null
             }

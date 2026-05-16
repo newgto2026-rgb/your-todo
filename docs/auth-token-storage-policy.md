@@ -10,6 +10,7 @@
 - `UserPreferencesMigrations.encryptLegacyAuthTokens` encrypts existing plaintext tokens before the normal preferences schema migration runs.
 - If Keystore encryption fails during migration, the migration keeps the legacy values so an existing session is not destroyed. The app still attempts the migration again on a later DataStore open.
 - `saveAuthSession` does not write plaintext fallback values. If encrypted storage cannot write a new session, the caller receives the failure instead of silently downgrading token storage.
+- If a new auth session cannot be stored securely, auth/session preferences are cleared and user-scoped local data is preserved so the user can sign in again without losing local caches.
 
 ## Remaining Risk
 - Devices with a corrupted or unavailable Android Keystore may be unable to persist a new auth session until Keystore state recovers or the user reinstalls/clears app data.

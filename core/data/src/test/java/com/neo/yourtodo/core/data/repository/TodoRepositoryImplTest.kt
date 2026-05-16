@@ -978,7 +978,6 @@ class TodoRepositoryImplTest {
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeTodoSyncNetworkDataSource = FakeTodoSyncNetworkDataSource(),
         authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
-        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker(),
         transactionRunner: TodoTransactionRunner = FakeTodoTransactionRunner(),
         timeProvider: TodoTimeProvider = FixedTodoTimeProvider(1_000L)
     ): TodoRepositoryImpl {
@@ -1005,11 +1004,9 @@ class TodoRepositoryImplTest {
                 todoSyncNetworkDataSource = network,
                 authSessionRefresher = AuthSessionRefresher(
                     prefs,
-                    authNetwork,
-                    assignmentFeedFreshnessTracker
+                    authNetwork
                 ),
                 syncSessionProvider = syncSessionProvider,
-                assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
                 json = json
             )
         )
@@ -1147,6 +1144,10 @@ class TodoRepositoryImplTest {
             itemsFlow.value = itemsFlow.value.filterNot {
                 it.ownerUserId == ownerUserId && it.syncStatus != "LOCAL_ONLY"
             }
+        }
+
+        override suspend fun deleteByOwner(ownerUserId: String) {
+            itemsFlow.value = itemsFlow.value.filterNot { it.ownerUserId == ownerUserId }
         }
 
         override suspend fun getTodosWithActiveReminder(): List<TodoEntity> =

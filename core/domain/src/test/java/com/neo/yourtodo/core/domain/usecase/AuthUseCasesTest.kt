@@ -56,13 +56,14 @@ class AuthUseCasesTest {
     }
 
     @Test
-    fun signOutDelegatesToRepository() = runTest {
+    fun signOutDeletesUserScopedDataThenClearsAuthSession() = runTest {
         val repository = FakeAuthRepository()
         val useCase = SignOutUseCase(repository)
 
         useCase()
 
-        assertThat(repository.signOutCount).isEqualTo(1)
+        assertThat(repository.operations).containsExactly("deleteUserScopedLocalData", "clearAuthSession")
+            .inOrder()
     }
 
     private fun testSession(nickname: String?): AuthSession =
@@ -86,8 +87,7 @@ class AuthUseCasesTest {
         override val authSession = MutableStateFlow<AuthSession?>(null)
         val signInTokens = mutableListOf<String>()
         val nicknameRequests = mutableListOf<String>()
-        var signOutCount = 0
-            private set
+        val operations = mutableListOf<String>()
 
         override suspend fun signInWithGoogle(idToken: String): Result<AuthSession> {
             signInTokens += idToken
@@ -99,8 +99,12 @@ class AuthUseCasesTest {
             return nicknameResult
         }
 
-        override suspend fun signOut() {
-            signOutCount += 1
+        override suspend fun deleteUserScopedLocalData() {
+            operations += "deleteUserScopedLocalData"
+        }
+
+        override suspend fun clearAuthSession() {
+            operations += "clearAuthSession"
         }
     }
 }

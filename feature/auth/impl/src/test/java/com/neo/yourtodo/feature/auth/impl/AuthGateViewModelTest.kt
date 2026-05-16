@@ -172,7 +172,9 @@ class AuthGateViewModelTest {
                 ?: Result.failure(IllegalStateException())
         }
 
-        override suspend fun signOut() {
+        override suspend fun deleteUserScopedLocalData() = Unit
+
+        override suspend fun clearAuthSession() {
             session.value = null
         }
     }

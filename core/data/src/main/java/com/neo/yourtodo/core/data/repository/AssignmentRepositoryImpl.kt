@@ -552,8 +552,6 @@ class AssignmentRepositoryImpl @Inject constructor(
             ?.takeUnless { it.onboardingRequired }
 
     private suspend fun authRequired(clearPersistedSession: Boolean = true): Nothing {
-        assignmentFeedFreshnessTracker.clear()
-        userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
         if (clearPersistedSession) {
             userPreferencesDataSource.clearAuthSession()
         }

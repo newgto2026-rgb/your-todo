@@ -56,6 +56,9 @@ interface TodoDao {
     @Query("DELETE FROM todo WHERE ownerUserId = :ownerUserId AND syncStatus != 'LOCAL_ONLY'")
     suspend fun deleteSyncedTodosByOwner(ownerUserId: String)
 
+    @Query("DELETE FROM todo WHERE ownerUserId = :ownerUserId")
+    suspend fun deleteByOwner(ownerUserId: String)
+
     @Query(
         """
         SELECT * FROM todo

@@ -7,7 +7,7 @@
 - `:app`이 profile menu drawer, clipboard, settings intent, policy URL fallback, logout orchestration을 소유한다.
 - `:core:ui`는 `YourTodoAppHeader` / `YourTodoBrandHeader`의 stateless profile click callback만 제공한다.
 - `:feature:*:impl`은 drawer 상태나 로그아웃 로직을 갖지 않고 `AppRouteActions.openProfileMenu()`만 호출한다.
-- `SignOutUseCase`를 재사용해 push token 삭제와 로컬 세션 삭제를 수행한다.
+- `SignOutUseCase`를 재사용해 push token 삭제, user-scoped local data 삭제, 로컬 세션 삭제를 수행한다.
 - `AuthGate`는 세션 변화를 감지해 로그인 화면 전환을 담당한다.
 
 # Module Changes

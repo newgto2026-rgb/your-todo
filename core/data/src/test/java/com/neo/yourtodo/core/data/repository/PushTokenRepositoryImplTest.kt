@@ -109,16 +109,13 @@ class PushTokenRepositoryImplTest {
     private fun repository(
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakePushNetworkDataSource = FakePushNetworkDataSource(),
-        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
-        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
+        authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource()
     ) = PushTokenRepositoryImpl(
         userPreferencesDataSource = prefs,
         pushNetworkDataSource = network,
-        assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
         authSessionRefresher = AuthSessionRefresher(
             prefs,
-            authNetwork,
-            assignmentFeedFreshnessTracker
+            authNetwork
         )
     )
 
