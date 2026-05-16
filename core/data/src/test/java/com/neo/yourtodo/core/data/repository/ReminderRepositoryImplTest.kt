@@ -2,6 +2,9 @@ package com.neo.yourtodo.core.data.repository
 
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.entity.ReminderEntity
+import com.neo.yourtodo.core.domain.error.AppError
+import com.neo.yourtodo.core.domain.error.AppErrorException
+import com.neo.yourtodo.core.domain.error.appErrorOrNull
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.ReminderStatus
 import com.google.common.truth.Truth.assertThat
@@ -208,6 +211,36 @@ class ReminderRepositoryImplTest {
         assertThat(repeated.isEnabled).isTrue()
         assertThat(repeated.triggerAtEpochMillis)
             .isEqualTo(expectedNextTriggerAt.atZone(zoneId).toInstant().toEpochMilli())
+    }
+
+    @Test
+    fun `missing reminder failures are normalized to AppError`() = runTest {
+        val repository = ReminderRepositoryImpl(FakeReminderDao())
+
+        val updateResult = repository.updateReminder(
+            id = 404L,
+            title = "Missing",
+            note = null,
+            triggerAtEpochMillis = 100L,
+            repeatType = ReminderRepeatType.NONE,
+            repeatDaysMask = 0,
+            isEnabled = true
+        )
+        val deleteResult = repository.deleteReminder(404L)
+        val enableResult = repository.setReminderEnabled(404L, enabled = true)
+        val completeResult = repository.completeReminder(404L)
+        val snoozeResult = repository.snoozeReminder(404L, minutes = 10)
+
+        assertThat(updateResult.appErrorOrNull()).isEqualTo(AppError.LocalDataMissing("Reminder not found"))
+        assertThat(deleteResult.appErrorOrNull()).isEqualTo(AppError.LocalDataMissing("Reminder not found"))
+        assertThat(enableResult.appErrorOrNull()).isEqualTo(AppError.LocalDataMissing("Reminder not found"))
+        assertThat(completeResult.appErrorOrNull()).isEqualTo(AppError.LocalDataMissing("Reminder not found"))
+        assertThat(snoozeResult.appErrorOrNull()).isEqualTo(AppError.LocalDataMissing("Reminder not found"))
+        assertThat(updateResult.exceptionOrNull()).isInstanceOf(AppErrorException::class.java)
+        assertThat(deleteResult.exceptionOrNull()).isInstanceOf(AppErrorException::class.java)
+        assertThat(enableResult.exceptionOrNull()).isInstanceOf(AppErrorException::class.java)
+        assertThat(completeResult.exceptionOrNull()).isInstanceOf(AppErrorException::class.java)
+        assertThat(snoozeResult.exceptionOrNull()).isInstanceOf(AppErrorException::class.java)
     }
 
     private class FakeReminderDao : ReminderDao {

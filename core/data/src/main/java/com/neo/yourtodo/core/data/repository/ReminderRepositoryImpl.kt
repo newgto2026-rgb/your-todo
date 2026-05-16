@@ -4,6 +4,7 @@ import android.util.Log
 import com.neo.yourtodo.core.data.mapper.toDomain
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.entity.ReminderEntity
+import com.neo.yourtodo.core.domain.error.mapFailureToAppError
 import com.neo.yourtodo.core.domain.reminder.ReminderRecurrenceCalculator
 import com.neo.yourtodo.core.domain.repository.ReminderRepository
 import com.neo.yourtodo.core.model.Reminder
@@ -51,7 +52,7 @@ class ReminderRepositoryImpl @Inject constructor(
         )
     }.onFailure { throwable ->
         logError("addReminder", throwable)
-    }
+    }.mapFailureToAppError()
 
     override suspend fun updateReminder(
         id: Long,
@@ -77,14 +78,14 @@ class ReminderRepositoryImpl @Inject constructor(
         )
     }.onFailure { throwable ->
         logError("updateReminder", throwable)
-    }
+    }.mapFailureToAppError()
 
     override suspend fun deleteReminder(id: Long): Result<Unit> = runCatching {
         val existing = reminderDao.getReminderById(id) ?: throw IllegalStateException("Reminder not found")
         reminderDao.delete(existing)
     }.onFailure { throwable ->
         logError("deleteReminder", throwable)
-    }
+    }.mapFailureToAppError()
 
     override suspend fun setReminderEnabled(id: Long, enabled: Boolean): Result<Unit> = runCatching {
         val existing = reminderDao.getReminderById(id) ?: throw IllegalStateException("Reminder not found")
@@ -96,7 +97,7 @@ class ReminderRepositoryImpl @Inject constructor(
         )
     }.onFailure { throwable ->
         logError("setReminderEnabled", throwable)
-    }
+    }.mapFailureToAppError()
 
     override suspend fun completeReminder(id: Long): Result<Unit> = runCatching {
         val existing = reminderDao.getReminderById(id) ?: throw IllegalStateException("Reminder not found")
@@ -122,7 +123,7 @@ class ReminderRepositoryImpl @Inject constructor(
         )
     }.onFailure { throwable ->
         logError("completeReminder", throwable)
-    }
+    }.mapFailureToAppError()
 
     override suspend fun snoozeReminder(id: Long, minutes: Int): Result<Unit> = runCatching {
         val existing = reminderDao.getReminderById(id) ?: throw IllegalStateException("Reminder not found")
@@ -138,7 +139,7 @@ class ReminderRepositoryImpl @Inject constructor(
         )
     }.onFailure { throwable ->
         logError("snoozeReminder", throwable)
-    }
+    }.mapFailureToAppError()
 
     private fun logError(action: String, throwable: Throwable) {
         Log.e(TAG, "action=$action failure=${throwable.message}", throwable)
