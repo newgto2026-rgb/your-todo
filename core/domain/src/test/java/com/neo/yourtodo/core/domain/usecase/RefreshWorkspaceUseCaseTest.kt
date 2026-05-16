@@ -23,9 +23,13 @@ import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.Test
 
 class RefreshWorkspaceUseCaseTest {
@@ -82,6 +86,37 @@ class RefreshWorkspaceUseCaseTest {
         assertThat(events.last()).isEqualTo("calendar.updateWidgets")
     }
 
+    @Test
+    fun invokeSharesConcurrentRefresh() = runTest {
+        val events = mutableListOf<String>()
+        val syncStarted = CompletableDeferred<Unit>()
+        val allowSyncToFinish = CompletableDeferred<Unit>()
+        val useCase = RefreshWorkspaceUseCase(
+            todoRepository = FakeTodoRepository(
+                events = events,
+                onSync = {
+                    syncStarted.complete(Unit)
+                    allowSyncToFinish.await()
+                }
+            ),
+            friendRepository = FakeFriendRepository(events = events),
+            assignmentRepository = FakeAssignmentRepository(events = events),
+            calendarWidgetUpdater = RecordingCalendarWidgetUpdater(events)
+        )
+
+        val firstRefresh = async { useCase() }
+        syncStarted.await()
+        val concurrentRefresh = async { useCase() }
+        yield()
+
+        allowSyncToFinish.complete(Unit)
+        val results = awaitAll(firstRefresh, concurrentRefresh)
+
+        assertThat(results.all { it.isSuccess }).isTrue()
+        assertThat(events.count { it == "todo.sync" }).isEqualTo(1)
+        assertThat(events.count { it == "calendar.updateWidgets" }).isEqualTo(1)
+    }
+
     private class RecordingCalendarWidgetUpdater(
         private val events: MutableList<String> = mutableListOf()
     ) : CalendarWidgetUpdater {
@@ -92,7 +127,8 @@ class RefreshWorkspaceUseCaseTest {
     }
 
     private class FakeTodoRepository(
-        private val events: MutableList<String>
+        private val events: MutableList<String>,
+        private val onSync: suspend () -> Unit = {}
     ) : TodoItemRepository {
         override fun observeTodos(): Flow<List<TodoItem>> = flowOf(emptyList())
 
@@ -136,6 +172,7 @@ class RefreshWorkspaceUseCaseTest {
 
         override suspend fun syncTodos(): Result<Unit> {
             events += "todo.sync"
+            onSync()
             return Result.success(Unit)
         }
     }
