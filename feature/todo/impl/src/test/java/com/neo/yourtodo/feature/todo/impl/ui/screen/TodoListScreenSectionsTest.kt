@@ -1,4 +1,4 @@
-package com.neo.yourtodo.feature.todo.impl.ui
+package com.neo.yourtodo.feature.todo.impl.ui.screen
 
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoFilter
@@ -6,6 +6,7 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSortOption
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListUiState
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
 import org.junit.Test
@@ -23,7 +24,7 @@ class TodoListScreenSectionsTest {
             item(id = 5L, dueDate = today.plusDays(1), priority = TodoPriority.HIGH)
         )
 
-        val sections = todayPlannerSections(items)
+        val sections = todayPlannerSections(items, today)
 
         assertThat(sections.map { it.titleRes }).containsExactly(
             R.string.todo_today_section_timed,
@@ -46,7 +47,7 @@ class TodoListScreenSectionsTest {
             item(id = 7L, dueDate = today.minusDays(1), priority = TodoPriority.MEDIUM)
         )
 
-        val sections = todayPlannerSections(items)
+        val sections = todayPlannerSections(items, today)
 
         assertThat(sections[0].items.map { it.id }).containsExactly(5L)
         assertThat(sections[1].items.map { it.id }).containsExactly(6L)

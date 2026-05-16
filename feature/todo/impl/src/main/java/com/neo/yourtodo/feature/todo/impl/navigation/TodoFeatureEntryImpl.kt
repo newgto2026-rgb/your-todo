@@ -11,7 +11,7 @@ import com.neo.yourtodo.feature.todo.api.TodoEditRoute
 import com.neo.yourtodo.feature.todo.api.TodoFeatureEntry
 import com.neo.yourtodo.feature.todo.api.TodoTodayRoute
 import com.neo.yourtodo.feature.todo.impl.ui.editor.TodoEditorRouteScreen
-import com.neo.yourtodo.feature.todo.impl.ui.TodoListRoute
+import com.neo.yourtodo.feature.todo.impl.ui.screen.TodoListRoute
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import javax.inject.Inject

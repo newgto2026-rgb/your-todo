@@ -1,4 +1,4 @@
-package com.neo.yourtodo.feature.todo.impl.ui
+package com.neo.yourtodo.feature.todo.impl.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -18,6 +18,8 @@ import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListSectionKey
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListUiState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -27,8 +29,10 @@ internal data class TodayPlannerSection(
     val items: List<TodoItemUiModel>
 )
 
-internal fun todayPlannerSections(items: List<TodoItemUiModel>): List<TodayPlannerSection> {
-    val today = LocalDate.now()
+internal fun todayPlannerSections(
+    items: List<TodoItemUiModel>,
+    today: LocalDate
+): List<TodayPlannerSection> {
     val overdue = items.filter { !it.isDone && it.dueDate?.isBefore(today) == true }
     val timedToday = items.filter {
         !it.isDone && it.dueDate == today && !it.dueTimeText.isNullOrBlank()
@@ -68,16 +72,24 @@ internal fun TodoListSectionHeader(text: String) {
 internal fun TodoListSectionKey.label(dueDateFormat: String): String = when (this) {
     TodoListSectionKey.Open -> stringResource(R.string.todo_section_open)
     TodoListSectionKey.Completed -> stringResource(R.string.todo_filter_completed)
-    is TodoListSectionKey.Priority -> when (priority) {
-        TodoPriority.HIGH -> stringResource(R.string.todo_section_priority_high)
-        TodoPriority.MEDIUM -> stringResource(R.string.todo_section_priority_medium)
-        TodoPriority.LOW -> stringResource(R.string.todo_section_priority_low)
-    }
+    is TodoListSectionKey.Priority -> stringResource(priority.sectionLabelRes())
     is TodoListSectionKey.DueDate -> date?.let {
         formatDateLabel(it, dueDateFormat)
     } ?: stringResource(R.string.todo_section_no_due_date)
     is TodoListSectionKey.Friend -> nickname ?: stringResource(R.string.todo_section_unknown_friend)
     TodoListSectionKey.Self -> stringResource(R.string.todo_section_self)
+}
+
+internal fun TodoPriority.labelRes(): Int = when (this) {
+    TodoPriority.LOW -> R.string.todo_priority_low
+    TodoPriority.MEDIUM -> R.string.todo_priority_medium
+    TodoPriority.HIGH -> R.string.todo_priority_high
+}
+
+private fun TodoPriority.sectionLabelRes(): Int = when (this) {
+    TodoPriority.LOW -> R.string.todo_section_priority_low
+    TodoPriority.MEDIUM -> R.string.todo_section_priority_medium
+    TodoPriority.HIGH -> R.string.todo_section_priority_high
 }
 
 internal fun headerTextFor(

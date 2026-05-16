@@ -1,4 +1,4 @@
-package com.neo.yourtodo.feature.todo.impl.ui
+package com.neo.yourtodo.feature.todo.impl.ui.screen
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -52,6 +52,19 @@ import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.ui.ai.AiTodoDraftRoute
+import com.neo.yourtodo.feature.todo.impl.ui.DEFAULT_REMINDER_LEAD_MINUTES
+import com.neo.yourtodo.feature.todo.impl.ui.TodoDeleteConfirmation
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListAction
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListSideEffect
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListSnackbarAction
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListUiState
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListViewModel
+import com.neo.yourtodo.feature.todo.impl.ui.AppHeader
+import com.neo.yourtodo.feature.todo.impl.ui.EditTodoBottomSheet
+import com.neo.yourtodo.feature.todo.impl.ui.EmptyState
+import com.neo.yourtodo.feature.todo.impl.ui.HeaderSummary
+import com.neo.yourtodo.feature.todo.impl.ui.PriorityFilterBar
+import com.neo.yourtodo.feature.todo.impl.ui.emptyMessage
 import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -175,13 +188,14 @@ private fun TodoListScreen(
     onSyncClick: () -> Unit,
     onProfileClick: () -> Unit
 ) {
+    val today = LocalDate.now()
     val todayHeaderDateFormat = stringResource(R.string.todo_today_header_date_format)
     val (title, subtitle) = headerTextFor(
         filter = uiState.selectedFilter,
         allTitle = stringResource(R.string.todo_header_all_title),
         allSubtitle = stringResource(uiState.selectedSortOption.subtitleRes()),
         todayTitle = stringResource(R.string.todo_filter_today),
-        todaySubtitle = formatDateLabel(LocalDate.now(), todayHeaderDateFormat),
+        todaySubtitle = formatDateLabel(today, todayHeaderDateFormat),
         completedTitle = stringResource(R.string.todo_header_completed_title),
         completedSubtitle = stringResource(R.string.todo_header_completed_subtitle)
     )
@@ -213,7 +227,7 @@ private fun TodoListScreen(
                     onManualAdd = {
                         isAddMenuExpanded = false
                         onAddRequested(
-                            if (uiState.selectedFilter == TodoFilter.TODAY) LocalDate.now() else null
+                            if (uiState.selectedFilter == TodoFilter.TODAY) today else null
                         )
                     },
                     onAiAdd = {
@@ -312,6 +326,7 @@ private fun TodoListScreen(
                         rowCompletedText = rowCompletedText,
                         rowTodayText = rowTodayText,
                         dueDateFormat = dueDateFormat,
+                        today = today,
                         listState = listState,
                         onAction = onAction,
                         onEditRequested = onEditRequested

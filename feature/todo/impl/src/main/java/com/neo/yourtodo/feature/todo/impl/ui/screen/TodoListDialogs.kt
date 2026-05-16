@@ -1,4 +1,4 @@
-package com.neo.yourtodo.feature.todo.impl.ui
+package com.neo.yourtodo.feature.todo.impl.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.neo.yourtodo.feature.todo.impl.R
+import com.neo.yourtodo.feature.todo.impl.ui.TodoDeleteConfirmation
 
 @Composable
 internal fun LockedAiBottomSheetDialog(

@@ -1,4 +1,4 @@
-package com.neo.yourtodo.feature.todo.impl.ui
+package com.neo.yourtodo.feature.todo.impl.ui.screen
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke

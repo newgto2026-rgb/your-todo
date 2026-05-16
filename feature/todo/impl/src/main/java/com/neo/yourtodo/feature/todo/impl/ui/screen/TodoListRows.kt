@@ -1,4 +1,4 @@
-package com.neo.yourtodo.feature.todo.impl.ui
+package com.neo.yourtodo.feature.todo.impl.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +30,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.ui.TodoItemRow
 import com.neo.yourtodo.feature.todo.impl.R
 import com.neo.yourtodo.feature.todo.impl.model.TodoItemUiModel
+import com.neo.yourtodo.feature.todo.impl.ui.TodoListAction
 import java.time.LocalDate
 
 @Composable
@@ -38,13 +39,14 @@ internal fun TodoPlannerRow(
     rowCompletedText: String,
     rowTodayText: String,
     dueDateFormat: String,
+    today: LocalDate,
     onAction: (TodoListAction) -> Unit,
     onEditRequested: (Long) -> Unit,
     onDeleteRequest: () -> Unit,
     showQuickActions: Boolean
 ) {
     val dueDateLabel = when {
-        item.dueDate == LocalDate.now() -> rowTodayText
+        item.dueDate == today -> rowTodayText
         !item.dueDateText.isNullOrBlank() -> formatDueDateLabel(item.dueDateText, dueDateFormat)
         else -> null
     }
@@ -100,7 +102,7 @@ internal fun TodoPlannerRow(
                 }
             },
             onDeleteRequest = onDeleteRequest,
-            priorityLabel = priorityLabel(item.priority),
+            priorityLabel = stringResource(item.priority.labelRes()),
             priorityColor = priorityColor(item.priority),
             assignedFromText = assignedFromLabel
         )
@@ -188,13 +190,6 @@ private fun DeletableTodoItemRow(
             sourceText = assignedFromText
         )
     }
-}
-
-@Composable
-private fun priorityLabel(priority: TodoPriority): String = when (priority) {
-    TodoPriority.LOW -> stringResource(R.string.todo_priority_low)
-    TodoPriority.MEDIUM -> stringResource(R.string.todo_priority_medium)
-    TodoPriority.HIGH -> stringResource(R.string.todo_priority_high)
 }
 
 private fun priorityColor(priority: TodoPriority): Color = when (priority) {
