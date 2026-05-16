@@ -150,8 +150,12 @@ internal class FakeFriendRepository(
     var lastSentNickname: String? = null
     var acceptedRequestId: String? = null
     var getFriendsException: Throwable? = null
+    var getFriendsGate: CompletableDeferred<Unit>? = null
+    var getFriendsCalls: Int = 0
 
     override suspend fun getFriends(): Result<List<Friend>> {
+        getFriendsCalls += 1
+        getFriendsGate?.await()
         getFriendsException?.let { throw it }
         return getFriendsResult ?: Result.success(friends)
     }
