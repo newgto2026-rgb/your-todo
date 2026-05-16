@@ -2,8 +2,10 @@ package com.neo.yourtodo.feature.todo.impl.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
-import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -64,9 +68,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -75,6 +81,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -230,7 +238,6 @@ private fun TodoListScreen(
     val dueDateFormat = stringResource(R.string.todo_due_date_format)
     val listState = rememberLazyListState()
     val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val aiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isAddMenuExpanded by remember { mutableStateOf(false) }
     var isAiSheetVisible by remember { mutableStateOf(false) }
 
@@ -494,13 +501,69 @@ private fun TodoListScreen(
     }
 
     if (isAiSheetVisible) {
-        ModalBottomSheet(
-            onDismissRequest = { isAiSheetVisible = false },
-            sheetState = aiSheetState,
-            containerColor = Color.Transparent,
-            dragHandle = null
+        LockedAiBottomSheetDialog(
+            onDismissRequest = { isAiSheetVisible = false }
         ) {
             AiTodoDraftRoute(onDismiss = { isAiSheetVisible = false })
+        }
+    }
+}
+
+@Composable
+private fun LockedAiBottomSheetDialog(
+    onDismissRequest: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("ai_todo_dialog")
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .testTag("ai_todo_scrim")
+                    .pointerInput(onDismissRequest) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val startPosition = down.position
+                            var isTap = true
+
+                            do {
+                                val event = awaitPointerEvent()
+                                val pointer = event.changes.firstOrNull { it.id == down.id }
+                                if (pointer != null) {
+                                    if ((pointer.position - startPosition).getDistance() > viewConfiguration.touchSlop) {
+                                        isTap = false
+                                    }
+                                    if (pointer.changedToUpIgnoreConsumed()) {
+                                        if (isTap) onDismissRequest()
+                                        break
+                                    }
+                                }
+                            } while (event.changes.any { it.pressed })
+                        }
+                    }
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .testTag("ai_todo_sheet_container")
+            ) {
+                content()
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeLeft
 import androidx.lifecycle.Lifecycle
@@ -726,7 +727,52 @@ class TodoUiTest {
 
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("ai_todo_sheet_container")
+            .performTouchInput { swipeDown() }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("ai_todo_sheet")
+            .performTouchInput {
+                swipe(
+                    start = Offset(x = center.x, y = 1f),
+                    end = Offset(x = center.x, y = height - 1f),
+                    durationMillis = 300
+                )
+            }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("ai_todo_sheet")
+            .performTouchInput {
+                swipe(
+                    start = Offset(x = 1f, y = center.y),
+                    end = Offset(x = 1f, y = height - 1f),
+                    durationMillis = 300
+                )
+            }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
+
+        composeTestRule.onNodeWithTag("ai_todo_dialog", useUnmergedTree = true)
+            .performTouchInput {
+                swipe(
+                    start = Offset(x = center.x, y = height * 0.2f),
+                    end = Offset(x = center.x, y = height - 1f),
+                    durationMillis = 300
+                )
+            }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
         tabNode("all").assertIsSelected()
+
+        composeTestRule.onNodeWithTag("ai_todo_close_button").performClick()
+        composeTestRule.waitUntilNodeDoesNotExist("ai_todo_sheet")
     }
 
     @Test
@@ -734,7 +780,7 @@ class TodoUiTest {
         openAiAddFromFab()
         composeTestRule.onNodeWithTag("ai_todo_sheet").assertIsDisplayed()
 
-        composeTestRule.onAllNodes(isRoot(), useUnmergedTree = true)[1]
+        composeTestRule.onNodeWithTag("ai_todo_scrim", useUnmergedTree = true)
             .performTouchInput {
                 down(Offset(x = center.x, y = 1f))
                 up()

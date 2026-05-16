@@ -3,7 +3,6 @@ package com.neo.yourtodo.feature.todo.impl.ui.ai
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,18 +43,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -112,37 +105,12 @@ private fun AiTodoDraftSheet(
     onDraftDelete: (String) -> Unit
 ) {
     val scrollState = rememberScrollState()
-    val lockSheetDragConnection = remember(scrollState) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
-                if (scrollState.value == 0 && available.y > 0f) {
-                    Offset(x = 0f, y = available.y)
-                } else {
-                    Offset.Zero
-                }
-
-            override suspend fun onPreFling(available: Velocity): Velocity =
-                if (scrollState.value == 0 && available.y > 0f) {
-                    Velocity(x = 0f, y = available.y)
-                } else {
-                    Velocity.Zero
-                }
-        }
-    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFFF7F8FC), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .padding(horizontal = 20.dp, vertical = 18.dp)
-            .pointerInput(scrollState) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    if (scrollState.value == 0 && dragAmount > 0f) {
-                        change.consume()
-                    }
-                }
-            }
-            .nestedScroll(lockSheetDragConnection)
             .verticalScroll(scrollState)
             .testTag("ai_todo_sheet"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
