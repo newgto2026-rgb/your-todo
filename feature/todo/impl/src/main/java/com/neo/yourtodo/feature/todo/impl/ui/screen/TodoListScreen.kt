@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -524,7 +525,6 @@ private fun LockedAiBottomSheetDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .imePadding()
                 .testTag("ai_todo_dialog")
         ) {
             Box(
@@ -558,6 +558,8 @@ private fun LockedAiBottomSheetDialog(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .imePadding()
+                    .navigationBarsPadding()
                     .testTag("ai_todo_sheet_container")
             ) {
                 content()
