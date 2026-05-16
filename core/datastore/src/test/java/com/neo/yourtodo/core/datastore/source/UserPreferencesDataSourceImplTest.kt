@@ -185,8 +185,20 @@ class UserPreferencesDataSourceImplTest {
     private class FakeAuthTokenCipher : AuthTokenCipher {
         override fun encrypt(plainText: String): String = "encrypted:$plainText"
 
-        override fun decrypt(cipherText: String): String? =
-            cipherText.removePrefix("encrypted:").takeIf { it != cipherText }
+        override fun decrypt(cipherText: String): AuthTokenDecryptResult {
+            val plainText = cipherText.removePrefix("encrypted:").takeIf { it != cipherText }
+            return if (plainText == null) {
+                AuthTokenDecryptResult.Failure(
+                    AuthTokenCipherFailure(
+                        operation = AuthTokenCipherOperation.DECRYPT,
+                        type = AuthTokenCipherFailureType.INVALID_FORMAT,
+                        message = "Stored token format is not recognized"
+                    )
+                )
+            } else {
+                AuthTokenDecryptResult.Success(plainText)
+            }
+        }
     }
 
     private class CountingAuthTokenCipher : AuthTokenCipher {
@@ -195,9 +207,20 @@ class UserPreferencesDataSourceImplTest {
 
         override fun encrypt(plainText: String): String = "encrypted:$plainText"
 
-        override fun decrypt(cipherText: String): String? {
+        override fun decrypt(cipherText: String): AuthTokenDecryptResult {
             decryptCalls += 1
-            return cipherText.removePrefix("encrypted:").takeIf { it != cipherText }
+            val plainText = cipherText.removePrefix("encrypted:").takeIf { it != cipherText }
+            return if (plainText == null) {
+                AuthTokenDecryptResult.Failure(
+                    AuthTokenCipherFailure(
+                        operation = AuthTokenCipherOperation.DECRYPT,
+                        type = AuthTokenCipherFailureType.INVALID_FORMAT,
+                        message = "Stored token format is not recognized"
+                    )
+                )
+            } else {
+                AuthTokenDecryptResult.Success(plainText)
+            }
         }
     }
 

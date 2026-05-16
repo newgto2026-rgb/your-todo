@@ -32,65 +32,150 @@ class AndroidKeyStoreAuthTokenCipher internal constructor(
     private var cachedKey: SecretKey? = null
 
     override fun encrypt(plainText: String): String {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
-        val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
-        return listOf(
-            FORMAT_VERSION,
-            base64Codec.encode(cipher.iv),
-            base64Codec.encode(cipherText)
-        ).joinToString(separator = SEPARATOR)
+        return try {
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey().key)
+            val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+            listOf(
+                FORMAT_VERSION,
+                encode(cipher.iv),
+                encode(cipherText)
+            ).joinToString(separator = SEPARATOR)
+        } catch (exception: AuthTokenCipherException) {
+            throw exception
+        } catch (exception: GeneralSecurityException) {
+            throw AuthTokenCipherException(
+                AuthTokenCipherFailure(
+                    operation = AuthTokenCipherOperation.ENCRYPT,
+                    type = AuthTokenCipherFailureType.ENCRYPTION,
+                    message = "Auth token encryption failed",
+                    cause = exception
+                )
+            )
+        }
     }
 
-    override fun decrypt(cipherText: String): String? {
+    override fun decrypt(cipherText: String): AuthTokenDecryptResult {
         val parts = cipherText.split(SEPARATOR)
-        if (parts.size != ENCRYPTED_PARTS || parts[0] != FORMAT_VERSION) return null
+        if (parts.size != ENCRYPTED_PARTS || parts[0] != FORMAT_VERSION) {
+            return AuthTokenDecryptResult.Failure(
+                AuthTokenCipherFailure(
+                    operation = AuthTokenCipherOperation.DECRYPT,
+                    type = AuthTokenCipherFailureType.INVALID_FORMAT,
+                    message = "Stored auth token does not match the encrypted token format"
+                )
+            )
+        }
 
         return try {
-            val iv = base64Codec.decode(parts[1])
-            val encryptedBytes = base64Codec.decode(parts[2])
+            val iv = decode(parts[1])
+            val encryptedBytes = decode(parts[2])
             val cipher = Cipher.getInstance(TRANSFORMATION)
+            val keyResult = getOrCreateSecretKey()
+            if (keyResult.recoveredLookupFailure != null) {
+                return AuthTokenDecryptResult.Failure(keyResult.recoveredLookupFailure)
+            }
             cipher.init(
                 Cipher.DECRYPT_MODE,
-                getOrCreateSecretKey(),
+                keyResult.key,
                 GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
             )
-            String(cipher.doFinal(encryptedBytes), Charsets.UTF_8)
+            AuthTokenDecryptResult.Success(String(cipher.doFinal(encryptedBytes), Charsets.UTF_8))
+        } catch (exception: AuthTokenCipherException) {
+            AuthTokenDecryptResult.Failure(exception.failure)
         } catch (exception: GeneralSecurityException) {
-            null
-        } catch (exception: IllegalArgumentException) {
-            null
+            AuthTokenDecryptResult.Failure(
+                AuthTokenCipherFailure(
+                    operation = AuthTokenCipherOperation.DECRYPT,
+                    type = AuthTokenCipherFailureType.DECRYPTION,
+                    message = "Stored auth token could not be decrypted",
+                    cause = exception
+                )
+            )
         }
     }
 
-    private fun getOrCreateSecretKey(): SecretKey {
-        cachedKey?.let { return it }
+    private fun getOrCreateSecretKey(): SecretKeyResult {
+        cachedKey?.let { return SecretKeyResult(key = it) }
 
         return synchronized(this) {
-            cachedKey?.let { return@synchronized it }
+            cachedKey?.let { return@synchronized SecretKeyResult(key = it) }
 
-            val key = readExistingSecretKey()
-                ?: secretKeyGenerator.generate(KEY_ALIAS)
+            val existingKeyResult = readExistingSecretKey()
+            val key = existingKeyResult.key ?: generateSecretKey()
             cachedKey = key
-            key
+            SecretKeyResult(
+                key = key,
+                recoveredLookupFailure = existingKeyResult.recoveredLookupFailure
+            )
         }
     }
 
-    private fun readExistingSecretKey(): SecretKey? =
+    private fun readExistingSecretKey(): SecretKeyLookupResult =
         try {
-            secretKeyStore.getSecretKey(KEY_ALIAS)
+            SecretKeyLookupResult(key = secretKeyStore.getSecretKey(KEY_ALIAS))
         } catch (exception: GeneralSecurityException) {
-            handleRecoverableKeyStoreLookupFailure()
+            handleRecoverableKeyStoreLookupFailure(exception)
         } catch (exception: IOException) {
-            handleRecoverableKeyStoreLookupFailure()
+            handleRecoverableKeyStoreLookupFailure(exception)
         } catch (exception: ProviderException) {
-            handleRecoverableKeyStoreLookupFailure()
+            handleRecoverableKeyStoreLookupFailure(exception)
         }
 
-    private fun handleRecoverableKeyStoreLookupFailure(): SecretKey? {
+    private fun handleRecoverableKeyStoreLookupFailure(cause: Throwable): SecretKeyLookupResult {
         secretKeyStore.clearKey(KEY_ALIAS)
-        return null
+        return SecretKeyLookupResult(
+            key = null,
+            recoveredLookupFailure = AuthTokenCipherFailure(
+                operation = AuthTokenCipherOperation.KEY_LOOKUP,
+                type = AuthTokenCipherFailureType.KEY_LOOKUP,
+                message = "Android Keystore key lookup failed for auth token storage",
+                cause = cause
+            )
+        )
     }
+
+    private fun generateSecretKey(): SecretKey =
+        try {
+            secretKeyGenerator.generate(KEY_ALIAS)
+        } catch (exception: GeneralSecurityException) {
+            throw AuthTokenCipherException(
+                AuthTokenCipherFailure(
+                    operation = AuthTokenCipherOperation.KEY_GENERATION,
+                    type = AuthTokenCipherFailureType.KEY_GENERATION,
+                    message = "Android Keystore key generation failed for auth token storage",
+                    cause = exception
+                )
+            )
+        }
+
+    private fun encode(bytes: ByteArray): String =
+        try {
+            base64Codec.encode(bytes)
+        } catch (exception: IllegalArgumentException) {
+            throw AuthTokenCipherException(
+                AuthTokenCipherFailure(
+                    operation = AuthTokenCipherOperation.ENCRYPT,
+                    type = AuthTokenCipherFailureType.ENCODING,
+                    message = "Auth token encryption output could not be encoded",
+                    cause = exception
+                )
+            )
+        }
+
+    private fun decode(encoded: String): ByteArray =
+        try {
+            base64Codec.decode(encoded)
+        } catch (exception: IllegalArgumentException) {
+            throw AuthTokenCipherException(
+                AuthTokenCipherFailure(
+                    operation = AuthTokenCipherOperation.DECRYPT,
+                    type = AuthTokenCipherFailureType.ENCODING,
+                    message = "Stored auth token encoding is invalid",
+                    cause = exception
+                )
+            )
+        }
 
     private companion object {
         const val KEY_ALIAS = "yourtodo_auth_token_storage_key"
@@ -102,6 +187,16 @@ class AndroidKeyStoreAuthTokenCipher internal constructor(
         const val KEY_SIZE_BITS = 256
     }
 }
+
+private data class SecretKeyResult(
+    val key: SecretKey,
+    val recoveredLookupFailure: AuthTokenCipherFailure? = null
+)
+
+private data class SecretKeyLookupResult(
+    val key: SecretKey?,
+    val recoveredLookupFailure: AuthTokenCipherFailure? = null
+)
 
 internal interface AuthSecretKeyStore {
     @Throws(GeneralSecurityException::class, IOException::class)
