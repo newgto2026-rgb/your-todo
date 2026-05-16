@@ -311,6 +311,28 @@ class AssignmentUseCasesTest {
     }
 
     @Test
+    fun visibleByFriendReturnsFirstFeedFailure() = runTest {
+        val failure = IllegalStateException("active failed")
+        val repository = FakeAssignmentRepository(
+            friendTodosResults = mapOf(
+                AssignmentFeedStatus.PENDING to Result.success(emptyList()),
+                AssignmentFeedStatus.ACTIVE to Result.failure(failure),
+                AssignmentFeedStatus.HISTORY to Result.success(emptyList())
+            )
+        )
+        val useCase = GetAssignedTodosUseCase(repository)
+
+        val result = useCase.visibleByFriend("friend-1", AssignmentDirection.RECEIVED)
+
+        assertThat(result.exceptionOrNull()).isSameInstanceAs(failure)
+        assertThat(repository.friendFeedRequests).containsExactly(
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.PENDING),
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.ACTIVE),
+            FriendFeedRequest("friend-1", AssignmentDirection.RECEIVED, AssignmentFeedStatus.HISTORY)
+        ).inOrder()
+    }
+
+    @Test
     fun completedHistoryByFriendReturnsHistoryFailure() = runTest {
         val failure = IllegalStateException("history failed")
         val repository = FakeAssignmentRepository(

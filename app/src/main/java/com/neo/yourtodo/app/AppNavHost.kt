@@ -285,7 +285,7 @@ fun AppNavHost(
     }
 }
 
-private fun List<NavEntry<NavKey>>.activeContentKeyFor(activeRoute: NavKey): Any =
+internal fun List<NavEntry<NavKey>>.activeContentKeyFor(activeRoute: NavKey): Any =
     lastOrNull { entry -> entry.matchesRoute(activeRoute) }?.contentKey ?: activeRoute
 
 private fun NavEntry<NavKey>.matchesRoute(route: NavKey): Boolean =

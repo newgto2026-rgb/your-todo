@@ -272,6 +272,31 @@ class AssignmentRepositoryImplTest {
     }
 
     @Test
+    fun completeAssignedTodoReplacesCachedChecklistWithEmptyMutationChecklist() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val assignedTodoDao = FakeAssignedTodoDao()
+        val network = FakeAssignmentNetworkDataSource().apply {
+            mutationItem = NetworkAssignedTodoMutationItem(
+                id = "assigned-1",
+                status = "DONE",
+                progressPercent = 100,
+                checklist = emptyList(),
+                completedAt = "2026-05-09T00:00:00Z"
+            )
+        }
+        val repository = repository(prefs = prefs, network = network, assignedTodoDao = assignedTodoDao)
+        repository.getReceivedAssignedTodos(AssignmentFeedStatus.PENDING).getOrThrow()
+        assertThat(repository.observeReceivedAssignedTodos(AssignmentFeedStatus.PENDING).first().single().checklist)
+            .hasSize(1)
+
+        repository.completeAssignedTodo("assigned-1").getOrThrow()
+
+        val observed = repository.observeReceivedAssignedTodos(AssignmentFeedStatus.HISTORY).first().single()
+        assertThat(observed.status.name).isEqualTo("DONE")
+        assertThat(observed.checklist).isEmpty()
+    }
+
+    @Test
     fun hideReceivedAssignedTodoFromTaskSurfaceKeepsFriendHistoryCache() = runTest {
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
         val assignedTodoDao = FakeAssignedTodoDao()
