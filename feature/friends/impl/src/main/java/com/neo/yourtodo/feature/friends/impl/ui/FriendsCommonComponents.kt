@@ -190,6 +190,46 @@ internal fun FriendsUnavailableBlock(
 }
 
 @Composable
+internal fun FriendsStaleSnapshotBanner(
+    error: FriendsError,
+    onRetry: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFFFF8E8),
+        border = BorderStroke(1.dp, Color(0xFFECCB81)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("friends_stale_snapshot")
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = stringResource(error.staleTitleRes),
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = Color(0xFF6F4E12)
+            )
+            Text(
+                text = stringResource(error.staleDescriptionRes),
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF755B25)
+            )
+            TextButton(
+                onClick = onRetry,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .testTag("friends_stale_retry")
+            ) {
+                Text(stringResource(R.string.friends_unavailable_retry))
+            }
+        }
+    }
+}
+
+@Composable
 internal fun LoadingBlock() {
     Box(
         modifier = Modifier

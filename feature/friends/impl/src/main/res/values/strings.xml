@@ -27,6 +27,10 @@
     <string name="friends_unavailable_auth_title">Sign in to load friends</string>
     <string name="friends_unavailable_auth_description">Friends and requests are loaded from your server account after authentication.</string>
     <string name="friends_unavailable_retry">Try again</string>
+    <string name="friends_stale_network_title">Showing last loaded friends</string>
+    <string name="friends_stale_network_description">The latest friends and requests could not be refreshed. Retry when the connection is back.</string>
+    <string name="friends_stale_auth_title">Sign in to refresh friends</string>
+    <string name="friends_stale_auth_description">Sign in again to refresh the latest friends and requests.</string>
     <string name="friends_request_sent">Friend request sent.</string>
     <string name="friends_request_accepted">You are friends now.</string>
     <string name="friends_request_declined">Friend request declined.</string>

@@ -194,6 +194,14 @@ private fun FriendsScreen(
                         )
                     }
                 } else {
+                    if (uiState.showStaleFriendsSnapshot) {
+                        item {
+                            FriendsStaleSnapshotBanner(
+                                error = checkNotNull(uiState.friendsSnapshotError),
+                                onRetry = { onAction(FriendsAction.OnRefresh) }
+                            )
+                        }
+                    }
                     if (uiState.incomingRequests.isNotEmpty()) {
                         item {
                             SectionTitle(text = stringResource(R.string.friends_incoming_title))

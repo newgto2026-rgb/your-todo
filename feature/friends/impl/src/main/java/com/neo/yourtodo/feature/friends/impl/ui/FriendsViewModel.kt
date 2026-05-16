@@ -288,11 +288,7 @@ class FriendsViewModel @Inject constructor(
                         it.copy(
                             isLoading = false,
                             isRefreshing = false,
-                            friendsSnapshotError = if (it.hasLoadedFriendsSnapshot) {
-                                it.friendsSnapshotError
-                            } else {
-                                uiError
-                            },
+                            friendsSnapshotError = uiError,
                             error = uiError
                         )
                     }
@@ -817,11 +813,7 @@ class FriendsViewModel @Inject constructor(
                 val uiError = failure.toUiError()
                 it.copy(
                     runningActionKey = null,
-                    friendsSnapshotError = if (it.hasLoadedFriendsSnapshot) {
-                        it.friendsSnapshotError
-                    } else {
-                        uiError
-                    },
+                    friendsSnapshotError = uiError,
                     error = uiError
                 )
             }
