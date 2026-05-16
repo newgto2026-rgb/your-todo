@@ -20,7 +20,21 @@ class AuthTokenStoragePolicy @Inject constructor(
 ) {
 
     fun readTokens(preferences: Preferences): AuthTokenPair? =
-        readEncryptedTokens(preferences) ?: readLegacyPlaintextTokens(preferences)
+        readTokens(
+            encryptedAccessToken = preferences[AUTH_ENCRYPTED_ACCESS_TOKEN],
+            encryptedRefreshToken = preferences[AUTH_ENCRYPTED_REFRESH_TOKEN],
+            legacyAccessToken = preferences[AUTH_ACCESS_TOKEN],
+            legacyRefreshToken = preferences[AUTH_REFRESH_TOKEN]
+        )
+
+    fun readTokens(
+        encryptedAccessToken: String?,
+        encryptedRefreshToken: String?,
+        legacyAccessToken: String?,
+        legacyRefreshToken: String?
+    ): AuthTokenPair? =
+        readEncryptedTokens(encryptedAccessToken, encryptedRefreshToken)
+            ?: readLegacyPlaintextTokens(legacyAccessToken, legacyRefreshToken)
 
     fun saveTokens(preferences: MutablePreferences, tokens: AuthTokenPair) {
         val encryptedAccessToken = cipher.encrypt(tokens.accessToken)
@@ -65,6 +79,13 @@ class AuthTokenStoragePolicy @Inject constructor(
     private fun readEncryptedTokens(preferences: Preferences): AuthTokenPair? {
         val encryptedAccessToken = preferences[AUTH_ENCRYPTED_ACCESS_TOKEN]
         val encryptedRefreshToken = preferences[AUTH_ENCRYPTED_REFRESH_TOKEN]
+        return readEncryptedTokens(encryptedAccessToken, encryptedRefreshToken)
+    }
+
+    private fun readEncryptedTokens(
+        encryptedAccessToken: String?,
+        encryptedRefreshToken: String?
+    ): AuthTokenPair? {
         if (encryptedAccessToken.isNullOrBlank() || encryptedRefreshToken.isNullOrBlank()) {
             return null
         }
@@ -81,6 +102,13 @@ class AuthTokenStoragePolicy @Inject constructor(
     private fun readLegacyPlaintextTokens(preferences: Preferences): AuthTokenPair? {
         val accessToken = preferences[AUTH_ACCESS_TOKEN]
         val refreshToken = preferences[AUTH_REFRESH_TOKEN]
+        return readLegacyPlaintextTokens(accessToken, refreshToken)
+    }
+
+    private fun readLegacyPlaintextTokens(
+        accessToken: String?,
+        refreshToken: String?
+    ): AuthTokenPair? {
         return if (accessToken.isNullOrBlank() || refreshToken.isNullOrBlank()) {
             null
         } else {

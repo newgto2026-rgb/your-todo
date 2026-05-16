@@ -13,11 +13,21 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AndroidKeyStoreAuthTokenCipher @Inject constructor() : AuthTokenCipher {
+class AndroidKeyStoreAuthTokenCipher internal constructor(
+    private val secretKeyStore: AuthSecretKeyStore,
+    private val secretKeyGenerator: AuthSecretKeyGenerator,
+    private val base64Codec: AuthTokenBase64Codec
+) : AuthTokenCipher {
 
-    private val keyStore: KeyStore by lazy {
-        KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
-    }
+    @Inject
+    constructor() : this(
+        secretKeyStore = AndroidKeyStoreAuthSecretKeyStore(),
+        secretKeyGenerator = AndroidKeyStoreAuthSecretKeyGenerator(),
+        base64Codec = AndroidAuthTokenBase64Codec
+    )
+
+    @Volatile
+    private var cachedKey: SecretKey? = null
 
     override fun encrypt(plainText: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -25,8 +35,8 @@ class AndroidKeyStoreAuthTokenCipher @Inject constructor() : AuthTokenCipher {
         val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
         return listOf(
             FORMAT_VERSION,
-            Base64.encodeToString(cipher.iv, Base64.NO_WRAP),
-            Base64.encodeToString(cipherText, Base64.NO_WRAP)
+            base64Codec.encode(cipher.iv),
+            base64Codec.encode(cipherText)
         ).joinToString(separator = SEPARATOR)
     }
 
@@ -35,8 +45,8 @@ class AndroidKeyStoreAuthTokenCipher @Inject constructor() : AuthTokenCipher {
         if (parts.size != ENCRYPTED_PARTS || parts[0] != FORMAT_VERSION) return null
 
         return try {
-            val iv = Base64.decode(parts[1], Base64.NO_WRAP)
-            val encryptedBytes = Base64.decode(parts[2], Base64.NO_WRAP)
+            val iv = base64Codec.decode(parts[1])
+            val encryptedBytes = base64Codec.decode(parts[2])
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(
                 Cipher.DECRYPT_MODE,
@@ -52,15 +62,74 @@ class AndroidKeyStoreAuthTokenCipher @Inject constructor() : AuthTokenCipher {
     }
 
     private fun getOrCreateSecretKey(): SecretKey {
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        cachedKey?.let { return it }
 
+        return synchronized(this) {
+            cachedKey?.let { return@synchronized it }
+
+            val key = readExistingSecretKey()
+                ?: secretKeyGenerator.generate(KEY_ALIAS)
+            cachedKey = key
+            key
+        }
+    }
+
+    private fun readExistingSecretKey(): SecretKey? =
+        try {
+            secretKeyStore.getSecretKey(KEY_ALIAS)
+        } catch (exception: GeneralSecurityException) {
+            secretKeyStore.clearKey(KEY_ALIAS)
+            null
+        }
+
+    private companion object {
+        const val KEY_ALIAS = "yourtodo_auth_token_storage_key"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val FORMAT_VERSION = "ks1"
+        const val SEPARATOR = ":"
+        const val ENCRYPTED_PARTS = 3
+        const val GCM_TAG_LENGTH_BITS = 128
+        const val KEY_SIZE_BITS = 256
+    }
+}
+
+internal interface AuthSecretKeyStore {
+    @Throws(GeneralSecurityException::class)
+    fun getSecretKey(alias: String): SecretKey?
+
+    fun clearKey(alias: String)
+}
+
+private class AndroidKeyStoreAuthSecretKeyStore : AuthSecretKeyStore {
+    private val keyStore: KeyStore by lazy {
+        KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
+    }
+
+    override fun getSecretKey(alias: String): SecretKey? =
+        keyStore.getKey(alias, null) as? SecretKey
+
+    override fun clearKey(alias: String) {
+        runCatching { keyStore.deleteEntry(alias) }
+    }
+
+    private companion object {
+        const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
+    }
+}
+
+internal interface AuthSecretKeyGenerator {
+    fun generate(alias: String): SecretKey
+}
+
+private class AndroidKeyStoreAuthSecretKeyGenerator : AuthSecretKeyGenerator {
+    override fun generate(alias: String): SecretKey {
         val keyGenerator = KeyGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_AES,
             ANDROID_KEYSTORE_PROVIDER
         )
         keyGenerator.init(
             KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
+                alias,
                 KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
             )
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
@@ -74,12 +143,20 @@ class AndroidKeyStoreAuthTokenCipher @Inject constructor() : AuthTokenCipher {
 
     private companion object {
         const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
-        const val KEY_ALIAS = "yourtodo_auth_token_storage_key"
-        const val TRANSFORMATION = "AES/GCM/NoPadding"
-        const val FORMAT_VERSION = "ks1"
-        const val SEPARATOR = ":"
-        const val ENCRYPTED_PARTS = 3
-        const val GCM_TAG_LENGTH_BITS = 128
         const val KEY_SIZE_BITS = 256
     }
+}
+
+internal interface AuthTokenBase64Codec {
+    fun encode(bytes: ByteArray): String
+
+    fun decode(encoded: String): ByteArray
+}
+
+private object AndroidAuthTokenBase64Codec : AuthTokenBase64Codec {
+    override fun encode(bytes: ByteArray): String =
+        Base64.encodeToString(bytes, Base64.NO_WRAP)
+
+    override fun decode(encoded: String): ByteArray =
+        Base64.decode(encoded, Base64.NO_WRAP)
 }
