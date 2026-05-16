@@ -215,6 +215,8 @@ object AppDatabaseMigrations {
     }
 
     val MIGRATION_11_12 = object : Migration(11, 12) {
+        // v12 intentionally carries no SQLite DDL. The bump records the exported schema used
+        // after direct-assignment task-surface cache policy work while preserving the v11 table shape.
         override fun migrate(db: SupportSQLiteDatabase) = Unit
     }
 }

@@ -50,6 +50,40 @@ class ReminderRecurrenceCalculatorTest {
     }
 
     @Test
+    fun `daily repeat preserves local wall time across spring DST gap`() {
+        val newYork = ZoneId.of("America/New_York")
+        val current = epochMillis(newYork, 2026, 3, 7, 2, 30)
+        val now = epochMillis(newYork, 2026, 3, 7, 3, 0)
+
+        val nextTrigger = ReminderRecurrenceCalculator.nextTriggerAt(
+            currentTriggerAt = current,
+            repeatType = ReminderRepeatType.DAILY,
+            repeatDaysMask = 0,
+            nowEpochMillis = now,
+            zoneId = newYork
+        )
+
+        assertThat(nextTrigger).isEqualTo(epochMillis(newYork, 2026, 3, 8, 2, 30))
+    }
+
+    @Test
+    fun `weekly repeat preserves local wall time across fall DST overlap`() {
+        val newYork = ZoneId.of("America/New_York")
+        val current = epochMillis(newYork, 2026, 10, 25, 1, 30)
+        val now = epochMillis(newYork, 2026, 10, 25, 2, 0)
+
+        val nextTrigger = ReminderRecurrenceCalculator.nextTriggerAt(
+            currentTriggerAt = current,
+            repeatType = ReminderRepeatType.WEEKLY,
+            repeatDaysMask = 0,
+            nowEpochMillis = now,
+            zoneId = newYork
+        )
+
+        assertThat(nextTrigger).isEqualTo(epochMillis(newYork, 2026, 11, 1, 1, 30))
+    }
+
+    @Test
     fun `custom days repeat picks first enabled weekday after anchor`() {
         val current = epochMillis(2026, 5, 18, 9, 15)
         val monday = 1 shl 0
@@ -85,6 +119,41 @@ class ReminderRecurrenceCalculatorTest {
     }
 
     @Test
+    fun `custom days repeat can wrap to sunday and ignores unsupported mask bits`() {
+        val current = epochMillis(2026, 5, 22, 9, 15)
+        val sunday = 1 shl 6
+        val unsupportedEighthDay = 1 shl 7
+
+        val nextTrigger = ReminderRecurrenceCalculator.nextTriggerAt(
+            currentTriggerAt = current,
+            repeatType = ReminderRepeatType.CUSTOM_DAYS,
+            repeatDaysMask = sunday or unsupportedEighthDay,
+            nowEpochMillis = current,
+            zoneId = zoneId
+        )
+
+        assertThat(nextTrigger).isEqualTo(epochMillis(2026, 5, 24, 9, 15))
+    }
+
+    @Test
+    fun `custom days repeat uses supplied zone when date differs from utc`() {
+        val losAngeles = ZoneId.of("America/Los_Angeles")
+        val current = epochMillis(losAngeles, 2026, 5, 18, 23, 30)
+        val now = epochMillis(losAngeles, 2026, 5, 19, 0, 30)
+        val tuesday = 1 shl 1
+
+        val nextTrigger = ReminderRecurrenceCalculator.nextTriggerAt(
+            currentTriggerAt = current,
+            repeatType = ReminderRepeatType.CUSTOM_DAYS,
+            repeatDaysMask = tuesday,
+            nowEpochMillis = now,
+            zoneId = losAngeles
+        )
+
+        assertThat(nextTrigger).isEqualTo(epochMillis(losAngeles, 2026, 5, 19, 23, 30))
+    }
+
+    @Test
     fun `custom days repeat with empty mask has no next trigger`() {
         val current = epochMillis(2026, 5, 18, 9, 0)
 
@@ -100,6 +169,15 @@ class ReminderRecurrenceCalculatorTest {
     }
 
     private fun epochMillis(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int,
+        minute: Int
+    ): Long = epochMillis(zoneId, year, month, day, hour, minute)
+
+    private fun epochMillis(
+        zoneId: ZoneId,
         year: Int,
         month: Int,
         day: Int,

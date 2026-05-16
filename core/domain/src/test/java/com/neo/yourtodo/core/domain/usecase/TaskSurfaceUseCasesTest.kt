@@ -136,6 +136,68 @@ class TaskSurfaceUseCasesTest {
     }
 
     @Test
+    fun buildTaskSurfaceListDueDateSectionsRespectAssignedOverrideMatrix() {
+        val today = LocalDate.of(2026, 5, 16)
+
+        val surface = BuildTaskSurfaceListUseCase()(
+            localTodos = listOf(
+                todo(id = 1, title = "Local later", dueDate = today.plusDays(1), priority = TodoPriority.LOW),
+                todo(id = 2, title = "Local no date", dueDate = null, priority = TodoPriority.HIGH)
+            ),
+            assignedTodos = listOf(
+                assignedTodo(
+                    id = "assigned-active",
+                    title = "Assigned active override",
+                    dueDate = today,
+                    status = AssignedTodoStatus.DONE,
+                    priority = TodoPriority.MEDIUM,
+                    dueTimeMinutes = 10 * 60
+                ),
+                assignedTodo(
+                    id = "assigned-completed",
+                    title = "Assigned completed override",
+                    dueDate = today.minusDays(1),
+                    status = AssignedTodoStatus.ACCEPTED,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 9 * 60
+                ),
+                assignedTodo(
+                    id = "assigned-hidden",
+                    title = "Assigned hidden",
+                    dueDate = today,
+                    status = AssignedTodoStatus.ACCEPTED,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 8 * 60
+                )
+            ),
+            selectedFilter = TodoFilter.ALL,
+            selectedPriorityFilter = TodoPriorityFilter.ALL,
+            selectedSortOption = TodoSortOption.DUE_DATE,
+            today = today,
+            zoneId = TEST_ZONE_ID,
+            assignedOverrides = AssignedTaskSurfaceOverrides(
+                completedIds = setOf("assigned-completed"),
+                activeIds = setOf("assigned-active"),
+                hiddenIds = setOf("assigned-hidden")
+            )
+        )
+
+        assertThat(surface.sections.map { it.key }).containsExactly(
+            TaskSurfaceSectionKey.DueDate(today),
+            TaskSurfaceSectionKey.DueDate(today.plusDays(1)),
+            TaskSurfaceSectionKey.DueDate(null),
+            TaskSurfaceSectionKey.Completed
+        ).inOrder()
+        assertThat(surface.items.map { it.title }).containsExactly(
+            "Assigned active override",
+            "Local later",
+            "Local no date",
+            "Assigned completed override"
+        ).inOrder()
+        assertThat(surface.completedAssignedTodoIds).containsExactly("assigned-completed")
+    }
+
+    @Test
     fun buildTaskSurfaceListNonAllFiltersKeepPlannerPriorityOrderingAcrossSortOptions() {
         val today = LocalDate.of(2026, 5, 16)
 
@@ -167,6 +229,61 @@ class TaskSurfaceUseCasesTest {
             "High today",
             "Low overdue"
         ).inOrder()
+    }
+
+    @Test
+    fun buildTaskSurfaceListTodayFilterCombinesDatePriorityAndAssignedOverrides() {
+        val today = LocalDate.of(2026, 5, 16)
+
+        val surface = BuildTaskSurfaceListUseCase()(
+            localTodos = listOf(
+                todo(id = 1, title = "High overdue", dueDate = today.minusDays(1), priority = TodoPriority.HIGH),
+                todo(id = 2, title = "High future", dueDate = today.plusDays(1), priority = TodoPriority.HIGH),
+                todo(id = 3, title = "Medium today", dueDate = today, priority = TodoPriority.MEDIUM)
+            ),
+            assignedTodos = listOf(
+                assignedTodo(
+                    id = "assigned-done-high",
+                    title = "Assigned done forced active",
+                    dueDate = today,
+                    status = AssignedTodoStatus.DONE,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 8 * 60
+                ),
+                assignedTodo(
+                    id = "assigned-open-high",
+                    title = "Assigned open forced completed",
+                    dueDate = today,
+                    status = AssignedTodoStatus.ACCEPTED,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 7 * 60
+                ),
+                assignedTodo(
+                    id = "assigned-hidden-high",
+                    title = "Assigned hidden high",
+                    dueDate = today,
+                    status = AssignedTodoStatus.ACCEPTED,
+                    priority = TodoPriority.HIGH
+                )
+            ),
+            selectedFilter = TodoFilter.TODAY,
+            selectedPriorityFilter = TodoPriorityFilter.HIGH,
+            selectedSortOption = TodoSortOption.FRIEND,
+            today = today,
+            zoneId = TEST_ZONE_ID,
+            assignedOverrides = AssignedTaskSurfaceOverrides(
+                activeIds = setOf("assigned-done-high"),
+                completedIds = setOf("assigned-open-high"),
+                hiddenIds = setOf("assigned-hidden-high")
+            )
+        )
+
+        assertThat(surface.sections).isEmpty()
+        assertThat(surface.items.map { it.title }).containsExactly(
+            "Assigned done forced active",
+            "High overdue"
+        ).inOrder()
+        assertThat(surface.completedAssignedTodoIds).containsExactly("assigned-open-high")
     }
 
     @Test
@@ -213,6 +330,63 @@ class TaskSurfaceUseCasesTest {
             "Assigned low"
         ).inOrder()
         assertThat(items.take(3).all { it.assignedTodoId == null }).isTrue()
+    }
+
+    @Test
+    fun buildTaskSurfaceDateTodosSortsAssignedByCompletionPriorityTimeAndTitle() {
+        val selectedDate = LocalDate.of(2026, 5, 16)
+
+        val items = BuildTaskSurfaceDateTodosUseCase()(
+            selectedDate = selectedDate,
+            localTodos = emptyList(),
+            assignedTodos = listOf(
+                assignedTodo(
+                    id = "done-high",
+                    title = "Done high early",
+                    dueDate = selectedDate,
+                    status = AssignedTodoStatus.DONE,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 8 * 60
+                ),
+                assignedTodo(
+                    id = "active-low",
+                    title = "Active low early",
+                    dueDate = selectedDate,
+                    priority = TodoPriority.LOW,
+                    dueTimeMinutes = 7 * 60
+                ),
+                assignedTodo(
+                    id = "active-high-late",
+                    title = "Active high late",
+                    dueDate = selectedDate,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 10 * 60
+                ),
+                assignedTodo(
+                    id = "active-high-early-b",
+                    title = "Beta high early",
+                    dueDate = selectedDate,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 9 * 60
+                ),
+                assignedTodo(
+                    id = "active-high-early-a",
+                    title = "Alpha high early",
+                    dueDate = selectedDate,
+                    priority = TodoPriority.HIGH,
+                    dueTimeMinutes = 9 * 60
+                )
+            ),
+            zoneId = TEST_ZONE_ID
+        )
+
+        assertThat(items.map { it.title }).containsExactly(
+            "Alpha high early",
+            "Beta high early",
+            "Active high late",
+            "Active low early",
+            "Done high early"
+        ).inOrder()
     }
 
     @Test
@@ -282,6 +456,26 @@ class TaskSurfaceUseCasesTest {
             .containsExactly(ASSIGNED_CREATED_AT, ASSIGNED_CREATED_AT, ASSIGNED_CREATED_AT)
             .inOrder()
         assertThat(merged).doesNotContainKey(outOfMonthDate)
+    }
+
+    @Test
+    fun mergeTaskSurfaceSummariesHandlesAssignedOnlyDatesAndZeroIndicatorLimit() {
+        val date = LocalDate.of(2026, 5, 16)
+
+        val merged = mergeTaskSurfaceSummaries(
+            yearMonth = YearMonth.of(2026, 5),
+            localSummaries = emptyMap(),
+            assignedTodos = listOf(
+                assignedTodo(id = "assigned-1", title = "Assigned 1", dueDate = date),
+                assignedTodo(id = "assigned-2", title = "Assigned 2", dueDate = date)
+            ),
+            maxIndicatorsPerDate = 0
+        )
+
+        val summary = merged.getValue(date)
+        assertThat(summary.todos.map { it.title }).containsExactly("Assigned 1", "Assigned 2").inOrder()
+        assertThat(summary.indicatorCount).isEqualTo(0)
+        assertThat(summary.overflowCount).isEqualTo(2)
     }
 
     @Test
