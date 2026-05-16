@@ -77,7 +77,9 @@ class UserPreferencesDataSourceImpl @Inject constructor(
 
     override fun observeAssignmentFeedRefreshTime(feedKey: String): Flow<Long?> {
         val preferenceKey = assignmentFeedRefreshTimeKey(feedKey)
-        return dataStore.data.map { prefs -> prefs[preferenceKey] }
+        return dataStore.data
+            .map { prefs -> prefs[preferenceKey] }
+            .distinctUntilChanged()
     }
 
     override suspend fun saveAuthSession(session: AuthSessionData) {

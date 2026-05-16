@@ -123,6 +123,38 @@ class UserPreferencesDataSourceImplTest {
             .isNull()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun assignmentFeedRefreshTimeDoesNotEmitForUnrelatedPreferenceChanges() = runTest {
+        val dataStore = FakePreferencesDataStore()
+        val dataSource = createDataSource(dataStore)
+        val observedRefreshTimes = mutableListOf<Long?>()
+        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            dataSource.observeAssignmentFeedRefreshTime("user-id_received_active")
+                .collect { refreshTime -> observedRefreshTimes += refreshTime }
+        }
+        advanceUntilIdle()
+
+        assertThat(observedRefreshTimes).containsExactly(null)
+
+        dataSource.setSelectedTodoFilter(TodoFilter.TODAY)
+        advanceUntilIdle()
+
+        assertThat(observedRefreshTimes).containsExactly(null)
+
+        dataSource.setAssignmentFeedRefreshTime("user-id_received_active", 123L)
+        advanceUntilIdle()
+
+        assertThat(observedRefreshTimes).containsExactly(null, 123L).inOrder()
+
+        dataSource.setSelectedTodoFilter(TodoFilter.ALL)
+        advanceUntilIdle()
+
+        assertThat(observedRefreshTimes).containsExactly(null, 123L).inOrder()
+
+        collectJob.cancel()
+    }
+
     private fun createDataSource(
         dataStore: DataStore<Preferences>,
         authTokenStoragePolicy: AuthTokenStoragePolicy = AuthTokenStoragePolicy(FakeAuthTokenCipher())
