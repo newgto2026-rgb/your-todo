@@ -190,6 +190,47 @@ internal fun FriendsUnavailableBlock(
 }
 
 @Composable
+internal fun FriendsStaleSnapshotBanner(
+    error: FriendsError,
+    onRetry: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = colorScheme.tertiaryContainer,
+        border = BorderStroke(1.dp, colorScheme.outlineVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("friends_stale_snapshot")
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = stringResource(error.staleTitleRes),
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = colorScheme.onTertiaryContainer
+            )
+            Text(
+                text = stringResource(error.staleDescriptionRes),
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = colorScheme.onTertiaryContainer.copy(alpha = 0.82f)
+            )
+            TextButton(
+                onClick = onRetry,
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .testTag("friends_stale_retry")
+            ) {
+                Text(stringResource(R.string.friends_unavailable_retry))
+            }
+        }
+    }
+}
+
+@Composable
 internal fun LoadingBlock() {
     Box(
         modifier = Modifier

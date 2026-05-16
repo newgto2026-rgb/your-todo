@@ -52,6 +52,9 @@ data class FriendsUiState(
     val showFriendsUnavailable: Boolean
         get() = !isLoading && !hasLoadedFriendsSnapshot && friendsSnapshotError != null
 
+    val staleSnapshotError: FriendsError?
+        get() = if (!isLoading && hasLoadedFriendsSnapshot) friendsSnapshotError else null
+
     val showEmptyFriends: Boolean
         get() = hasLoadedFriendsSnapshot && friends.isEmpty()
 
@@ -239,17 +242,23 @@ sealed interface FriendsSideEffect {
 enum class FriendsError(
     @StringRes val messageRes: Int,
     @StringRes val unavailableTitleRes: Int,
-    @StringRes val unavailableDescriptionRes: Int
+    @StringRes val unavailableDescriptionRes: Int,
+    @StringRes val staleTitleRes: Int,
+    @StringRes val staleDescriptionRes: Int
 ) {
     AUTH_REQUIRED(
         messageRes = R.string.friends_error_auth_required,
         unavailableTitleRes = R.string.friends_unavailable_auth_title,
-        unavailableDescriptionRes = R.string.friends_unavailable_auth_description
+        unavailableDescriptionRes = R.string.friends_unavailable_auth_description,
+        staleTitleRes = R.string.friends_stale_auth_title,
+        staleDescriptionRes = R.string.friends_stale_auth_description
     ),
     NETWORK(
         messageRes = R.string.friends_error_network,
         unavailableTitleRes = R.string.friends_unavailable_network_title,
-        unavailableDescriptionRes = R.string.friends_unavailable_network_description
+        unavailableDescriptionRes = R.string.friends_unavailable_network_description,
+        staleTitleRes = R.string.friends_stale_network_title,
+        staleDescriptionRes = R.string.friends_stale_network_description
     )
 }
 

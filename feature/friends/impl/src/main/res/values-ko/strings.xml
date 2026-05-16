@@ -27,6 +27,10 @@
     <string name="friends_unavailable_auth_title">로그인 후 친구를 불러와요</string>
     <string name="friends_unavailable_auth_description">친구와 요청은 인증된 서버 계정에서 불러와요.</string>
     <string name="friends_unavailable_retry">다시 시도</string>
+    <string name="friends_stale_network_title">마지막으로 불러온 친구를 보여주고 있어요</string>
+    <string name="friends_stale_network_description">최신 친구와 요청을 새로고침하지 못했어요. 연결이 돌아오면 다시 시도해 주세요.</string>
+    <string name="friends_stale_auth_title">친구를 새로고침하려면 로그인이 필요해요</string>
+    <string name="friends_stale_auth_description">최신 친구와 요청을 새로고침하려면 다시 로그인해 주세요.</string>
     <string name="friends_request_sent">친구 요청을 보냈어요.</string>
     <string name="friends_request_accepted">친구가 되었어요.</string>
     <string name="friends_request_declined">요청을 거절했어요.</string>

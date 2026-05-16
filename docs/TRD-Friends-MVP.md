@@ -17,6 +17,7 @@
 - Friends and friend requests are online-only for the MVP.
 - `FriendRepository` list calls fetch the current server snapshot and do not fall back to Room, DataStore, or the previous in-memory response.
 - A network/auth failure is not treated as an empty friend list. Initial load failure keeps the screen in an unavailable state with retry, while an already loaded in-memory snapshot can remain visible until the next successful server refresh.
+- When an already loaded in-memory snapshot remains visible after a friends or request feed failure, the UI marks it as stale/unavailable and offers retry instead of presenting it as current.
 - Assigned todo feeds have their own Room cache policy and are intentionally separate from the Friends/requests policy.
 
 ## Android Architecture
@@ -40,7 +41,7 @@ Dependency direction stays:
 - Add friend opens a lightweight nickname input sheet/area.
 - Outgoing requests are shown as pending rows with no cancel action in MVP.
 - Every mutation disables its button while running and refetches all lists on success.
-- Network/auth failures show stable messages and do not fake success.
+- Network/auth failures show stable messages and do not fake success. Mutation failures keep the previous visible state and expose a retryable action path instead of clearing lists.
 
 ## Server Contract
 - `GET /api/friends`
