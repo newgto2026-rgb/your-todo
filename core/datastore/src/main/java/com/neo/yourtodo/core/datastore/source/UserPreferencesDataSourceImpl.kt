@@ -3,6 +3,8 @@ package com.neo.yourtodo.core.datastore.source
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.ASSIGNMENT_FEED_REFRESH_TIME_PREFIX
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ACCESS_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_ACCESS_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_ENCRYPTED_REFRESH_TOKEN
@@ -72,6 +74,13 @@ class UserPreferencesDataSourceImpl @Inject constructor(
 
     override val pushRegisteredToken: Flow<String?> =
         dataStore.data.map { prefs -> prefs[PUSH_REGISTERED_TOKEN] }
+
+    override fun observeAssignmentFeedRefreshTime(feedKey: String): Flow<Long?> {
+        val preferenceKey = assignmentFeedRefreshTimeKey(feedKey)
+        return dataStore.data
+            .map { prefs -> prefs[preferenceKey] }
+            .distinctUntilChanged()
+    }
 
     override suspend fun saveAuthSession(session: AuthSessionData) {
         dataStore.edit { prefs ->
@@ -178,7 +187,25 @@ class UserPreferencesDataSourceImpl @Inject constructor(
         }
     }
 
+    override suspend fun setAssignmentFeedRefreshTime(feedKey: String, refreshedAtEpochMillis: Long) {
+        val preferenceKey = assignmentFeedRefreshTimeKey(feedKey)
+        dataStore.edit { prefs ->
+            prefs[preferenceKey] = refreshedAtEpochMillis
+        }
+    }
+
+    override suspend fun clearAssignmentFeedRefreshTimes() {
+        dataStore.edit { prefs ->
+            prefs.asMap().keys
+                .filter { key -> key.name.startsWith(ASSIGNMENT_FEED_REFRESH_TIME_PREFIX) }
+                .forEach { key -> prefs.remove(key) }
+        }
+    }
+
 }
+
+internal fun assignmentFeedRefreshTimeKey(feedKey: String) =
+    longPreferencesKey("$ASSIGNMENT_FEED_REFRESH_TIME_PREFIX$feedKey")
 
 private data class AuthPreferencesSnapshot(
     val encryptedAccessToken: String?,

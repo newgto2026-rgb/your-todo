@@ -411,6 +411,35 @@ class AssignmentRepositoryImplTest {
     }
 
     @Test
+    fun emptyFeedFreshnessSurvivesNewRepositoryAndTrackerInstances() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val network = FakeAssignmentNetworkDataSource().apply {
+            receivedItems = emptyList()
+        }
+        val feed = AssignmentFeedCacheKey(
+            direction = AssignmentDirection.RECEIVED,
+            status = AssignmentFeedStatus.ACTIVE
+        )
+
+        repository(prefs = prefs, network = network)
+            .getReceivedAssignedTodos(AssignmentFeedStatus.ACTIVE)
+            .getOrThrow()
+        val recordedAt = prefs.assignmentFeedRefreshTimes.value.values.single()
+        val restartedRepository = repository(
+            prefs = prefs,
+            network = network,
+            assignedTodoDao = FakeAssignedTodoDao(),
+            assignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
+        )
+
+        val freshnessAfterRestart = restartedRepository.observeFeedCacheFreshness(feed).first()
+
+        assertThat(freshnessAfterRestart.lastUpdatedAtEpochMillis).isEqualTo(recordedAt)
+        assertThat(freshnessAfterRestart.isStale(recordedAt + AssignmentFeedCachePolicy.STALE_AFTER_MILLIS - 1))
+            .isFalse()
+    }
+
+    @Test
     fun observeFeedCacheFreshnessUsesPersistedCacheUpdatedAtForCachedRows() = runTest {
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
         val assignedTodoDao = FakeAssignedTodoDao()
@@ -535,6 +564,7 @@ class AssignmentRepositoryImplTest {
         private val priorityFilterFlow = MutableStateFlow(TodoPriorityFilter.ALL)
         private val syncCursorFlow = MutableStateFlow<String?>(null)
         private val syncHaltReasonFlow = MutableStateFlow<String?>(null)
+        val assignmentFeedRefreshTimes = MutableStateFlow<Map<String, Long>>(emptyMap())
 
         override val authSession: Flow<AuthSessionData?> = authSessionFlow.asStateFlow()
         override val selectedTodoFilter: Flow<TodoFilter> = filterFlow.asStateFlow()
@@ -542,6 +572,9 @@ class AssignmentRepositoryImplTest {
         override val selectedTodoPriorityFilter: Flow<TodoPriorityFilter> = priorityFilterFlow.asStateFlow()
         override val todoSyncCursor: Flow<String?> = syncCursorFlow.asStateFlow()
         override val todoSyncHaltReason: Flow<String?> = syncHaltReasonFlow.asStateFlow()
+
+        override fun observeAssignmentFeedRefreshTime(feedKey: String): Flow<Long?> =
+            assignmentFeedRefreshTimes.map { refreshTimes -> refreshTimes[feedKey] }
 
         override suspend fun saveAuthSession(session: AuthSessionData) {
             authSessionFlow.value = session
@@ -574,6 +607,14 @@ class AssignmentRepositoryImplTest {
         override suspend fun clearTodoSyncState() {
             syncCursorFlow.value = null
             syncHaltReasonFlow.value = null
+        }
+
+        override suspend fun setAssignmentFeedRefreshTime(feedKey: String, refreshedAtEpochMillis: Long) {
+            assignmentFeedRefreshTimes.value = assignmentFeedRefreshTimes.value + (feedKey to refreshedAtEpochMillis)
+        }
+
+        override suspend fun clearAssignmentFeedRefreshTimes() {
+            assignmentFeedRefreshTimes.value = emptyMap()
         }
     }
 

@@ -73,6 +73,7 @@ internal class TodoSyncCoordinator(
 
     private suspend fun clearAuthSession() {
         assignmentFeedFreshnessTracker.clear()
+        userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
         userPreferencesDataSource.clearAuthSession()
     }
 

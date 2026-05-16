@@ -223,11 +223,12 @@ class AssignmentRepositoryImpl @Inject constructor(
                 )
             combine(
                 observePersistedFeedCacheUpdatedAt(ownerUserId, feed),
+                userPreferencesDataSource.observeAssignmentFeedRefreshTime(feed.toStorageKey(ownerUserId)),
                 assignmentFeedFreshnessTracker.observeRefreshTime(ownerUserId, feed)
-            ) { persistedUpdatedAt, refreshTime ->
+            ) { persistedUpdatedAt, storedRefreshTime, refreshTime ->
                 AssignmentFeedCacheFreshness(
                     feed = feed,
-                    lastUpdatedAtEpochMillis = refreshTime ?: persistedUpdatedAt
+                    lastUpdatedAtEpochMillis = refreshTime ?: storedRefreshTime ?: persistedUpdatedAt
                 )
             }.distinctUntilChanged()
         }
@@ -552,6 +553,7 @@ class AssignmentRepositoryImpl @Inject constructor(
 
     private suspend fun authRequired(clearPersistedSession: Boolean = true): Nothing {
         assignmentFeedFreshnessTracker.clear()
+        userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
         if (clearPersistedSession) {
             userPreferencesDataSource.clearAuthSession()
         }
@@ -783,7 +785,7 @@ class AssignmentRepositoryImpl @Inject constructor(
         }.distinctUntilChanged()
     }
 
-    private fun recordFeedRefresh(
+    private suspend fun recordFeedRefresh(
         ownerUserId: String,
         direction: AssignmentDirection,
         status: AssignmentFeedStatus,
@@ -796,7 +798,18 @@ class AssignmentRepositoryImpl @Inject constructor(
             friendUserId = friendUserId
         )
         assignmentFeedFreshnessTracker.recordRefresh(ownerUserId, feed, refreshedAt)
+        userPreferencesDataSource.setAssignmentFeedRefreshTime(feed.toStorageKey(ownerUserId), refreshedAt)
     }
+
+    private fun AssignmentFeedCacheKey.toStorageKey(ownerUserId: String): String =
+        listOf(
+            ownerUserId,
+            direction.name,
+            status.name,
+            friendUserId.orEmpty()
+        ).joinToString(separator = "|") { part ->
+            part.replace("%", "%25").replace("|", "%7C")
+        }
 
     private fun AssignmentFeedStatus.cacheStatuses(): List<String> = when (this) {
         AssignmentFeedStatus.ACTIVE -> listOf(

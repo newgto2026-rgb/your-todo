@@ -24,6 +24,7 @@ class AuthSessionRefresher @Inject constructor(
             val currentSession = userPreferencesDataSource.authSession.first()
             if (currentSession == null) {
                 assignmentFeedFreshnessTracker.clear()
+                userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
                 return@withLock null
             }
             if (currentSession.refreshToken != refreshToken) {
@@ -38,6 +39,7 @@ class AuthSessionRefresher @Inject constructor(
                 throw exception
             } catch (_: Exception) {
                 assignmentFeedFreshnessTracker.clear()
+                userPreferencesDataSource.clearAssignmentFeedRefreshTimes()
                 userPreferencesDataSource.clearAuthSession()
                 null
             }
