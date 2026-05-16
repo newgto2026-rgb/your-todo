@@ -1,0 +1,21 @@
+package com.neo.yourtodo.core.data.repository.todo
+
+internal object TodoSyncConstants {
+    const val MUTATION_CREATE = "CREATE"
+    const val MUTATION_UPDATE = "UPDATE"
+    const val MUTATION_DELETE = "DELETE"
+
+    const val STATUS_ACTIVE = "ACTIVE"
+    const val STATUS_COMPLETED = "COMPLETED"
+    const val STATUS_DELETED = "DELETED"
+
+    const val RESULT_APPLIED = "APPLIED"
+    const val RESULT_DUPLICATE_APPLIED = "DUPLICATE_APPLIED"
+    const val RESULT_DUPLICATE_CLIENT_ID = "DUPLICATE_CLIENT_ID"
+    const val RESULT_REJECTED_VALIDATION = "REJECTED_VALIDATION"
+    const val RESULT_REJECTED_NOT_FOUND = "REJECTED_NOT_FOUND"
+    const val RESULT_REJECTED_DELETED = "REJECTED_DELETED"
+    const val RESULT_REJECTED_IDEMPOTENCY_CONFLICT = "REJECTED_IDEMPOTENCY_CONFLICT"
+
+    const val SYNC_HALT_AUTH_REQUIRED = "AUTH_REQUIRED"
+}

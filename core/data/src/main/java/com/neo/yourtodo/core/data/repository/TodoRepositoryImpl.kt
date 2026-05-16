@@ -1,14 +1,16 @@
 package com.neo.yourtodo.core.data.repository
 
 import android.util.Log
-import com.neo.yourtodo.core.data.mapper.toDomain
-import com.neo.yourtodo.core.data.sync.TodoSyncPayload
+import com.neo.yourtodo.core.data.repository.todo.TodoCategoryStore
+import com.neo.yourtodo.core.data.repository.todo.TodoFilterPreferences
+import com.neo.yourtodo.core.data.repository.todo.TodoLocalTodoStore
+import com.neo.yourtodo.core.data.repository.todo.TodoOutboxStore
+import com.neo.yourtodo.core.data.repository.todo.TodoReminderReader
+import com.neo.yourtodo.core.data.repository.todo.TodoSyncCoordinator
+import com.neo.yourtodo.core.data.repository.todo.TodoSyncSessionProvider
 import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.dao.TodoOutboxDao
-import com.neo.yourtodo.core.database.entity.CategoryEntity
-import com.neo.yourtodo.core.database.entity.TodoEntity
-import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.repository.TodoCategoryRepository
 import com.neo.yourtodo.core.domain.repository.TodoFilterRepository
@@ -16,42 +18,27 @@ import com.neo.yourtodo.core.domain.repository.TodoItemRepository
 import com.neo.yourtodo.core.domain.repository.TodoReminderRepository
 import com.neo.yourtodo.core.model.Category
 import com.neo.yourtodo.core.model.ReminderRepeatType
-import com.neo.yourtodo.core.model.TodoCategoryFilter
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoItem
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSortOption
-import com.neo.yourtodo.core.model.TodoSyncStatus
 import com.neo.yourtodo.core.network.auth.AuthNetworkDataSource
-import com.neo.yourtodo.core.network.sync.NetworkTodo
-import com.neo.yourtodo.core.network.sync.NetworkTodoMutation
-import com.neo.yourtodo.core.network.sync.NetworkTodoMutationPayload
-import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPushRequest
-import com.neo.yourtodo.core.network.sync.TodoSyncAuthRequiredException
 import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
+import java.time.LocalDate
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.time.Instant
-import java.time.LocalDate
-import java.util.Locale
-import java.util.UUID
-import javax.inject.Inject
 
 class TodoRepositoryImpl @Inject constructor(
-    private val todoDao: TodoDao,
-    private val categoryDao: CategoryDao,
-    private val todoOutboxDao: TodoOutboxDao,
-    private val userPreferencesDataSource: UserPreferencesDataSource,
-    private val todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
+    todoDao: TodoDao,
+    categoryDao: CategoryDao,
+    todoOutboxDao: TodoOutboxDao,
+    userPreferencesDataSource: UserPreferencesDataSource,
+    todoSyncNetworkDataSource: TodoSyncNetworkDataSource,
     authNetworkDataSource: AuthNetworkDataSource,
-    private val authSessionRefresher: AuthSessionRefresher =
+    authSessionRefresher: AuthSessionRefresher =
         AuthSessionRefresher(userPreferencesDataSource, authNetworkDataSource)
 ) : TodoItemRepository, TodoCategoryRepository, TodoFilterRepository, TodoReminderRepository {
 
@@ -59,22 +46,38 @@ class TodoRepositoryImpl @Inject constructor(
         ignoreUnknownKeys = true
         explicitNulls = false
     }
-
-    private val syncMutex = Mutex()
+    private val categoryStore = TodoCategoryStore(categoryDao, userPreferencesDataSource)
+    private val syncSessionProvider = TodoSyncSessionProvider(userPreferencesDataSource)
+    private val outboxStore = TodoOutboxStore(todoOutboxDao, json)
+    private val todos = TodoLocalTodoStore(
+        todoDao = todoDao,
+        categoryStore = categoryStore,
+        outboxStore = outboxStore,
+        syncSessionProvider = syncSessionProvider
+    )
+    private val syncCoordinator = TodoSyncCoordinator(
+        todoDao = todoDao,
+        outboxStore = outboxStore,
+        userPreferencesDataSource = userPreferencesDataSource,
+        todoSyncNetworkDataSource = todoSyncNetworkDataSource,
+        authSessionRefresher = authSessionRefresher,
+        syncSessionProvider = syncSessionProvider,
+        json = json
+    )
+    private val filterPreferences = TodoFilterPreferences(userPreferencesDataSource, categoryStore)
+    private val reminderReader = TodoReminderReader(todoDao)
 
     override fun observeTodos(): Flow<List<TodoItem>> =
-        todoDao.observeTodos().map { entities -> entities.map { it.toDomain() } }
+        todos.observeTodos()
 
     override fun observeTodosByDueDateRange(startDate: LocalDate, endDate: LocalDate): Flow<List<TodoItem>> =
-        todoDao.observeTodosByDueDateRange(
-            startEpochDay = startDate.toEpochDay(),
-            endEpochDay = endDate.toEpochDay()
-        ).map { entities -> entities.map { it.toDomain() } }
+        todos.observeTodosByDueDateRange(startDate, endDate)
 
-    override suspend fun getTodo(id: Long): TodoItem? = todoDao.getTodoById(id)?.toDomain()
+    override suspend fun getTodo(id: Long): TodoItem? =
+        todos.getTodo(id)
 
     override suspend fun getTodosWithActiveReminder(): List<TodoItem> =
-        todoDao.getTodosWithActiveReminder().map { it.toDomain() }
+        reminderReader.getTodosWithActiveReminder()
 
     override suspend fun addTodo(
         title: String,
@@ -87,40 +90,19 @@ class TodoRepositoryImpl @Inject constructor(
         reminderRepeatDaysMask: Int,
         reminderLeadMinutes: Int?,
         priority: TodoPriority
-    ): Result<Long> = runCatching {
-        validateCategoryId(categoryId)
-        val now = System.currentTimeMillis()
-        val session = currentSessionForSync()
-        val syncStatus = if (session == null) TodoSyncStatus.LOCAL_ONLY else TodoSyncStatus.PENDING_CREATE
-        val clientId = session?.let { UUID.randomUUID().toString() }
-        val todo = TodoEntity(
+    ): Result<Long> = loggedResult("addTodo") {
+        todos.addTodo(
             title = title,
-            isDone = false,
-            dueDateEpochDay = dueDate?.toEpochDay(),
+            dueDate = dueDate,
+            categoryId = categoryId,
             dueTimeMinutes = dueTimeMinutes,
             reminderAtEpochMillis = reminderAtEpochMillis,
-            isReminderEnabled = isReminderEnabled && reminderAtEpochMillis != null,
-            reminderRepeatType = reminderRepeatType.name,
+            isReminderEnabled = isReminderEnabled,
+            reminderRepeatType = reminderRepeatType,
             reminderRepeatDaysMask = reminderRepeatDaysMask,
             reminderLeadMinutes = reminderLeadMinutes,
-            createdAt = now,
-            updatedAt = now,
-            categoryId = categoryId,
-            priority = priority.name,
-            clientId = clientId,
-            ownerUserId = session?.userId,
-            syncStatus = syncStatus.name
+            priority = priority
         )
-        val id = todoDao.insert(todo)
-        if (session != null && clientId != null) {
-            upsertCreateOutbox(
-                ownerUserId = session.userId,
-                todo = todo.copy(id = id)
-            )
-        }
-        id
-    }.onFailure { throwable ->
-        logError("addTodo", throwable)
     }
 
     override suspend fun updateTodo(
@@ -135,452 +117,92 @@ class TodoRepositoryImpl @Inject constructor(
         reminderRepeatDaysMask: Int,
         reminderLeadMinutes: Int?,
         priority: TodoPriority
-    ): Result<Unit> = runCatching {
-        validateCategoryId(categoryId)
-        val existing = todoDao.getTodoById(id) ?: throw IllegalStateException("Todo not found")
-        val updated = existing.copy(
+    ): Result<Unit> = loggedResult("updateTodo") {
+        todos.updateTodo(
+            id = id,
             title = title,
-            dueDateEpochDay = dueDate?.toEpochDay(),
+            dueDate = dueDate,
+            categoryId = categoryId,
             dueTimeMinutes = dueTimeMinutes,
             reminderAtEpochMillis = reminderAtEpochMillis,
-            isReminderEnabled = isReminderEnabled && reminderAtEpochMillis != null,
-            reminderRepeatType = reminderRepeatType.name,
+            isReminderEnabled = isReminderEnabled,
+            reminderRepeatType = reminderRepeatType,
             reminderRepeatDaysMask = reminderRepeatDaysMask,
             reminderLeadMinutes = reminderLeadMinutes,
-            updatedAt = System.currentTimeMillis(),
-            categoryId = categoryId,
-            priority = priority.name
+            priority = priority
         )
-        updateTodoWithOutbox(existing, updated)
-    }.onFailure { throwable ->
-        logError("updateTodo", throwable)
     }
 
-    override suspend fun deleteTodo(id: Long): Result<Unit> = runCatching {
-        val existing = todoDao.getTodoById(id) ?: throw IllegalStateException("Todo not found")
-        deleteTodoWithOutbox(existing)
-    }.onFailure { throwable ->
-        logError("deleteTodo", throwable)
+    override suspend fun deleteTodo(id: Long): Result<Unit> = loggedResult("deleteTodo") {
+        todos.deleteTodo(id)
     }
 
-    override suspend fun toggleTodoDone(id: Long): Result<Unit> = runCatching {
-        val existing = todoDao.getTodoById(id) ?: throw IllegalStateException("Todo not found")
-        val updated = existing.copy(
-            isDone = !existing.isDone,
-            isReminderEnabled = if (!existing.isDone) false else existing.isReminderEnabled,
-            reminderAtEpochMillis = if (!existing.isDone) null else existing.reminderAtEpochMillis,
-            reminderRepeatType = if (!existing.isDone) ReminderRepeatType.NONE.name else existing.reminderRepeatType,
-            reminderRepeatDaysMask = if (!existing.isDone) 0 else existing.reminderRepeatDaysMask,
-            updatedAt = System.currentTimeMillis()
-        )
-        updateTodoWithOutbox(existing, updated)
-    }.onFailure { throwable ->
-        logError("toggleTodoDone", throwable)
+    override suspend fun toggleTodoDone(id: Long): Result<Unit> = loggedResult("toggleTodoDone") {
+        todos.toggleTodoDone(id)
     }
 
-    override suspend fun syncTodos(): Result<Unit> =
-        if (!syncMutex.tryLock()) {
-            Result.success(Unit)
-        } else {
-            try {
-                runCatching {
-                    val session = currentSessionForSync() ?: return@runCatching
-                    userPreferencesDataSource.setTodoSyncHaltReason(null)
-                    try {
-                        syncTodosWithSession(session.accessToken, session.userId)
-                    } catch (throwable: TodoSyncAuthRequiredException) {
-                        val refreshedSession = authSessionRefresher.refresh(session.refreshToken)
-                        if (refreshedSession == null) {
-                            userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
-                            userPreferencesDataSource.clearAuthSession()
-                            throw throwable
-                        }
+    override suspend fun syncTodos(): Result<Unit> = loggedResult("syncTodos") {
+        syncCoordinator.syncTodos()
+    }
 
-                        try {
-                            userPreferencesDataSource.setTodoSyncHaltReason(null)
-                            syncTodosWithSession(refreshedSession.accessToken, refreshedSession.userId)
-                        } catch (retryThrowable: TodoSyncAuthRequiredException) {
-                            userPreferencesDataSource.setTodoSyncHaltReason(SYNC_HALT_AUTH_REQUIRED)
-                            userPreferencesDataSource.clearAuthSession()
-                            throw retryThrowable
-                        }
-                    }
-                }.onFailure { throwable ->
-                    logError("syncTodos", throwable)
-                }
-            } finally {
-                syncMutex.unlock()
-            }
+    override fun observeSelectedFilter(): Flow<TodoFilter> =
+        filterPreferences.observeSelectedFilter()
+
+    override suspend fun setSelectedFilter(filter: TodoFilter): Result<Unit> =
+        preferenceResult("setSelectedFilter") {
+            filterPreferences.setSelectedFilter(filter)
         }
-
-    override fun observeSelectedFilter(): Flow<TodoFilter> = userPreferencesDataSource.selectedTodoFilter
-
-    override suspend fun setSelectedFilter(filter: TodoFilter): Result<Unit> = runCatching {
-        userPreferencesDataSource.setSelectedTodoFilter(filter)
-    }.onFailure { throwable ->
-        logPreferenceFailure("setSelectedFilter", throwable)
-    }
 
     override fun observeCategories(): Flow<List<Category>> =
-        categoryDao.observeCategories().map { categories -> categories.map { it.toDomain() } }
+        categoryStore.observeCategories()
 
-    override suspend fun addCategory(name: String, colorHex: String?, icon: String?): Result<Long> = runCatching {
-        ensureUniqueCategoryName(name, excludeCategoryId = null)
-        val now = System.currentTimeMillis()
-        categoryDao.insert(
-            CategoryEntity(
-                name = name,
-                colorHex = colorHex,
-                icon = icon,
-                createdAt = now,
-                updatedAt = now
-            )
-        )
-    }.onFailure { throwable ->
-        logError("addCategory", throwable)
-    }
-
-    override suspend fun updateCategory(id: Long, name: String, colorHex: String?, icon: String?): Result<Unit> = runCatching {
-        val existing = categoryDao.getCategoryById(id) ?: throw IllegalStateException("Category not found")
-        ensureUniqueCategoryName(name, excludeCategoryId = id)
-        categoryDao.update(
-            existing.copy(
-                name = name,
-                colorHex = colorHex,
-                icon = icon,
-                updatedAt = System.currentTimeMillis()
-            )
-        )
-    }.onFailure { throwable ->
-        logError("updateCategory", throwable)
-    }
-
-    override suspend fun deleteCategory(id: Long): Result<Unit> = runCatching {
-        val existing = categoryDao.getCategoryById(id) ?: throw IllegalStateException("Category not found")
-        categoryDao.delete(existing)
-
-        // 선택된 카테고리가 삭제되면 전체(All)로 fallback
-        if (userPreferencesDataSource.selectedTodoCategoryFilter.first() == id) {
-            userPreferencesDataSource.setSelectedTodoCategoryFilter(null)
+    override suspend fun addCategory(name: String, colorHex: String?, icon: String?): Result<Long> =
+        loggedResult("addCategory") {
+            categoryStore.addCategory(name, colorHex, icon)
         }
-    }.onFailure { throwable ->
-        logError("deleteCategory", throwable)
+
+    override suspend fun updateCategory(id: Long, name: String, colorHex: String?, icon: String?): Result<Unit> =
+        loggedResult("updateCategory") {
+            categoryStore.updateCategory(id, name, colorHex, icon)
+        }
+
+    override suspend fun deleteCategory(id: Long): Result<Unit> = loggedResult("deleteCategory") {
+        categoryStore.deleteCategory(id)
     }
 
     override fun observeSelectedCategoryFilter(): Flow<Long?> =
-        userPreferencesDataSource.selectedTodoCategoryFilter
+        filterPreferences.observeSelectedCategoryFilter()
 
-    override suspend fun setSelectedCategoryFilter(categoryId: Long?): Result<Unit> = runCatching {
-        val isUncategorized = categoryId == TodoCategoryFilter.UNCATEGORIZED_FILTER_ID
-        if (categoryId != null && !isUncategorized && categoryDao.getCategoryById(categoryId) == null) {
-            throw IllegalArgumentException("Category not found")
+    override suspend fun setSelectedCategoryFilter(categoryId: Long?): Result<Unit> =
+        preferenceResult("setSelectedCategoryFilter") {
+            filterPreferences.setSelectedCategoryFilter(categoryId)
         }
-        userPreferencesDataSource.setSelectedTodoCategoryFilter(categoryId)
-    }.onFailure { throwable ->
-        logPreferenceFailure("setSelectedCategoryFilter", throwable)
-    }
 
     override fun observeSelectedPriorityFilter(): Flow<TodoPriorityFilter> =
-        userPreferencesDataSource.selectedTodoPriorityFilter
+        filterPreferences.observeSelectedPriorityFilter()
 
-    override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> = runCatching {
-        userPreferencesDataSource.setSelectedTodoPriorityFilter(filter)
-    }.onFailure { throwable ->
-        logPreferenceFailure("setSelectedPriorityFilter", throwable)
-    }
+    override suspend fun setSelectedPriorityFilter(filter: TodoPriorityFilter): Result<Unit> =
+        preferenceResult("setSelectedPriorityFilter") {
+            filterPreferences.setSelectedPriorityFilter(filter)
+        }
 
     override fun observeSelectedSortOption(): Flow<TodoSortOption> =
-        userPreferencesDataSource.selectedTodoSortOption
+        filterPreferences.observeSelectedSortOption()
 
-    override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> = runCatching {
-        userPreferencesDataSource.setSelectedTodoSortOption(option)
-    }.onFailure { throwable ->
-        logPreferenceFailure("setSelectedSortOption", throwable)
-    }
-
-    private suspend fun validateCategoryId(categoryId: Long?) {
-        if (categoryId != null && categoryDao.getCategoryById(categoryId) == null) {
-            throw IllegalArgumentException("Category not found")
-        }
-    }
-
-    private suspend fun currentSessionForSync() =
-        userPreferencesDataSource.authSession.first()
-            ?.takeUnless { it.onboardingRequired }
-
-    private suspend fun syncTodosWithSession(accessToken: String, ownerUserId: String) {
-        pullTodos(accessToken, ownerUserId)
-        pushTodos(accessToken, ownerUserId)
-        pullTodos(accessToken, ownerUserId)
-    }
-
-    private suspend fun updateTodoWithOutbox(existing: TodoEntity, updated: TodoEntity) {
-        when (syncStatusOf(existing)) {
-            TodoSyncStatus.LOCAL_ONLY -> todoDao.update(updated)
-            TodoSyncStatus.PENDING_DELETE -> throw IllegalStateException("Todo is pending delete")
-            TodoSyncStatus.PENDING_CREATE -> {
-                val pending = updated.copy(syncStatus = TodoSyncStatus.PENDING_CREATE.name, lastSyncError = null)
-                todoDao.update(pending)
-                pending.ownerUserId?.let { ownerUserId ->
-                    upsertCreateOutbox(ownerUserId, pending)
-                }
-            }
-            TodoSyncStatus.SYNCED,
-            TodoSyncStatus.PENDING_UPDATE,
-            TodoSyncStatus.FAILED -> {
-                if (!existing.hasRemoteIdentity()) {
-                    todoDao.update(updated.copy(syncStatus = TodoSyncStatus.LOCAL_ONLY.name))
-                } else {
-                    val pending = updated.copy(syncStatus = TodoSyncStatus.PENDING_UPDATE.name, lastSyncError = null)
-                    todoDao.update(pending)
-                    upsertUpdateOutbox(existing.ownerUserId.orEmpty(), pending)
-                }
-            }
-        }
-    }
-
-    private suspend fun deleteTodoWithOutbox(existing: TodoEntity) {
-        when (syncStatusOf(existing)) {
-            TodoSyncStatus.LOCAL_ONLY -> todoDao.delete(existing)
-            TodoSyncStatus.PENDING_CREATE -> {
-                todoOutboxDao.deleteByTodoLocalId(existing.id)
-                todoDao.delete(existing)
-            }
-            TodoSyncStatus.PENDING_DELETE -> Unit
-            TodoSyncStatus.SYNCED,
-            TodoSyncStatus.PENDING_UPDATE,
-            TodoSyncStatus.FAILED -> {
-                if (!existing.hasRemoteIdentity()) {
-                    todoDao.delete(existing)
-                } else {
-                    val pending = existing.copy(
-                        syncStatus = TodoSyncStatus.PENDING_DELETE.name,
-                        deletedAt = System.currentTimeMillis(),
-                        updatedAt = System.currentTimeMillis(),
-                        lastSyncError = null
-                    )
-                    todoDao.update(pending)
-                    todoOutboxDao.deleteByTodoLocalId(existing.id)
-                    enqueueDeleteOutbox(existing)
-                }
-            }
-        }
-    }
-
-    private fun TodoEntity.hasRemoteIdentity(): Boolean =
-        !ownerUserId.isNullOrBlank() && !serverId.isNullOrBlank()
-
-    private suspend fun upsertCreateOutbox(ownerUserId: String, todo: TodoEntity) =
-        upsertMutationOutbox(ownerUserId, todo, MUTATION_CREATE)
-
-    private suspend fun upsertUpdateOutbox(ownerUserId: String, todo: TodoEntity) =
-        upsertMutationOutbox(ownerUserId, todo, MUTATION_UPDATE)
-
-    private suspend fun upsertMutationOutbox(
-        ownerUserId: String,
-        todo: TodoEntity,
-        mutationType: String
-    ) {
-        val existingOutbox = todoOutboxDao.getByTodoLocalId(todo.id)
-        val type = if (mutationType == MUTATION_UPDATE && existingOutbox?.type == MUTATION_CREATE) {
-            MUTATION_CREATE
-        } else {
-            mutationType
-        }
-        val outbox = TodoOutboxEntity(
-            id = existingOutbox?.id ?: 0L,
-            ownerUserId = ownerUserId,
-            clientMutationId = existingOutbox?.clientMutationId ?: UUID.randomUUID().toString(),
-            todoLocalId = todo.id,
-            serverId = todo.serverId,
-            clientId = todo.clientId,
-            type = type,
-            payloadJson = json.encodeToString(todo.toSyncPayload()),
-            createdAt = existingOutbox?.createdAt ?: System.currentTimeMillis(),
-            retryCount = existingOutbox?.retryCount ?: 0,
-            lastError = null
-        )
-        if (existingOutbox == null) {
-            todoOutboxDao.insert(outbox)
-        } else {
-            todoOutboxDao.update(outbox)
-        }
-    }
-
-    private suspend fun enqueueDeleteOutbox(todo: TodoEntity) {
-        todoOutboxDao.insert(
-            TodoOutboxEntity(
-                ownerUserId = todo.ownerUserId.orEmpty(),
-                clientMutationId = UUID.randomUUID().toString(),
-                todoLocalId = todo.id,
-                serverId = todo.serverId,
-                clientId = todo.clientId,
-                type = MUTATION_DELETE,
-                payloadJson = "{}",
-                createdAt = System.currentTimeMillis()
-            )
-        )
-    }
-
-    private suspend fun pullTodos(accessToken: String, ownerUserId: String) {
-        var cursor = userPreferencesDataSource.todoSyncCursor.first()
-        do {
-            val response = todoSyncNetworkDataSource.pullTodos(accessToken, cursor)
-            response.todos.forEach { todo -> applyRemoteTodo(ownerUserId, todo) }
-            userPreferencesDataSource.setTodoSyncCursor(response.nextCursor)
-            cursor = response.nextCursor
-        } while (response.hasMore)
-    }
-
-    private suspend fun pushTodos(accessToken: String, ownerUserId: String) {
-        val outboxItems = todoOutboxDao.getPendingMutations(ownerUserId)
-        if (outboxItems.isEmpty()) return
-
-        val response = todoSyncNetworkDataSource.pushTodos(
-            accessToken = accessToken,
-            request = NetworkTodoSyncPushRequest(
-                baseCursor = userPreferencesDataSource.todoSyncCursor.first(),
-                mutations = outboxItems.map { it.toNetworkMutation() }
-            )
-        )
-
-        response.results.forEach { result ->
-            val outbox = outboxItems.firstOrNull { it.clientMutationId == result.clientMutationId } ?: return@forEach
-            when (result.status) {
-                RESULT_APPLIED,
-                RESULT_DUPLICATE_APPLIED,
-                RESULT_DUPLICATE_CLIENT_ID -> {
-                    result.todo?.let { todo -> applyRemoteTodo(ownerUserId, todo) }
-                    todoOutboxDao.deleteById(outbox.id)
-                }
-                RESULT_REJECTED_DELETED -> {
-                    result.todo?.let { todo -> applyRemoteTodo(ownerUserId, todo) }
-                    todoOutboxDao.deleteById(outbox.id)
-                }
-                RESULT_REJECTED_VALIDATION,
-                RESULT_REJECTED_NOT_FOUND,
-                RESULT_REJECTED_IDEMPOTENCY_CONFLICT -> {
-                    outbox.todoLocalId?.let { localId ->
-                        todoDao.getTodoById(localId)?.let { todo ->
-                            todoDao.update(
-                                todo.copy(
-                                    syncStatus = TodoSyncStatus.FAILED.name,
-                                    lastSyncError = result.error?.code ?: result.status
-                                )
-                            )
-                        }
-                    }
-                    todoOutboxDao.deleteById(outbox.id)
-                }
-            }
-        }
-        userPreferencesDataSource.setTodoSyncCursor(response.nextCursor)
-    }
-
-    private suspend fun applyRemoteTodo(ownerUserId: String, remote: NetworkTodo) {
-        val existing = todoDao.getTodoByServerId(ownerUserId, remote.id)
-            ?: todoDao.getTodoByClientId(ownerUserId, remote.clientId)
-        val remoteDeleted = remote.status == STATUS_DELETED || remote.deletedAt != null
-        if (existing == null) {
-            if (!remoteDeleted) {
-                todoDao.insert(remote.toEntity(ownerUserId))
-            }
-            return
+    override suspend fun setSelectedSortOption(option: TodoSortOption): Result<Unit> =
+        preferenceResult("setSelectedSortOption") {
+            filterPreferences.setSelectedSortOption(option)
         }
 
-        val localStatus = syncStatusOf(existing)
-        when {
-            remoteDeleted -> {
-                todoOutboxDao.deleteByTodoLocalId(existing.id)
-                todoDao.update(remote.toEntity(ownerUserId, existing.id, existing.priority))
-            }
-            localStatus == TodoSyncStatus.PENDING_DELETE -> Unit
-            localStatus == TodoSyncStatus.PENDING_UPDATE -> Unit
-            else -> {
-                todoDao.update(remote.toEntity(ownerUserId, existing.id, existing.priority))
-                todoOutboxDao.deleteByTodoLocalId(existing.id)
-            }
-        }
-    }
-
-    private suspend fun TodoOutboxEntity.toNetworkMutation(): NetworkTodoMutation {
-        val payload = if (type == MUTATION_DELETE) null else json.decodeFromString<TodoSyncPayload>(payloadJson)
-        val fallbackPriority = todoLocalId?.let { todoDao.getTodoById(it)?.priority }
-        return NetworkTodoMutation(
-            clientMutationId = clientMutationId,
-            type = type,
-            id = serverId,
-            clientId = clientId,
-            payload = payload?.let {
-                NetworkTodoMutationPayload(
-                    title = it.title,
-                    description = it.description,
-                    dueDate = it.dueDate,
-                    status = it.status,
-                    priority = it.priority.toTodoPriorityNameOrNull(fallbackPriority)
-                )
-            }
-        )
-    }
-
-    private fun TodoEntity.toSyncPayload(): TodoSyncPayload =
-        TodoSyncPayload(
-            title = title,
-            dueDate = dueDateEpochDay?.let { LocalDate.ofEpochDay(it).toString() },
-            status = if (isDone) STATUS_COMPLETED else STATUS_ACTIVE,
-            priority = priority
-        )
-
-    private fun NetworkTodo.toEntity(
-        ownerUserId: String,
-        localId: Long = 0L,
-        fallbackPriority: String? = null
-    ): TodoEntity =
-        TodoEntity(
-            id = localId,
-            title = title,
-            isDone = status == STATUS_COMPLETED,
-            dueDateEpochDay = dueDate?.let(LocalDate::parse)?.toEpochDay(),
-            createdAt = parseInstantMillis(createdAt),
-            updatedAt = parseInstantMillis(updatedAt),
-            categoryId = null,
-            priority = priority.toTodoPriorityName(fallbackPriority),
-            serverId = id,
-            clientId = clientId,
-            ownerUserId = ownerUserId,
-            syncStatus = TodoSyncStatus.SYNCED.name,
-            serverRevision = revision,
-            deletedAt = deletedAt?.let(::parseInstantMillis),
-            lastSyncError = null
-        )
-
-    private fun String?.toTodoPriorityName(fallbackPriority: String?): String =
-        toTodoPriorityNameOrNull(fallbackPriority) ?: TodoPriority.MEDIUM.name
-
-    private fun String?.toTodoPriorityNameOrNull(fallbackPriority: String?): String? {
-        val entries = TodoPriority.entries
-        return entries.firstOrNull { it.name.equals(this, ignoreCase = true) }?.name
-            ?: entries.firstOrNull { it.name.equals(fallbackPriority, ignoreCase = true) }?.name
-    }
-
-    private fun parseInstantMillis(value: String): Long =
-        Instant.parse(value).toEpochMilli()
-
-    private fun syncStatusOf(todo: TodoEntity): TodoSyncStatus =
-        TodoSyncStatus.entries.find { it.name == todo.syncStatus } ?: TodoSyncStatus.LOCAL_ONLY
-
-    private suspend fun ensureUniqueCategoryName(name: String, excludeCategoryId: Long?) {
-        val duplicate = categoryDao.getCategoryByName(name)
-        if (duplicate != null && duplicate.id != excludeCategoryId) {
-            throw IllegalArgumentException("Category name already exists")
+    private suspend fun <T> loggedResult(action: String, block: suspend () -> T): Result<T> =
+        runCatching { block() }.onFailure { throwable ->
+            logError(action, throwable)
         }
 
-        // room의 NOCASE index가 locale 독립적이지 않을 수 있어 repo 레벨에서 한 번 더 정규화 검증
-        val normalized = name.lowercase(Locale.ROOT)
-        if (duplicate != null && duplicate.id != excludeCategoryId && duplicate.name.lowercase(Locale.ROOT) == normalized) {
-            throw IllegalArgumentException("Category name already exists")
+    private suspend fun <T> preferenceResult(action: String, block: suspend () -> T): Result<T> =
+        runCatching { block() }.onFailure { throwable ->
+            logPreferenceFailure(action, throwable)
         }
-    }
 
     private fun logError(action: String, throwable: Throwable) {
         Log.e(TAG, "action=$action failure=${throwable.message}", throwable)
@@ -593,19 +215,5 @@ class TodoRepositoryImpl @Inject constructor(
 
     private companion object {
         private const val TAG = "TodoRepository"
-        private const val MUTATION_CREATE = "CREATE"
-        private const val MUTATION_UPDATE = "UPDATE"
-        private const val MUTATION_DELETE = "DELETE"
-        private const val STATUS_ACTIVE = "ACTIVE"
-        private const val STATUS_COMPLETED = "COMPLETED"
-        private const val STATUS_DELETED = "DELETED"
-        private const val RESULT_APPLIED = "APPLIED"
-        private const val RESULT_DUPLICATE_APPLIED = "DUPLICATE_APPLIED"
-        private const val RESULT_DUPLICATE_CLIENT_ID = "DUPLICATE_CLIENT_ID"
-        private const val RESULT_REJECTED_VALIDATION = "REJECTED_VALIDATION"
-        private const val RESULT_REJECTED_NOT_FOUND = "REJECTED_NOT_FOUND"
-        private const val RESULT_REJECTED_DELETED = "REJECTED_DELETED"
-        private const val RESULT_REJECTED_IDEMPOTENCY_CONFLICT = "REJECTED_IDEMPOTENCY_CONFLICT"
-        private const val SYNC_HALT_AUTH_REQUIRED = "AUTH_REQUIRED"
     }
 }

@@ -82,6 +82,53 @@ class TodoRepositoryImplTest {
     }
 
     @Test
+    fun `getTodosWithActiveReminder maps active reminder entities`() = runTest {
+        val todoDao = FakeTodoDao().apply {
+            seed(
+                TodoEntity(
+                    id = 1L,
+                    title = "disabled",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 1L,
+                    updatedAt = 1L,
+                    categoryId = null,
+                    reminderAtEpochMillis = 100L,
+                    isReminderEnabled = false
+                ),
+                TodoEntity(
+                    id = 2L,
+                    title = "active later",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 2L,
+                    updatedAt = 2L,
+                    categoryId = null,
+                    reminderAtEpochMillis = 200L,
+                    isReminderEnabled = true
+                ),
+                TodoEntity(
+                    id = 3L,
+                    title = "active earlier",
+                    isDone = false,
+                    dueDateEpochDay = null,
+                    createdAt = 3L,
+                    updatedAt = 3L,
+                    categoryId = null,
+                    reminderAtEpochMillis = 100L,
+                    isReminderEnabled = true
+                )
+            )
+        }
+        val repository = repository(todoDao = todoDao)
+
+        val reminders = repository.getTodosWithActiveReminder()
+
+        assertThat(reminders.map { it.title }).containsExactly("active earlier", "active later").inOrder()
+        assertThat(reminders.map { it.reminderAtEpochMillis }).containsExactly(100L, 200L).inOrder()
+    }
+
+    @Test
     fun `addTodo inserts entity and returns id`() = runTest {
         val todoDao = FakeTodoDao()
         val categoryDao = FakeCategoryDao().apply {
@@ -178,6 +225,16 @@ class TodoRepositoryImplTest {
         repository.setSelectedSortOption(TodoSortOption.PRIORITY)
 
         assertThat(repository.observeSelectedSortOption().first()).isEqualTo(TodoSortOption.PRIORITY)
+    }
+
+    @Test
+    fun `observe and set selected todo priority filter works`() = runTest {
+        val prefs = FakePreferencesDataSource()
+        val repository = repository(prefs = prefs)
+
+        repository.setSelectedPriorityFilter(TodoPriorityFilter.HIGH)
+
+        assertThat(repository.observeSelectedPriorityFilter().first()).isEqualTo(TodoPriorityFilter.HIGH)
     }
 
     @Test
