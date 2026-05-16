@@ -5,9 +5,12 @@ import com.neo.yourtodo.core.model.TodoCategoryFilter
 import com.neo.yourtodo.core.model.TodoFilter
 import com.neo.yourtodo.core.model.TodoPriorityFilter
 import com.neo.yourtodo.core.model.TodoSortOption
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 
-internal class TodoFilterPreferences(
+@Singleton
+internal class TodoFilterPreferences @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val categoryStore: TodoCategoryStore
 ) {

@@ -1,5 +1,6 @@
 package com.neo.yourtodo.core.data.repository.todo
 
+import com.neo.yourtodo.core.data.di.TodoSyncPayloadJson
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.MUTATION_CREATE
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.MUTATION_DELETE
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.MUTATION_UPDATE
@@ -7,11 +8,16 @@ import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-internal class TodoOutboxStore(
+@Singleton
+internal class TodoOutboxStore @Inject constructor(
     private val todoOutboxDao: TodoOutboxDao,
+    private val timeProvider: TodoTimeProvider,
+    @TodoSyncPayloadJson
     private val json: Json
 ) {
     suspend fun getPendingMutations(ownerUserId: String): List<TodoOutboxEntity> =
@@ -33,7 +39,7 @@ internal class TodoOutboxStore(
                 clientId = todo.clientId,
                 type = MUTATION_DELETE,
                 payloadJson = "{}",
-                createdAt = System.currentTimeMillis()
+                createdAt = timeProvider.currentTimeMillis()
             )
         )
     }
@@ -66,7 +72,7 @@ internal class TodoOutboxStore(
             clientId = todo.clientId,
             type = type,
             payloadJson = json.encodeToString(todo.toSyncPayload()),
-            createdAt = existingOutbox?.createdAt ?: System.currentTimeMillis(),
+            createdAt = existingOutbox?.createdAt ?: timeProvider.currentTimeMillis(),
             retryCount = existingOutbox?.retryCount ?: 0,
             lastError = null
         )

@@ -5,11 +5,14 @@ import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.entity.CategoryEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.Category
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-internal class TodoCategoryStore(
+@Singleton
+internal class TodoCategoryStore @Inject constructor(
     private val categoryDao: CategoryDao,
     private val userPreferencesDataSource: UserPreferencesDataSource
 ) {

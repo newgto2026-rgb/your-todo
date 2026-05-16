@@ -9,14 +9,19 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSyncStatus
 import java.time.LocalDate
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-internal class TodoLocalTodoStore(
+@Singleton
+internal class TodoLocalTodoStore @Inject constructor(
     private val todoDao: TodoDao,
     private val categoryStore: TodoCategoryStore,
     private val outboxStore: TodoOutboxStore,
-    private val syncSessionProvider: TodoSyncSessionProvider
+    private val syncSessionProvider: TodoSyncSessionProvider,
+    private val transactionRunner: TodoTransactionRunner,
+    private val timeProvider: TodoTimeProvider
 ) {
     fun observeTodos(): Flow<List<TodoItem>> =
         todoDao.observeTodos().map { entities -> entities.map { it.toDomain() } }
@@ -41,9 +46,9 @@ internal class TodoLocalTodoStore(
         reminderRepeatDaysMask: Int,
         reminderLeadMinutes: Int?,
         priority: TodoPriority
-    ): Long {
+    ): Long = transactionRunner.runInTransaction {
         categoryStore.requireCategoryExists(categoryId)
-        val now = System.currentTimeMillis()
+        val now = timeProvider.currentTimeMillis()
         val session = syncSessionProvider.currentSessionForSync()
         val syncStatus = if (session == null) TodoSyncStatus.LOCAL_ONLY else TodoSyncStatus.PENDING_CREATE
         val clientId = session?.let { UUID.randomUUID().toString() }
@@ -72,7 +77,7 @@ internal class TodoLocalTodoStore(
                 todo = todo.copy(id = id)
             )
         }
-        return id
+        id
     }
 
     suspend fun updateTodo(
@@ -87,7 +92,7 @@ internal class TodoLocalTodoStore(
         reminderRepeatDaysMask: Int,
         reminderLeadMinutes: Int?,
         priority: TodoPriority
-    ) {
+    ) = transactionRunner.runInTransaction {
         categoryStore.requireCategoryExists(categoryId)
         val existing = todoDao.getTodoById(id) ?: throw IllegalStateException("Todo not found")
         val updated = existing.copy(
@@ -99,19 +104,19 @@ internal class TodoLocalTodoStore(
             reminderRepeatType = reminderRepeatType.name,
             reminderRepeatDaysMask = reminderRepeatDaysMask,
             reminderLeadMinutes = reminderLeadMinutes,
-            updatedAt = System.currentTimeMillis(),
+            updatedAt = timeProvider.currentTimeMillis(),
             categoryId = categoryId,
             priority = priority.name
         )
         updateTodoWithOutbox(existing, updated)
     }
 
-    suspend fun deleteTodo(id: Long) {
+    suspend fun deleteTodo(id: Long) = transactionRunner.runInTransaction {
         val existing = todoDao.getTodoById(id) ?: throw IllegalStateException("Todo not found")
         deleteTodoWithOutbox(existing)
     }
 
-    suspend fun toggleTodoDone(id: Long) {
+    suspend fun toggleTodoDone(id: Long) = transactionRunner.runInTransaction {
         val existing = todoDao.getTodoById(id) ?: throw IllegalStateException("Todo not found")
         val updated = existing.copy(
             isDone = !existing.isDone,
@@ -119,7 +124,7 @@ internal class TodoLocalTodoStore(
             reminderAtEpochMillis = if (!existing.isDone) null else existing.reminderAtEpochMillis,
             reminderRepeatType = if (!existing.isDone) ReminderRepeatType.NONE.name else existing.reminderRepeatType,
             reminderRepeatDaysMask = if (!existing.isDone) 0 else existing.reminderRepeatDaysMask,
-            updatedAt = System.currentTimeMillis()
+            updatedAt = timeProvider.currentTimeMillis()
         )
         updateTodoWithOutbox(existing, updated)
     }
@@ -163,10 +168,11 @@ internal class TodoLocalTodoStore(
                 if (!existing.hasRemoteIdentity()) {
                     todoDao.delete(existing)
                 } else {
+                    val now = timeProvider.currentTimeMillis()
                     val pending = existing.copy(
                         syncStatus = TodoSyncStatus.PENDING_DELETE.name,
-                        deletedAt = System.currentTimeMillis(),
-                        updatedAt = System.currentTimeMillis(),
+                        deletedAt = now,
+                        updatedAt = now,
                         lastSyncError = null
                     )
                     todoDao.update(pending)

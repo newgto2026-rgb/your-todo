@@ -6,6 +6,16 @@ import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.entity.CategoryEntity
 import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
+import com.neo.yourtodo.core.data.di.TodoRepositoryCollaboratorModule
+import com.neo.yourtodo.core.data.repository.todo.TodoCategoryStore
+import com.neo.yourtodo.core.data.repository.todo.TodoFilterPreferences
+import com.neo.yourtodo.core.data.repository.todo.TodoLocalTodoStore
+import com.neo.yourtodo.core.data.repository.todo.TodoOutboxStore
+import com.neo.yourtodo.core.data.repository.todo.TodoReminderReader
+import com.neo.yourtodo.core.data.repository.todo.TodoSyncCoordinator
+import com.neo.yourtodo.core.data.repository.todo.TodoSyncSessionProvider
+import com.neo.yourtodo.core.data.repository.todo.TodoTimeProvider
+import com.neo.yourtodo.core.data.repository.todo.TodoTransactionRunner
 import com.neo.yourtodo.core.datastore.source.AuthSessionData
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.model.TodoFilter
@@ -320,7 +330,15 @@ class TodoRepositoryImplTest {
         val todoDao = FakeTodoDao()
         val outboxDao = FakeTodoOutboxDao()
         val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
-        val repository = repository(todoDao = todoDao, outboxDao = outboxDao, prefs = prefs)
+        val transactionRunner = FakeTodoTransactionRunner()
+        val timeProvider = FixedTodoTimeProvider(123_456L)
+        val repository = repository(
+            todoDao = todoDao,
+            outboxDao = outboxDao,
+            prefs = prefs,
+            transactionRunner = transactionRunner,
+            timeProvider = timeProvider
+        )
 
         val id = repository.addTodo(
             title = "sync me",
@@ -333,10 +351,14 @@ class TodoRepositoryImplTest {
         assertThat(saved.syncStatus).isEqualTo("PENDING_CREATE")
         assertThat(saved.ownerUserId).isEqualTo("user-id")
         assertThat(saved.clientId).isNotNull()
+        assertThat(saved.createdAt).isEqualTo(123_456L)
+        assertThat(saved.updatedAt).isEqualTo(123_456L)
         assertThat(outboxDao.items).hasSize(1)
         assertThat(outboxDao.items.single().type).isEqualTo("CREATE")
+        assertThat(outboxDao.items.single().createdAt).isEqualTo(123_456L)
         assertThat(outboxDao.items.single().payloadJson).contains("sync me")
         assertThat(outboxDao.items.single().payloadJson).contains("\"priority\":\"HIGH\"")
+        assertThat(transactionRunner.transactionCount).isEqualTo(1)
     }
 
     @Test
@@ -877,21 +899,55 @@ class TodoRepositoryImplTest {
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         network: FakeTodoSyncNetworkDataSource = FakeTodoSyncNetworkDataSource(),
         authNetwork: FakeAuthNetworkDataSource = FakeAuthNetworkDataSource(),
-        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker()
-    ): TodoRepositoryImpl =
-        TodoRepositoryImpl(
-            todoDao = todoDao,
-            categoryDao = categoryDao,
-            todoOutboxDao = outboxDao,
-            userPreferencesDataSource = prefs,
-            todoSyncNetworkDataSource = network,
-            assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
-            authSessionRefresher = AuthSessionRefresher(
-                prefs,
-                authNetwork,
-                assignmentFeedFreshnessTracker
+        assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker = AssignmentFeedFreshnessTracker(),
+        transactionRunner: TodoTransactionRunner = FakeTodoTransactionRunner(),
+        timeProvider: TodoTimeProvider = FixedTodoTimeProvider(1_000L)
+    ): TodoRepositoryImpl {
+        val json = TodoRepositoryCollaboratorModule.provideTodoSyncPayloadJson()
+        val categoryStore = TodoCategoryStore(categoryDao, prefs)
+        val syncSessionProvider = TodoSyncSessionProvider(prefs)
+        val outboxStore = TodoOutboxStore(outboxDao, timeProvider, json)
+        return TodoRepositoryImpl(
+            todos = TodoLocalTodoStore(
+                todoDao = todoDao,
+                categoryStore = categoryStore,
+                outboxStore = outboxStore,
+                syncSessionProvider = syncSessionProvider,
+                transactionRunner = transactionRunner,
+                timeProvider = timeProvider
+            ),
+            categoryStore = categoryStore,
+            filterPreferences = TodoFilterPreferences(prefs, categoryStore),
+            reminderReader = TodoReminderReader(todoDao),
+            syncCoordinator = TodoSyncCoordinator(
+                todoDao = todoDao,
+                outboxStore = outboxStore,
+                userPreferencesDataSource = prefs,
+                todoSyncNetworkDataSource = network,
+                authSessionRefresher = AuthSessionRefresher(
+                    prefs,
+                    authNetwork,
+                    assignmentFeedFreshnessTracker
+                ),
+                syncSessionProvider = syncSessionProvider,
+                assignmentFeedFreshnessTracker = assignmentFeedFreshnessTracker,
+                json = json
             )
         )
+    }
+
+    private class FakeTodoTransactionRunner : TodoTransactionRunner {
+        var transactionCount = 0
+
+        override suspend fun <T> runInTransaction(block: suspend () -> T): T {
+            transactionCount += 1
+            return block()
+        }
+    }
+
+    private class FixedTodoTimeProvider(private val now: Long) : TodoTimeProvider {
+        override fun currentTimeMillis(): Long = now
+    }
 
     private class FakePreferencesDataSource : UserPreferencesDataSource {
         private val authSessionFlow = MutableStateFlow<AuthSessionData?>(null)

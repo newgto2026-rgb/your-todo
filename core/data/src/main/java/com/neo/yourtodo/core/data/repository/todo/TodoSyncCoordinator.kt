@@ -1,5 +1,6 @@
 package com.neo.yourtodo.core.data.repository.todo
 
+import com.neo.yourtodo.core.data.di.TodoSyncPayloadJson
 import com.neo.yourtodo.core.data.repository.AssignmentFeedFreshnessTracker
 import com.neo.yourtodo.core.data.repository.AuthSessionRefresher
 import com.neo.yourtodo.core.data.repository.todo.TodoSyncConstants.RESULT_APPLIED
@@ -19,11 +20,14 @@ import com.neo.yourtodo.core.network.sync.NetworkTodo
 import com.neo.yourtodo.core.network.sync.NetworkTodoSyncPushRequest
 import com.neo.yourtodo.core.network.sync.TodoSyncAuthRequiredException
 import com.neo.yourtodo.core.network.sync.TodoSyncNetworkDataSource
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.json.Json
 
-internal class TodoSyncCoordinator(
+@Singleton
+internal class TodoSyncCoordinator @Inject constructor(
     private val todoDao: TodoDao,
     private val outboxStore: TodoOutboxStore,
     private val userPreferencesDataSource: UserPreferencesDataSource,
@@ -31,6 +35,7 @@ internal class TodoSyncCoordinator(
     private val authSessionRefresher: AuthSessionRefresher,
     private val syncSessionProvider: TodoSyncSessionProvider,
     private val assignmentFeedFreshnessTracker: AssignmentFeedFreshnessTracker,
+    @TodoSyncPayloadJson
     private val json: Json
 ) {
     private val syncMutex = Mutex()
