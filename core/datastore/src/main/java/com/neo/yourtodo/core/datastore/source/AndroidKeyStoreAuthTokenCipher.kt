@@ -3,8 +3,10 @@ package com.neo.yourtodo.core.datastore.source
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import java.security.ProviderException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -78,9 +80,17 @@ class AndroidKeyStoreAuthTokenCipher internal constructor(
         try {
             secretKeyStore.getSecretKey(KEY_ALIAS)
         } catch (exception: GeneralSecurityException) {
-            secretKeyStore.clearKey(KEY_ALIAS)
-            null
+            handleRecoverableKeyStoreLookupFailure()
+        } catch (exception: IOException) {
+            handleRecoverableKeyStoreLookupFailure()
+        } catch (exception: ProviderException) {
+            handleRecoverableKeyStoreLookupFailure()
         }
+
+    private fun handleRecoverableKeyStoreLookupFailure(): SecretKey? {
+        secretKeyStore.clearKey(KEY_ALIAS)
+        return null
+    }
 
     private companion object {
         const val KEY_ALIAS = "yourtodo_auth_token_storage_key"
@@ -94,7 +104,7 @@ class AndroidKeyStoreAuthTokenCipher internal constructor(
 }
 
 internal interface AuthSecretKeyStore {
-    @Throws(GeneralSecurityException::class)
+    @Throws(GeneralSecurityException::class, IOException::class)
     fun getSecretKey(alias: String): SecretKey?
 
     fun clearKey(alias: String)
