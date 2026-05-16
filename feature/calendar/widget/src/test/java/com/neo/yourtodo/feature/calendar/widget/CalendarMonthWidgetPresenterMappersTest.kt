@@ -45,7 +45,7 @@ class CalendarMonthWidgetPresenterMappersTest {
         val todayDay = state.weeks.flatten().single { it.date == today }
         val adjacentDay = state.weeks.flatten().single { it.date == adjacentDate }
 
-        assertThat(state.monthLabel).isEqualTo("2026 May")
+        assertThat(state.monthLabel).isEqualTo("May 2026")
         assertThat(state.weekdayLabels).hasSize(7)
         assertThat(state.weeks).hasSize(6)
         assertThat(todayDay.isToday).isTrue()
@@ -95,14 +95,26 @@ class CalendarMonthWidgetPresenterMappersTest {
     @Test
     fun calendarMonthWidgetPresentationErrorState_keepsMonthAndWeekdays() {
         val state = calendarMonthWidgetPresentationErrorState(
-            monthLabel = "2026 May",
+            monthLabel = "May 2026",
             locale = Locale.US
         )
 
-        assertThat(state.monthLabel).isEqualTo("2026 May")
+        assertThat(state.monthLabel).isEqualTo("May 2026")
         assertThat(state.weekdayLabels).hasSize(7)
         assertThat(state.weeks).isEmpty()
         assertThat(state.isError).isTrue()
+    }
+
+    @Test
+    fun formatWidgetMonthLabel_respectsLocaleMonthYearOrder() {
+        val yearMonth = YearMonth.of(2026, 5)
+
+        val usLabel = formatWidgetMonthLabel(yearMonth, Locale.US)
+        val koreanLabel = formatWidgetMonthLabel(yearMonth, Locale.KOREA)
+
+        assertThat(usLabel).isEqualTo("May 2026")
+        assertThat(koreanLabel.indexOf("2026")).isLessThan(koreanLabel.indexOf("5"))
+        assertThat(koreanLabel).doesNotContain("1")
     }
 
     private fun todo(

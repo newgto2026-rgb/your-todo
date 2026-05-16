@@ -6,6 +6,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
 internal class CalendarMonthWidgetPresenter @Inject constructor(
@@ -34,7 +35,8 @@ internal class CalendarMonthWidgetPresenter @Inject constructor(
                 locale = locale,
                 summaries = summaries
             )
-        }.getOrElse {
+        }.getOrElse { throwable ->
+            if (throwable is CancellationException) throw throwable
             calendarMonthWidgetPresentationErrorState(
                 monthLabel = monthLabel,
                 locale = locale

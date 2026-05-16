@@ -21,6 +21,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -48,7 +49,7 @@ class CalendarMonthWidgetPresenterTest {
         val state = presenter.present(Locale.US)
         val day = state.weeks.flatten().single { it.date == targetDate }
 
-        assertThat(state.monthLabel).isEqualTo("2026 May")
+        assertThat(state.monthLabel).isEqualTo("May 2026")
         assertThat(day.isToday).isTrue()
         assertThat(day.isCurrentMonth).isTrue()
         assertThat(day.taskCountLabel).isEqualTo("3")
@@ -195,7 +196,7 @@ class CalendarMonthWidgetPresenterTest {
         val day = state.weeks.flatten().single { it.date == targetDate }
 
         assertThat(summarySource.requestedMonths).containsExactly(displayedMonth)
-        assertThat(state.monthLabel).isEqualTo("2026 July")
+        assertThat(state.monthLabel).isEqualTo("July 2026")
         assertThat(day.isToday).isFalse()
         assertThat(day.isCurrentMonth).isTrue()
         assertThat(day.taskCountLabel).isEqualTo("2")
@@ -211,7 +212,22 @@ class CalendarMonthWidgetPresenterTest {
         val state = presenter.present(Locale.US)
 
         assertThat(state.isError).isTrue()
+        assertThat(state.monthLabel).isEqualTo("May 2026")
+        assertThat(state.weekdayLabels).hasSize(7)
         assertThat(state.weeks).isEmpty()
+    }
+
+    @Test
+    fun present_rethrowsCancellationException() = runTest {
+        val cancellation = CancellationException("cancelled")
+        val presenter = presenter(
+            summarySource = FakeCalendarMonthSummarySource(error = cancellation),
+            clock = fixedClock("2026-05-07T00:00:00Z")
+        )
+
+        val thrown = runCatching { presenter.present(Locale.US) }.exceptionOrNull()
+
+        assertThat(thrown).isSameInstanceAs(cancellation)
     }
 
     @Test
