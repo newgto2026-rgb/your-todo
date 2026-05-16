@@ -1,11 +1,14 @@
 package com.neo.yourtodo.core.datastore.source
 
 import com.google.common.truth.Truth.assertThat
+import java.io.IOException
 import java.security.GeneralSecurityException
+import java.security.ProviderException
 import java.security.UnrecoverableKeyException
 import java.util.Base64
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class AndroidKeyStoreAuthTokenCipherTest {
@@ -15,7 +18,7 @@ class AndroidKeyStoreAuthTokenCipherTest {
         val generatedKey = secretKey(seed = 1)
         val keyStore = FakeAuthSecretKeyStore(
             storedKey = null,
-            failFirstGet = true
+            firstGetFailure = UnrecoverableKeyException("Keystore entry is not recoverable")
         )
         val keyGenerator = FakeAuthSecretKeyGenerator(generatedKey)
         val cipher = createCipher(keyStore, keyGenerator)
@@ -50,6 +53,48 @@ class AndroidKeyStoreAuthTokenCipherTest {
         assertThat(keyGenerator.generateCalls).isEqualTo(0)
     }
 
+    @Test
+    fun decryptReturnsNullWhenKeyStoreLookupThrowsRecoverablePlatformFailure() {
+        val recoverableFailures = listOf(
+            IOException("AndroidKeyStore load failed"),
+            ProviderException("AndroidKeyStore provider unavailable")
+        )
+
+        recoverableFailures.forEachIndexed { index, failure ->
+            val encryptedWithOldKey = createCipher(
+                keyStore = FakeAuthSecretKeyStore(storedKey = secretKey(seed = 10 + index)),
+                keyGenerator = FakeAuthSecretKeyGenerator(generatedKey = null)
+            ).encrypt("refresh-token")
+            val keyStore = FakeAuthSecretKeyStore(
+                storedKey = null,
+                firstGetFailure = failure
+            )
+            val keyGenerator = FakeAuthSecretKeyGenerator(secretKey(seed = 20 + index))
+            val cipher = createCipher(keyStore, keyGenerator)
+
+            assertThat(cipher.decrypt(encryptedWithOldKey)).isNull()
+            assertThat(keyStore.getSecretKeyCalls).isEqualTo(1)
+            assertThat(keyStore.clearKeyCalls).isEqualTo(1)
+            assertThat(keyGenerator.generateCalls).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun encryptPropagatesUnexpectedRuntimeKeyStoreLookupFailure() {
+        val keyStore = FakeAuthSecretKeyStore(
+            storedKey = null,
+            firstGetFailure = IllegalStateException("Fake store is misconfigured")
+        )
+        val keyGenerator = FakeAuthSecretKeyGenerator(secretKey(seed = 3))
+        val cipher = createCipher(keyStore, keyGenerator)
+
+        assertThrows(IllegalStateException::class.java) {
+            cipher.encrypt("access-token")
+        }
+        assertThat(keyStore.clearKeyCalls).isEqualTo(0)
+        assertThat(keyGenerator.generateCalls).isEqualTo(0)
+    }
+
     private fun createCipher(
         keyStore: AuthSecretKeyStore,
         keyGenerator: AuthSecretKeyGenerator
@@ -65,7 +110,7 @@ class AndroidKeyStoreAuthTokenCipherTest {
 
     private class FakeAuthSecretKeyStore(
         private val storedKey: SecretKey?,
-        private val failFirstGet: Boolean = false
+        private val firstGetFailure: Throwable? = null
     ) : AuthSecretKeyStore {
         var getSecretKeyCalls = 0
             private set
@@ -74,8 +119,8 @@ class AndroidKeyStoreAuthTokenCipherTest {
 
         override fun getSecretKey(alias: String): SecretKey? {
             getSecretKeyCalls += 1
-            if (failFirstGet && getSecretKeyCalls == 1) {
-                throw UnrecoverableKeyException("Keystore entry is not recoverable")
+            if (firstGetFailure != null && getSecretKeyCalls == 1) {
+                throw firstGetFailure
             }
             return storedKey
         }
