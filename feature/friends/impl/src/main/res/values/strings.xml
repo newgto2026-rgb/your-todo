@@ -35,10 +35,10 @@
     <string name="friends_request_accepted">You are friends now.</string>
     <string name="friends_request_declined">Friend request declined.</string>
     <string name="friends_removed">Friend removed.</string>
-    <string name="friends_assignment_dialog_title">Shared with @%1$s</string>
-    <string name="friends_assignment_monitor_short">Exchanged</string>
+    <string name="friends_assignment_dialog_title">Todo sharing status with @%1$s</string>
+    <string name="friends_assignment_monitor_short">Todo sharing status</string>
     <string name="friends_assignment_monitor_subtitle">Review sent and received todo progress.</string>
-    <string name="friends_assignment_loading">Loading shared todos…</string>
+    <string name="friends_assignment_loading">Loading todo sharing status…</string>
     <string name="friends_assignment_editor_title">Send todo to @%1$s</string>
     <string name="friends_assignment_sent_title">Sent todos</string>
     <string name="friends_assignment_received_title">Received todos</string>
