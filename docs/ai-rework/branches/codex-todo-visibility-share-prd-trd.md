@@ -8,11 +8,11 @@
 | PR | `https://github.com/newgto2026-rgb/your-todo/pull/105` |
 | Primary AI Model | `GPT-5` |
 | Task Type | `Feature implementation` |
-| Rework Count | `7` |
+| Rework Count | `8` |
 | P0 Issues | `0` |
 | P1 Issues | `1` |
-| P2 Issues | `6` |
-| Automation Possible Issues | `4` |
+| P2 Issues | `7` |
+| Automation Possible Issues | `5` |
 | Automation Added Issues | `0` |
 | Open Events | `0` |
 
@@ -44,7 +44,7 @@
 | Status | `verified` |
 | Fix Scope | Parallelized `RefreshWorkspaceUseCase` and `RefreshPersonVisibilityUseCase` in `AppSyncViewModel`. |
 | Fix Size | `Small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `f5388ef` |
 | Verification | `./gradlew :core:domain:test :core:data:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :app:testDebugUnitTest` |
 | Lesson | Independent sync work should start concurrently at orchestration boundaries. |
 | Automation Possible | `No` |
@@ -60,7 +60,7 @@
 | Status | `verified` |
 | Fix Scope | Added `PersonVisibilityTimeProvider`, injected it into the repository, and annotated the repository implementation with `@Singleton`. |
 | Fix Size | `Small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `f5388ef` |
 | Verification | `./gradlew :core:domain:test :core:data:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :app:testDebugUnitTest` |
 | Lesson | Cache timestamps should be injectable before tests need to assert them. |
 | Automation Possible | `Yes` |
@@ -76,7 +76,7 @@
 | Status | `verified` |
 | Fix Scope | Added `distinctUntilChanged()` before `flatMapLatest` in person visibility grant and observed todo flows. |
 | Fix Size | `Small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `f5388ef` |
 | Verification | `./gradlew :core:domain:test :core:data:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :app:testDebugUnitTest` |
 | Lesson | DataStore-derived session flows should suppress duplicate values before downstream DAO subscriptions. |
 | Automation Possible | `No` |
@@ -92,7 +92,7 @@
 | Status | `verified` |
 | Fix Scope | Removed the unused `purgeObservedTodosByGrantId` method from `PersonVisibilityRepositoryImpl`; DAO purge support remains because revoke uses it. |
 | Fix Size | `Small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `f5388ef` |
 | Verification | `./gradlew :core:domain:test :core:data:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :app:testDebugUnitTest` |
 | Lesson | Keep implementation-only helpers private to an actual call path or remove them before review. |
 | Automation Possible | `Yes` |
@@ -108,7 +108,7 @@
 | Status | `verified` |
 | Fix Scope | Parallelized grant refresh and observed todo sync inside `RefreshPersonVisibilityUseCase`, with a unit test proving the observed sync starts while grant refresh is suspended. |
 | Fix Size | `Medium` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `f5388ef` |
 | Verification | `./gradlew :core:domain:test :core:data:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :app:testDebugUnitTest` |
 | Lesson | Use case orchestration needs tests for concurrency when independent repository calls are intentionally parallel. |
 | Automation Possible | `No` |
@@ -124,11 +124,27 @@
 | Status | `verified` |
 | Fix Scope | Added a Hilt-provided calendar `ZoneId` and passed it through selected-date todo mapping. |
 | Fix Size | `Medium` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `f5388ef` |
 | Verification | `./gradlew :core:domain:test :core:data:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :app:testDebugUnitTest` |
 | Lesson | UI mappers that format time should receive timezone context explicitly from the ViewModel. |
 | Automation Possible | `Yes` |
 | Automation Added | `No: no project-wide static check currently blocks ZoneId.systemDefault() in UI code` |
+
+### R8: CI rework metrics check failed on PR body automation-added summary
+
+| Field | Value |
+|---|---|
+| Source | `GitHub Actions run 25991454114: scripts/quality/rework-metrics-check.sh --pr 105 --repo newgto2026-rgb/your-todo` |
+| Severity | `P2` |
+| Attribution | `AI` |
+| Status | `verified` |
+| Fix Scope | Updated this branch metrics document to capture the CI failure and corrected the PR body AI Rework Metrics summary to use numeric values that match the document. |
+| Fix Size | `Small` |
+| Rework Commit | `HEAD` |
+| Verification | `scripts/quality/rework-metrics-check.sh --pr 105 --repo newgto2026-rgb/your-todo` |
+| Lesson | PR body metric summaries need exact numeric values because CI compares them mechanically against the branch metrics document. |
+| Automation Possible | `Yes` |
+| Automation Added | `No: existing rework metrics CI already catches this mismatch` |
 
 ## External Event Coverage
 
@@ -148,6 +164,7 @@ No top-level actionable PR comments recorded.
 ### Check Failures
 
 - `pre-push hook: ./gradlew lint` reported `UnusedResources` for four retired friend setting subtitle strings -> R1.
+- `GitHub Actions run 25991454114` reported a PR body/branch metrics mismatch for `Automation added` -> R8.
 
 ## Non-Rework Follow-up Commits
 
