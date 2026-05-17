@@ -31,7 +31,8 @@ write_valid_repo() {
 
   cat > "$repo/settings.gradle.kts" <<'EOF'
 include(
-    ":app",
+    ":app", // app shell
+    // comment-only line should not hide following modules
     ':core:domain'
 )
 include(":feature:todo:api", ":feature:todo:impl")
@@ -61,10 +62,11 @@ EOF
 
   cat > "$repo/app/build.gradle.kts" <<'EOF'
 dependencies {
+    // implementation(project(":feature:todo:impl"))
     implementation(project(":feature:todo:api")); implementation(project(
         ":feature:todo:entry"
-    ))
-    implementation(project(path = ":core:domain"))
+    )) // entry binding
+    implementation(project(path = ":core:domain")) // core dependency
 }
 EOF
 
