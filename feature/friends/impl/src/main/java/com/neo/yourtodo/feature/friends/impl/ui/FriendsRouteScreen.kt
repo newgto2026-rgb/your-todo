@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -555,10 +556,11 @@ private fun FriendPrimaryActionsRow(
     friend: Friend,
     removing: Boolean,
     onOpenSharedTodos: () -> Unit,
-    onSendTodo: () -> Unit
+    onSendTodo: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -567,7 +569,7 @@ private fun FriendPrimaryActionsRow(
             enabled = !removing,
             modifier = Modifier
                 .weight(1f)
-                .height(38.dp)
+                .heightIn(min = 38.dp)
                 .testTag("friends_shared_todos_${friend.userId}"),
             shape = RoundedCornerShape(14.dp),
             contentPadding = PaddingValues(horizontal = 10.dp)
@@ -584,7 +586,7 @@ private fun FriendPrimaryActionsRow(
             enabled = !removing,
             modifier = Modifier
                 .weight(1f)
-                .height(38.dp)
+                .heightIn(min = 38.dp)
                 .testTag("friends_send_todo_${friend.userId}"),
             shape = RoundedCornerShape(14.dp),
             contentPadding = PaddingValues(horizontal = 10.dp),
@@ -619,7 +621,7 @@ private fun FriendRemoveAction(
         modifier = Modifier
             .size(36.dp)
             .clip(RoundedCornerShape(14.dp))
-            .testTag("friends_remove_${friend.friendshipId}")
+            .testTag("friends_remove_${friend.userId}")
     ) {
         if (removing) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)

@@ -8,11 +8,11 @@
 | PR | `#106` |
 | Primary AI Model | `GPT-5` |
 | Task Type | `UX clarity + API data fix` |
-| Rework Count | `3` |
+| Rework Count | `6` |
 | P0 Issues | `0` |
 | P1 Issues | `1` |
-| P2 Issues | `2` |
-| Automation Possible Issues | `2` |
+| P2 Issues | `5` |
+| Automation Possible Issues | `3` |
 | Automation Added Issues | `2` |
 | Open Events | `0` |
 
@@ -54,11 +54,124 @@ The short label `자동수락` did not say what would be accepted. The setting n
 
 Observed owner todos preserved date but not time in the server projection. The server now returns `dueTime` for observed todos, Android network/data tests assert the field is parsed and cached, and the Friends UI instrumentation test verifies the time is visible in the friend-todo list.
 
+### R4 - FriendPrimaryActionsRow Modifier Was Closed
+
+| Field | Value |
+|---|---|
+| Source | `GitHub review thread PRRT_kwDOSAf4v86CpgpQ` |
+| Priority | `P2` |
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Attribution | `AI` |
+| Root Cause Category | `Compose reusability` |
+| Automation Possible | `no` |
+| Automation Added | `no` |
+| Fix Scope | `feature:friends:impl UI` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `./gradlew :feature:friends:impl:lintDebug :app:compileDebugAndroidTestKotlin` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86CpgpQ`
+- Review Comment: `3254778170`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/106#discussion_r3254778170
+- Review Path: `feature/friends/impl/src/main/java/com/neo/yourtodo/feature/friends/impl/ui/FriendsRouteScreen.kt:559`
+
+#### Feedback Summary
+
+`FriendPrimaryActionsRow` accepted no caller `Modifier`, reducing layout flexibility compared with normal Compose component conventions.
+
+#### Fix Summary
+
+Added `modifier: Modifier = Modifier` and applied it to the row before `fillMaxWidth()`.
+
+#### Lesson
+
+New private composables that represent reusable UI rows should still expose `Modifier` by default unless there is a concrete reason to keep layout fixed.
+
+### R5 - Friend Row Action Tags Used Mixed Identifiers
+
+| Field | Value |
+|---|---|
+| Source | `GitHub review thread PRRT_kwDOSAf4v86CpgpU` |
+| Priority | `P2` |
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Attribution | `AI` |
+| Root Cause Category | `Testability convention` |
+| Automation Possible | `no` |
+| Automation Added | `no` |
+| Fix Scope | `feature:friends:impl UI test tags` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `./gradlew :feature:friends:impl:lintDebug :app:compileDebugAndroidTestKotlin` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86CpgpU`
+- Review Comment: `3254778175`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/106#discussion_r3254778175
+- Review Path: `feature/friends/impl/src/main/java/com/neo/yourtodo/feature/friends/impl/ui/FriendsRouteScreen.kt:571`
+
+#### Feedback Summary
+
+The newly exposed friend-row actions used `userId`, while the remove row action still used `friendshipId`, making selector naming inconsistent.
+
+#### Fix Summary
+
+Changed the remove row action tag to `friends_remove_${friend.userId}` so the visible row actions share one identifier convention.
+
+#### Lesson
+
+When adding adjacent UI actions, check existing tags in the same row and keep the selector identity stable across actions.
+
+### R6 - Primary Action Buttons Used Fixed Height
+
+| Field | Value |
+|---|---|
+| Source | `GitHub review thread PRRT_kwDOSAf4v86CpgpV` |
+| Priority | `P2` |
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Attribution | `AI` |
+| Root Cause Category | `Accessibility sizing` |
+| Automation Possible | `yes` |
+| Automation Added | `no - large font-scale UI coverage would need a broader app-level harness; this fix is covered by Compose compile/lint here` |
+| Fix Scope | `feature:friends:impl UI sizing` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `./gradlew :feature:friends:impl:lintDebug :app:compileDebugAndroidTestKotlin` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86CpgpV`
+- Review Comment: `3254778176`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/106#discussion_r3254778176
+- Review Path: `feature/friends/impl/src/main/java/com/neo/yourtodo/feature/friends/impl/ui/FriendsRouteScreen.kt:570`
+
+#### Feedback Summary
+
+The compact friend-row buttons used a fixed `38.dp` height, which could clip text when system font size grows.
+
+#### Fix Summary
+
+Replaced fixed heights with `heightIn(min = 38.dp)` so the compact baseline remains while text can grow vertically.
+
+#### Lesson
+
+Compact action rows should prefer minimum sizing over fixed sizing when they contain localized text.
+
 ## External Event Coverage
 
 ### Review Threads
 
-No review threads recorded yet.
+- `PRRT_kwDOSAf4v86CpgpQ`: covered by R4.
+- `PRRT_kwDOSAf4v86CpgpU`: covered by R5.
+- `PRRT_kwDOSAf4v86CpgpV`: covered by R6.
 
 ### Actionable PR Comments
 
@@ -70,4 +183,4 @@ Local all-device `:app:connectedDebugAndroidTest` runs failed on `SM-S906N - 16`
 
 ## Non-Rework Follow-up Commits
 
-- `HEAD`: Recorded the created PR number in this metrics document.
+- `7d0bbf6828d5d482e41c621e696850eed0b83b16`: Recorded the created PR number in this metrics document.
