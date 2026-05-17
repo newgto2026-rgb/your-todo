@@ -9,9 +9,11 @@ import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
+import com.neo.yourtodo.feature.calendar.impl.di.CalendarZoneId
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,6 +35,8 @@ import java.time.ZoneId
 
 private const val STATE_MONTH_KEY = "calendar_month"
 private const val STATE_SELECTED_DATE_KEY = "calendar_selected_date"
+private const val STATE_IS_MONTH_EXPANDED_KEY = "calendar_is_month_expanded"
+private const val STATE_IS_FRIEND_TODOS_EXPANDED_KEY = "calendar_is_friend_todos_expanded"
 
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -41,6 +45,8 @@ class CalendarViewModel @Inject constructor(
     observeAuthSessionUseCase: ObserveAuthSessionUseCase,
     observeTaskSurfaceSummariesUseCase: ObserveTaskSurfaceSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
+    observeObservedTodosUseCase: ObserveObservedTodosUseCase,
+    @CalendarZoneId private val zoneId: ZoneId,
     private val buildTaskSurfaceDateTodosUseCase: BuildTaskSurfaceDateTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
@@ -50,6 +56,9 @@ class CalendarViewModel @Inject constructor(
 ) : ViewModel() {
     private val monthState = MutableStateFlow(savedStateHandle.initialMonth())
     private val selectedDateState = MutableStateFlow(savedStateHandle.initialSelectedDate())
+    private val isMonthExpandedState = MutableStateFlow(savedStateHandle.initialIsMonthExpanded())
+    private val isFriendTodosExpandedState =
+        MutableStateFlow(savedStateHandle.initialIsFriendTodosExpanded())
     private val receivedAssignedTodos = merge(
         getAssignedTodosUseCase.observeVisibleReceived(),
         workspaceSyncNotifier.snapshots
@@ -73,7 +82,14 @@ class CalendarViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    private val summariesByDate = monthState
+    private val observedPeople = observeObservedTodosUseCase()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    private val taskSurfaceSummariesByDate = monthState
         .flatMapLatest { yearMonth ->
             observeTaskSurfaceSummariesUseCase(
                 yearMonth = yearMonth,
@@ -86,18 +102,40 @@ class CalendarViewModel @Inject constructor(
             initialValue = emptyMap()
         )
 
+    private val summariesByDate = combine(
+        monthState,
+        taskSurfaceSummariesByDate,
+        observedPeople
+    ) { yearMonth, summaries, observed ->
+        mergeObservedTodoSummaries(
+            yearMonth = yearMonth,
+            localSummaries = summaries,
+            observedPeople = observed
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyMap()
+    )
+
     private val selectedDateTodos = combine(
         selectedDateState,
         monthlyTodos,
-        receivedAssignedTodos
-    ) { selectedDate, todos, assignedTodos ->
-        buildSelectedDateTodos(
+        receivedAssignedTodos,
+        observedPeople
+    ) { selectedDate, todos, assignedTodos, observed ->
+        val myTodos = buildSelectedDateTodos(
             taskSurfaceItems = buildTaskSurfaceDateTodosUseCase(
                 selectedDate = selectedDate,
                 localTodos = todos,
                 assignedTodos = assignedTodos,
-                zoneId = ZoneId.systemDefault()
-            )
+                zoneId = zoneId
+            ),
+            zoneId = zoneId
+        )
+        myTodos + buildObservedSelectedDateTodos(
+            observedPeople = observed,
+            selectedDate = selectedDate
         )
     }.stateIn(
         scope = viewModelScope,
@@ -105,19 +143,33 @@ class CalendarViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
+    private val calendarPresentationState = combine(
+        selectedDateTodos,
+        isMonthExpandedState,
+        isFriendTodosExpandedState
+    ) { dateTodos, isMonthExpanded, isFriendTodosExpanded ->
+        CalendarPresentationState(
+            selectedDateTodos = dateTodos,
+            isMonthExpanded = isMonthExpanded,
+            isFriendTodosExpanded = isFriendTodosExpanded
+        )
+    }
+
     private val calendarContentState = combine(
         monthState,
         selectedDateState,
         summariesByDate,
-        selectedDateTodos,
+        calendarPresentationState,
         observeAuthSessionUseCase()
-    ) { currentMonth, selectedDate, summaries, dateTodos, authSession ->
+    ) { currentMonth, selectedDate, summaries, presentation, authSession ->
         buildCalendarUiState(
             profileInitial = authSession?.user?.nickname,
             currentMonth = currentMonth,
             selectedDate = selectedDate,
             summariesByDate = summaries,
-            selectedDateTodos = dateTodos
+            selectedDateTodos = presentation.selectedDateTodos,
+            isMonthExpanded = presentation.isMonthExpanded,
+            isFriendTodosExpanded = presentation.isFriendTodosExpanded
         )
     }
 
@@ -134,6 +186,8 @@ class CalendarViewModel @Inject constructor(
         when (action) {
             CalendarAction.OnNextMonthClick -> moveMonthBy(1)
             CalendarAction.OnPreviousMonthClick -> moveMonthBy(-1)
+            CalendarAction.OnToggleMonthExpansion -> toggleMonthExpansion()
+            CalendarAction.OnToggleFriendTodosExpanded -> toggleFriendTodosExpanded()
             is CalendarAction.OnDateClick -> {
                 updateSelectedDate(action.date)
             }
@@ -187,6 +241,18 @@ class CalendarViewModel @Inject constructor(
         selectedDateState.value = date
     }
 
+    private fun toggleMonthExpansion() {
+        val nextValue = !isMonthExpandedState.value
+        savedStateHandle[STATE_IS_MONTH_EXPANDED_KEY] = nextValue
+        isMonthExpandedState.value = nextValue
+    }
+
+    private fun toggleFriendTodosExpanded() {
+        val nextValue = !isFriendTodosExpandedState.value
+        savedStateHandle[STATE_IS_FRIEND_TODOS_EXPANDED_KEY] = nextValue
+        isFriendTodosExpandedState.value = nextValue
+    }
+
     private fun updateMonthAndSelectedDate(
         month: YearMonth,
         selectedDate: LocalDate
@@ -224,6 +290,7 @@ class CalendarViewModel @Inject constructor(
     private suspend fun refreshAssignedTodos(): Result<Unit> =
         getAssignedTodosUseCase.visibleReceived()
             .map { Unit }
+
 }
 
 internal fun SavedStateHandle.initialMonth(): YearMonth =
@@ -235,3 +302,15 @@ internal fun SavedStateHandle.initialSelectedDate(): LocalDate =
     get<String>(STATE_SELECTED_DATE_KEY)
         ?.let { rawDate -> runCatching { LocalDate.parse(rawDate) }.getOrNull() }
         ?: LocalDate.now()
+
+internal fun SavedStateHandle.initialIsMonthExpanded(): Boolean =
+    get<Boolean>(STATE_IS_MONTH_EXPANDED_KEY) ?: true
+
+internal fun SavedStateHandle.initialIsFriendTodosExpanded(): Boolean =
+    get<Boolean>(STATE_IS_FRIEND_TODOS_EXPANDED_KEY) ?: false
+
+private data class CalendarPresentationState(
+    val selectedDateTodos: List<CalendarSelectedTodoUiModel>,
+    val isMonthExpanded: Boolean,
+    val isFriendTodosExpanded: Boolean
+)

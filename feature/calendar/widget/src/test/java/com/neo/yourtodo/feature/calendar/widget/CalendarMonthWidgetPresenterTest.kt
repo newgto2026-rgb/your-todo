@@ -12,6 +12,7 @@ import java.time.ZoneId
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
+import org.junit.Ignore
 import org.junit.Test
 
 class CalendarMonthWidgetPresenterTest {
@@ -127,6 +128,31 @@ class CalendarMonthWidgetPresenterTest {
             .containsExactly("E", "D", "C", "+2")
             .inOrder()
         assertThat(day.todoChips.last().isOverflow).isTrue()
+    }
+
+    @Ignore("Enable when CalendarMonthSummarySource can provide local-only summaries; widget must not render friend todos.")
+    @Test
+    fun present_doesNotRenderFriendTodoChips() = runTest {
+        val targetDate = LocalDate.of(2026, 5, 8)
+        val presenter = presenter(
+            summarySource = FakeCalendarMonthSummarySource(
+                summaries = mapOf(
+                    targetDate to DateTodoSummary(
+                        date = targetDate,
+                        todos = listOf(todo(title = "Friend visible todo", createdAt = 1L)),
+                        indicatorCount = 1,
+                        overflowCount = 0
+                    )
+                )
+            ),
+            clock = fixedClock("2026-05-07T00:00:00Z")
+        )
+
+        val state = presenter.present(Locale.US)
+        val day = state.weeks.flatten().single { it.date == targetDate }
+
+        assertThat(day.todoChips).isEmpty()
+        assertThat(day.taskCountLabel).isNull()
     }
 
     @Test

@@ -165,8 +165,10 @@ private fun CalendarScreen(
             CalendarTopHeader(
                 currentMonth = uiState.currentMonth,
                 todayCount = uiState.todayTaskCount,
+                isMonthExpanded = uiState.isMonthExpanded,
                 onPreviousMonthClick = { onAction(CalendarAction.OnPreviousMonthClick) },
-                onNextMonthClick = { onAction(CalendarAction.OnNextMonthClick) }
+                onNextMonthClick = { onAction(CalendarAction.OnNextMonthClick) },
+                onToggleMonthExpansion = { onAction(CalendarAction.OnToggleMonthExpansion) }
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -177,7 +179,7 @@ private fun CalendarScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 CalendarMonthGrid(
-                    days = uiState.days,
+                    days = if (uiState.isMonthExpanded) uiState.days else uiState.selectedWeekDays,
                     onDateClick = { date -> onAction(CalendarAction.OnDateClick(date)) },
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
                 )
@@ -188,11 +190,15 @@ private fun CalendarScreen(
             CalendarAgendaSection(
                 selectedDate = uiState.selectedDate,
                 selectedDateTodos = uiState.selectedDateTodos,
+                selectedDateTodoSections = uiState.selectedDateTodoSections,
                 onTodoClick = { todo ->
                     onAction(CalendarAction.OnTodoClick(todo.id, todo.assignedTodoId))
                 },
                 onToggleTodoDone = { todo ->
                     onAction(CalendarAction.OnToggleTodoDone(todo.id, todo.assignedTodoId))
+                },
+                onToggleFriendTodosExpanded = {
+                    onAction(CalendarAction.OnToggleFriendTodosExpanded)
                 },
                 onAddTodoClick = { onAction(CalendarAction.OnAddTodoClick) },
                 modifier = Modifier.fillMaxWidth()

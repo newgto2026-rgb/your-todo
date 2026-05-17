@@ -37,7 +37,7 @@ internal fun FriendSurface(
     content: @Composable RowScope.() -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         color = Color.White.copy(alpha = 0.78f),
         border = BorderStroke(1.dp, Color(0xFFE2E8F2)),
         modifier = modifier
@@ -45,7 +45,7 @@ internal fun FriendSurface(
             .testTag(testTag)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             content = content
@@ -66,7 +66,7 @@ internal fun FriendIdentity(
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(38.dp)
                 .clip(CircleShape)
                 .background(Color(0xFFEFF3FA)),
             contentAlignment = Alignment.Center
@@ -82,7 +82,7 @@ internal fun FriendIdentity(
         ) {
             Text(
                 text = nickname,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = Color(0xFF303440)
             )
             if (subtitle != null) {

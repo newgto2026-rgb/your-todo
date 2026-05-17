@@ -5,6 +5,7 @@ import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
 import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
+import com.neo.yourtodo.core.domain.repository.PersonVisibilityRepository
 import com.neo.yourtodo.core.domain.repository.TodoItemRepository
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.CreateAssignmentBundleUseCase
@@ -12,12 +13,16 @@ import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveVisibilityGrantsUseCase
+import com.neo.yourtodo.core.domain.usecase.RevokeVisibilityGrantUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SetDirectAssignmentOptInUseCase
+import com.neo.yourtodo.core.domain.usecase.SetVisibilityGrantUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
@@ -43,6 +48,10 @@ import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.model.friends.FriendRequestStatus
 import com.neo.yourtodo.core.model.friends.FriendUser
 import com.neo.yourtodo.core.model.friends.FriendshipStatus
+import com.neo.yourtodo.core.model.personvisibility.ObservedPersonTodos
+import com.neo.yourtodo.core.model.personvisibility.ObservedTodo
+import com.neo.yourtodo.core.model.personvisibility.PersonVisibilityGrant
+import com.neo.yourtodo.core.model.personvisibility.PersonVisibilityGrantState
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -52,7 +61,8 @@ import kotlinx.coroutines.flow.flowOf
 
 internal fun FakeFriendRepository.createViewModel(
     authRepository: FakeAuthRepository = FakeAuthRepository(),
-    assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository()
+    assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository(),
+    personVisibilityRepository: FakePersonVisibilityRepository = FakePersonVisibilityRepository()
 ): FriendsViewModel {
     val workspaceSyncNotifier = WorkspaceSyncNotifier()
     return FriendsViewModel(
@@ -63,6 +73,10 @@ internal fun FakeFriendRepository.createViewModel(
         removeFriend = RemoveFriendUseCase(this),
         createAssignmentBundle = CreateAssignmentBundleUseCase(assignmentRepository),
         setDirectAssignmentOptIn = SetDirectAssignmentOptInUseCase(assignmentRepository),
+        observeObservedTodos = ObserveObservedTodosUseCase(personVisibilityRepository),
+        observeVisibilityGrants = ObserveVisibilityGrantsUseCase(personVisibilityRepository),
+        setVisibilityGrant = SetVisibilityGrantUseCase(personVisibilityRepository),
+        revokeVisibilityGrant = RevokeVisibilityGrantUseCase(personVisibilityRepository),
         getAssignedTodos = GetAssignedTodosUseCase(assignmentRepository),
         respondAssignmentBundle = RespondAssignmentBundleUseCase(assignmentRepository),
         refreshWorkspaceUseCase = RefreshWorkspaceUseCase(
@@ -77,6 +91,31 @@ internal fun FakeFriendRepository.createViewModel(
         workspaceSyncNotifier = workspaceSyncNotifier,
         observeAuthSession = ObserveAuthSessionUseCase(authRepository)
     )
+}
+
+internal class FakePersonVisibilityRepository : PersonVisibilityRepository {
+    val grantsState = MutableStateFlow<List<PersonVisibilityGrant>>(emptyList())
+    val observedTodosState = MutableStateFlow<List<ObservedPersonTodos>>(emptyList())
+    val setRequests = mutableListOf<String>()
+    val revokeRequests = mutableListOf<String>()
+
+    override fun observeVisibilityGrants(): Flow<List<PersonVisibilityGrant>> = grantsState
+
+    override suspend fun setVisibilityGrant(friendUserId: String): Result<PersonVisibilityGrant> {
+        setRequests += friendUserId
+        val grant = personVisibilityGrant(observerUserId = friendUserId)
+        grantsState.value = grantsState.value
+            .filterNot { it.observerUserId == friendUserId } + grant
+        return Result.success(grant)
+    }
+
+    override suspend fun revokeVisibilityGrant(friendUserId: String): Result<Unit> {
+        revokeRequests += friendUserId
+        grantsState.value = grantsState.value.filterNot { it.observerUserId == friendUserId }
+        return Result.success(Unit)
+    }
+
+    override fun observeObservedTodos(): Flow<List<ObservedPersonTodos>> = observedTodosState
 }
 
 internal class SuccessfulTodoRepository : TodoItemRepository {
@@ -473,6 +512,40 @@ internal fun assignedTodo(
     checklist = emptyList(),
     createdAt = createdAt,
     completedAt = completedAt
+)
+
+internal fun observedPersonTodos(
+    ownerUserId: String = "friend-1",
+    todos: List<ObservedTodo> = listOf(observedTodo(ownerUserId = ownerUserId))
+) = ObservedPersonTodos(
+    ownerUserId = ownerUserId,
+    todos = todos
+)
+
+internal fun observedTodo(
+    id: String = "observed-1",
+    ownerUserId: String = "friend-1",
+    title: String = "Friend todo"
+) = ObservedTodo(
+    id = id,
+    ownerUserId = ownerUserId,
+    title = title,
+    isDone = false,
+    dueDate = null,
+    dueTimeMinutes = null,
+    priority = TodoPriority.MEDIUM
+)
+
+internal fun personVisibilityGrant(
+    observerUserId: String = "friend-1",
+    state: PersonVisibilityGrantState = PersonVisibilityGrantState.ACTIVE
+) = PersonVisibilityGrant(
+    id = "grant-$observerUserId",
+    ownerUserId = "me",
+    observerUserId = observerUserId,
+    state = state,
+    createdAt = "2026-05-09T00:00:00Z",
+    updatedAt = "2026-05-09T00:00:00Z"
 )
 
 internal fun assignmentSummary(totalCount: Int = 0) = AssignmentSummary(

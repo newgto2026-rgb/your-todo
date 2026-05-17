@@ -138,6 +138,77 @@ class FriendsViewModelTest {
     }
 
     @Test
+    fun observedFriendTodosCanExpandInlinePerFriend() = runTest {
+        val personVisibilityRepository = FakePersonVisibilityRepository().apply {
+            observedTodosState.value = listOf(
+                observedPersonTodos(
+                    ownerUserId = "friend-1",
+                    todos = listOf(
+                        observedTodo(id = "observed-1", title = "Plan trip"),
+                        observedTodo(id = "observed-2", title = "Buy lunch")
+                    )
+                )
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(
+            personVisibilityRepository = personVisibilityRepository
+        )
+
+        val loaded = viewModel.uiState.first { it.observedTodos("friend-1").size == 2 }
+        assertThat(loaded.isObservedTodosExpanded("friend-1")).isFalse()
+
+        viewModel.onAction(FriendsAction.OnToggleObservedTodos("friend-1"))
+        val expanded = viewModel.uiState.first { it.isObservedTodosExpanded("friend-1") }
+
+        assertThat(expanded.observedTodos("friend-1").map { it.title })
+            .containsExactly("Plan trip", "Buy lunch")
+    }
+
+    @Test
+    fun observedFriendTodosExpansionIsIgnoredWhenFriendHasNoVisibleTodos() = runTest {
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+            incoming = listOf(request(id = "incoming-1", requesterId = "pending-friend"))
+        }
+        val viewModel = repository.createViewModel()
+
+        viewModel.uiState.first { !it.isLoading }
+        viewModel.onAction(FriendsAction.OnToggleObservedTodos("pending-friend"))
+
+        assertThat(viewModel.uiState.value.isObservedTodosExpanded("pending-friend")).isFalse()
+        assertThat(viewModel.uiState.value.incomingRequests.single().requester.id)
+            .isEqualTo("pending-friend")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun setMyTodoVisibilityUpdatesVisibilityGrant() = runTest {
+        val personVisibilityRepository = FakePersonVisibilityRepository()
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(
+            personVisibilityRepository = personVisibilityRepository
+        )
+
+        viewModel.uiState.first { !it.isLoading }
+        viewModel.onAction(FriendsAction.OnSetMyTodoVisibility(friend(), true))
+        advanceUntilIdle()
+
+        assertThat(personVisibilityRepository.setRequests).containsExactly("friend-1")
+        assertThat(viewModel.uiState.value.isMyTodosVisibleTo("friend-1")).isTrue()
+
+        viewModel.onAction(FriendsAction.OnSetMyTodoVisibility(friend(), false))
+        advanceUntilIdle()
+
+        assertThat(personVisibilityRepository.revokeRequests).containsExactly("friend-1")
+        assertThat(viewModel.uiState.value.isMyTodosVisibleTo("friend-1")).isFalse()
+    }
+
+    @Test
     fun acceptRequestRefreshesFriendsAndRemovesIncomingRequest() = runTest {
         val repository = FakeFriendRepository().apply {
             incoming = listOf(request(id = "request-1"))
@@ -814,6 +885,40 @@ class FriendsViewModelTest {
                 .isEqualTo(R.string.friends_assignment_status_accepted)
             assertThat(loaded.assignmentDetail.activeReceivedItems.single { it.id == "received-active" }.statusLabelRes)
                 .isEqualTo(R.string.friends_assignment_status_accepted_by_me)
+        }
+    }
+
+    @Test
+    fun friendClickKeepsAllActiveReceivedAssignmentsForRowExpansion() = runTest {
+        val assignmentRepository = FakeAssignmentRepository().apply {
+            receivedItems = (1..8).map { index ->
+                assignedTodo(id = "observed-$index", title = "Observed $index")
+            }
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(assignmentRepository = assignmentRepository)
+
+        viewModel.uiState.test {
+            skipItems(2)
+
+            viewModel.onAction(FriendsAction.OnFriendClick(friend()))
+            assertThat(awaitItem().friendDetailLoading).isTrue()
+
+            val loaded = awaitItem()
+            assertThat(loaded.friendReceivedAssignedTodos.map { it.id })
+                .containsExactly(
+                    "observed-1",
+                    "observed-2",
+                    "observed-3",
+                    "observed-4",
+                    "observed-5",
+                    "observed-6",
+                    "observed-7",
+                    "observed-8"
+                )
+                .inOrder()
         }
     }
 

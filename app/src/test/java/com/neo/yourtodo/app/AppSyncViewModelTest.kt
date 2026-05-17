@@ -11,6 +11,7 @@ import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
+import com.neo.yourtodo.core.domain.usecase.RefreshPersonVisibilityUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentBundle
@@ -19,6 +20,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
+import com.neo.yourtodo.core.testing.repository.FakePersonVisibilityRepository
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +35,10 @@ class AppSyncViewModelTest {
 
     @Test
     fun automaticSync_doesNotShowSnackbarWhenPartiallySynced() = runTest {
-        val viewModel = AppSyncViewModel(partialRefreshWorkspaceUseCase())
+        val viewModel = AppSyncViewModel(
+            partialRefreshWorkspaceUseCase(),
+            successRefreshPersonVisibilityUseCase()
+        )
 
         viewModel.sideEffect.test {
             viewModel.syncWorkspace(notifyUser = false)
@@ -47,7 +52,10 @@ class AppSyncViewModelTest {
 
     @Test
     fun manualSync_showsPartialFailureSnackbarWhenPartiallySynced() = runTest {
-        val viewModel = AppSyncViewModel(partialRefreshWorkspaceUseCase())
+        val viewModel = AppSyncViewModel(
+            partialRefreshWorkspaceUseCase(),
+            successRefreshPersonVisibilityUseCase()
+        )
 
         viewModel.sideEffect.test {
             viewModel.syncWorkspace()
@@ -71,6 +79,9 @@ class AppSyncViewModelTest {
             refreshClock = WorkspaceRefreshClock(),
             syncNotifier = WorkspaceSyncNotifier()
         )
+
+    private fun successRefreshPersonVisibilityUseCase(): RefreshPersonVisibilityUseCase =
+        RefreshPersonVisibilityUseCase(FakePersonVisibilityRepository())
 
     private class SuccessFriendRepository : FriendRepository {
         override suspend fun getFriends(): Result<List<Friend>> = Result.success(emptyList())

@@ -2,6 +2,7 @@ package com.neo.yourtodo.feature.calendar.impl.ui
 
 import com.google.common.truth.Truth.assertThat
 import com.neo.yourtodo.core.model.DateTodoSummary
+import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.TodoSummary
 import java.time.LocalDate
 import java.time.YearMonth
@@ -36,6 +37,78 @@ class CalendarMonthUiMapperTest {
         assertThat(state.todayTaskCount).isEqualTo(5)
         assertThat(state.days.single { it.date == today }.isToday).isTrue()
         assertThat(state.days.single { it.date == LocalDate.of(2026, 2, 28) }.isSelected).isTrue()
+        assertThat(state.selectedWeekDays).hasSize(7)
+        assertThat(state.selectedWeekDays.map { it.date }).contains(LocalDate.of(2026, 2, 28))
+    }
+
+    @Test
+    fun buildCalendarUiState_sectionsSelectedDateTodosBySource() {
+        val selectedDate = LocalDate.of(2026, 5, 9)
+
+        val state = buildCalendarUiState(
+            profileInitial = null,
+            currentMonth = YearMonth.of(2026, 5),
+            selectedDate = selectedDate,
+            summariesByDate = emptyMap(),
+            selectedDateTodos = listOf(
+                selectedTodo(id = 1, title = "Mine"),
+                selectedTodo(id = -2, title = "Friend 1", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -3, title = "Friend 2", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -4, title = "Friend 3", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -5, title = "Friend 4", source = CalendarTodoSource.FRIEND)
+            ),
+            isFriendTodosExpanded = false,
+            today = selectedDate
+        )
+
+        assertThat(state.selectedDateTodoSections.map { it.source })
+            .containsExactly(CalendarTodoSource.MINE, CalendarTodoSource.FRIEND)
+            .inOrder()
+        assertThat(state.selectedDateTodoSections[0].visibleTodos.map { it.title })
+            .containsExactly("Mine")
+        assertThat(state.selectedDateTodoSections[1].totalCount).isEqualTo(4)
+        assertThat(state.selectedDateTodoSections[1].isCollapsible).isTrue()
+        assertThat(state.selectedDateTodoSections[1].isExpanded).isFalse()
+        assertThat(state.selectedDateTodoSections[1].visibleTodos.map { it.title })
+            .containsExactly("Friend 1", "Friend 2", "Friend 3")
+            .inOrder()
+    }
+
+    @Test
+    fun buildCalendarUiState_hidesFriendSectionWhenEmptyAndExpandsWhenRequested() {
+        val selectedDate = LocalDate.of(2026, 5, 9)
+
+        val withoutFriendTodos = buildCalendarUiState(
+            profileInitial = null,
+            currentMonth = YearMonth.of(2026, 5),
+            selectedDate = selectedDate,
+            summariesByDate = emptyMap(),
+            selectedDateTodos = listOf(selectedTodo(id = 1, title = "Mine")),
+            today = selectedDate
+        )
+
+        val expandedFriendTodos = buildCalendarUiState(
+            profileInitial = null,
+            currentMonth = YearMonth.of(2026, 5),
+            selectedDate = selectedDate,
+            summariesByDate = emptyMap(),
+            selectedDateTodos = listOf(
+                selectedTodo(id = -1, title = "Friend 1", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -2, title = "Friend 2", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -3, title = "Friend 3", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -4, title = "Friend 4", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -5, title = "Friend 5", source = CalendarTodoSource.FRIEND),
+                selectedTodo(id = -6, title = "Friend 6", source = CalendarTodoSource.FRIEND)
+            ),
+            isFriendTodosExpanded = true,
+            today = selectedDate
+        )
+
+        assertThat(withoutFriendTodos.selectedDateTodoSections.map { it.source })
+            .containsExactly(CalendarTodoSource.MINE)
+        assertThat(expandedFriendTodos.selectedDateTodoSections.single().visibleTodos)
+            .hasSize(6)
+        assertThat(expandedFriendTodos.selectedDateTodoSections.single().isExpanded).isTrue()
     }
 
     @Test
@@ -82,5 +155,23 @@ class CalendarMonthUiMapperTest {
             ),
             indicatorCount = indicatorCount,
             overflowCount = overflowCount
+        )
+
+    private fun selectedTodo(
+        id: Long,
+        title: String,
+        assignedTodoId: String? = null,
+        source: CalendarTodoSource = CalendarTodoSource.MINE
+    ): CalendarSelectedTodoUiModel =
+        CalendarSelectedTodoUiModel(
+            id = id,
+            title = title,
+            isDone = false,
+            priority = TodoPriority.MEDIUM,
+            isReminderEnabled = false,
+            dueTimeLabel = null,
+            reminderLeadMinutes = null,
+            source = source,
+            assignedTodoId = assignedTodoId
         )
 }

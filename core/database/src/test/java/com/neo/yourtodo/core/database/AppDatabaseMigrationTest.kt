@@ -9,6 +9,7 @@ import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_8_9
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_9_10
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_10_11
 import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_11_12
+import com.neo.yourtodo.core.database.AppDatabaseMigrations.MIGRATION_12_13
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
@@ -301,6 +302,60 @@ class AppDatabaseMigrationTest {
             assertThat(cursor.getString(0)).isEqualTo("direct shared")
             assertThat(cursor.getString(1)).isEqualTo("DIRECT")
         }
+        testDb.close()
+    }
+
+    @Test
+    fun migration12To13_createsPersonVisibilityCacheTablesAndIndexes() {
+        val testDb = createVersion8Database("${TEST_DB}_person_visibility")
+        testDb.database.apply {
+            MIGRATION_8_9.migrate(this)
+            MIGRATION_9_10.migrate(this)
+            MIGRATION_10_11.migrate(this)
+            MIGRATION_11_12.migrate(this)
+        }
+
+        val migrated = testDb.database.apply { MIGRATION_12_13.migrate(this) }
+
+        assertThat(migrated.columnNames("visibility_grants")).containsAtLeast(
+            "currentUserId",
+            "grantId",
+            "ownerUserId",
+            "viewerUserId",
+            "status",
+            "version",
+            "createdAtEpochMillis",
+            "updatedAtEpochMillis",
+            "revokedAtEpochMillis"
+        )
+        assertThat(migrated.columnNames("observed_todos")).containsAtLeast(
+            "currentUserId",
+            "observedTodoId",
+            "sourceTodoId",
+            "grantId",
+            "ownerUserId",
+            "ownerNickname",
+            "title",
+            "dueDateEpochDay",
+            "dueTimeMinutes",
+            "projectionVersion",
+            "updatedAtEpochMillis",
+            "cacheUpdatedAtEpochMillis"
+        )
+        assertThat(migrated.columnNames("observed_sync_state")).containsAtLeast(
+            "currentUserId",
+            "cursor",
+            "syncedAtEpochMillis"
+        )
+        assertThat(migrated.indexNames("visibility_grants")).containsAtLeast(
+            "index_visibility_grants_currentUserId_ownerUserId_viewerUserId",
+            "index_visibility_grants_currentUserId_status"
+        )
+        assertThat(migrated.indexNames("observed_todos")).containsAtLeast(
+            "index_observed_todos_currentUserId_ownerUserId_dueDateEpochDay",
+            "index_observed_todos_currentUserId_grantId",
+            "index_observed_todos_currentUserId_sourceTodoId"
+        )
         testDb.close()
     }
 

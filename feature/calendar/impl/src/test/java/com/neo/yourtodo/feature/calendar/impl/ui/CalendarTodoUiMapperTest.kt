@@ -62,7 +62,7 @@ class CalendarTodoUiMapperTest {
             assignedTodos = assignedTodos,
             zoneId = zoneId
         )
-        val uiModels = buildSelectedDateTodos(taskSurfaceItems)
+        val uiModels = buildSelectedDateTodos(taskSurfaceItems, zoneId)
 
         assertThat(uiModels.map { it.title })
             .containsExactly("Selected high", "Selected low", "Done high", "Assigned high", "Assigned low")

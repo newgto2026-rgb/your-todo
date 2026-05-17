@@ -6,6 +6,7 @@ import com.neo.yourtodo.core.database.AppDatabase
 import com.neo.yourtodo.core.database.AppDatabaseMigrations
 import com.neo.yourtodo.core.database.dao.AssignedTodoDao
 import com.neo.yourtodo.core.database.dao.CategoryDao
+import com.neo.yourtodo.core.database.dao.PersonVisibilityDao
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.dao.TodoOutboxDao
@@ -38,7 +39,8 @@ object DatabaseModule {
             AppDatabaseMigrations.MIGRATION_8_9,
             AppDatabaseMigrations.MIGRATION_9_10,
             AppDatabaseMigrations.MIGRATION_10_11,
-            AppDatabaseMigrations.MIGRATION_11_12
+            AppDatabaseMigrations.MIGRATION_11_12,
+            AppDatabaseMigrations.MIGRATION_12_13
         )
             .build()
 
@@ -56,4 +58,7 @@ object DatabaseModule {
 
     @Provides
     fun provideAssignedTodoDao(database: AppDatabase): AssignedTodoDao = database.assignedTodoDao()
+
+    @Provides
+    fun providePersonVisibilityDao(database: AppDatabase): PersonVisibilityDao = database.personVisibilityDao()
 }

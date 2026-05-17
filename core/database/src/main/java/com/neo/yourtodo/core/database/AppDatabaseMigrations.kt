@@ -219,4 +219,72 @@ object AppDatabaseMigrations {
         // after direct-assignment task-surface cache policy work while preserving the v11 table shape.
         override fun migrate(db: SupportSQLiteDatabase) = Unit
     }
+
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `visibility_grants` (
+                    `currentUserId` TEXT NOT NULL,
+                    `grantId` TEXT NOT NULL,
+                    `ownerUserId` TEXT NOT NULL,
+                    `viewerUserId` TEXT NOT NULL,
+                    `status` TEXT NOT NULL,
+                    `version` INTEGER NOT NULL,
+                    `createdAtEpochMillis` INTEGER NOT NULL,
+                    `updatedAtEpochMillis` INTEGER NOT NULL,
+                    `revokedAtEpochMillis` INTEGER,
+                    PRIMARY KEY(`currentUserId`, `grantId`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `observed_todos` (
+                    `currentUserId` TEXT NOT NULL,
+                    `observedTodoId` TEXT NOT NULL,
+                    `sourceTodoId` TEXT NOT NULL,
+                    `grantId` TEXT NOT NULL,
+                    `ownerUserId` TEXT NOT NULL,
+                    `ownerNickname` TEXT NOT NULL,
+                    `ownerAvatarUrl` TEXT,
+                    `title` TEXT NOT NULL,
+                    `dueDateEpochDay` INTEGER,
+                    `dueTimeMinutes` INTEGER,
+                    `isDone` INTEGER NOT NULL,
+                    `recurrenceOccurrenceId` TEXT,
+                    `projectionVersion` INTEGER NOT NULL,
+                    `updatedAtEpochMillis` INTEGER NOT NULL,
+                    `cacheUpdatedAtEpochMillis` INTEGER NOT NULL,
+                    PRIMARY KEY(`currentUserId`, `observedTodoId`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `observed_sync_state` (
+                    `currentUserId` TEXT NOT NULL,
+                    `cursor` TEXT,
+                    `syncedAtEpochMillis` INTEGER NOT NULL,
+                    PRIMARY KEY(`currentUserId`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_visibility_grants_currentUserId_ownerUserId_viewerUserId` ON `visibility_grants` (`currentUserId`, `ownerUserId`, `viewerUserId`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_visibility_grants_currentUserId_status` ON `visibility_grants` (`currentUserId`, `status`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_observed_todos_currentUserId_ownerUserId_dueDateEpochDay` ON `observed_todos` (`currentUserId`, `ownerUserId`, `dueDateEpochDay`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_observed_todos_currentUserId_grantId` ON `observed_todos` (`currentUserId`, `grantId`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_observed_todos_currentUserId_sourceTodoId` ON `observed_todos` (`currentUserId`, `sourceTodoId`)"
+            )
+        }
+    }
 }

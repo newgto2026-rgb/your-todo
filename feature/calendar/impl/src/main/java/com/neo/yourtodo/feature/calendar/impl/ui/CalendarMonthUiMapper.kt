@@ -14,22 +14,31 @@ internal fun buildCalendarUiState(
     selectedDate: LocalDate,
     summariesByDate: Map<LocalDate, DateTodoSummary>,
     selectedDateTodos: List<CalendarSelectedTodoUiModel>,
+    isMonthExpanded: Boolean = true,
+    isFriendTodosExpanded: Boolean = false,
     today: LocalDate = LocalDate.now()
 ): CalendarUiState {
     val adjustedSelectedDate = selectedDate.normalizeToMonth(currentMonth)
+    val days = buildMonthCells(
+        yearMonth = currentMonth,
+        selectedDate = adjustedSelectedDate,
+        today = today,
+        summariesByDate = summariesByDate
+    )
     return CalendarUiState(
         profileInitial = profileInitial,
         currentMonth = currentMonth,
         selectedDate = adjustedSelectedDate,
-        days = buildMonthCells(
-            yearMonth = currentMonth,
-            selectedDate = adjustedSelectedDate,
-            today = today,
-            summariesByDate = summariesByDate
-        ),
+        isMonthExpanded = isMonthExpanded,
+        days = days,
+        selectedWeekDays = days.selectedWeekDays(adjustedSelectedDate),
         summariesByDate = summariesByDate,
         todayTaskCount = summariesByDate.todayTaskCount(today),
-        selectedDateTodos = selectedDateTodos
+        selectedDateTodos = selectedDateTodos,
+        selectedDateTodoSections = selectedDateTodos.toAgendaSections(
+            isFriendTodosExpanded = isFriendTodosExpanded
+        ),
+        isFriendTodosExpanded = isFriendTodosExpanded
     )
 }
 
@@ -44,6 +53,47 @@ internal fun initialCalendarUiState(
         summariesByDate = emptyMap(),
         selectedDateTodos = emptyList()
     )
+
+internal fun List<CalendarDayUiModel>.selectedWeekDays(selectedDate: LocalDate): List<CalendarDayUiModel> =
+    chunked(WEEK_DAY_COUNT)
+        .firstOrNull { week -> week.any { it.date == selectedDate } }
+        ?: take(WEEK_DAY_COUNT)
+
+internal fun List<CalendarSelectedTodoUiModel>.toAgendaSections(
+    isFriendTodosExpanded: Boolean
+): List<CalendarAgendaSectionUiModel> {
+    val myTodos = filter { it.source == CalendarTodoSource.MINE }
+    val friendTodos = filter { it.source == CalendarTodoSource.FRIEND }
+    return buildList {
+        if (myTodos.isNotEmpty()) {
+            add(
+                CalendarAgendaSectionUiModel(
+                    source = CalendarTodoSource.MINE,
+                    totalCount = myTodos.size,
+                    visibleTodos = myTodos,
+                    isCollapsible = false,
+                    isExpanded = true
+                )
+            )
+        }
+        if (friendTodos.isNotEmpty()) {
+            val isCollapsible = friendTodos.size > FRIEND_TODOS_COLLAPSED_COUNT
+            add(
+                CalendarAgendaSectionUiModel(
+                    source = CalendarTodoSource.FRIEND,
+                    totalCount = friendTodos.size,
+                    visibleTodos = if (isCollapsible && !isFriendTodosExpanded) {
+                        friendTodos.take(FRIEND_TODOS_COLLAPSED_COUNT)
+                    } else {
+                        friendTodos
+                    },
+                    isCollapsible = isCollapsible,
+                    isExpanded = !isCollapsible || isFriendTodosExpanded
+                )
+            )
+        }
+    }
+}
 
 internal fun buildMonthCells(
     yearMonth: YearMonth,
@@ -95,3 +145,4 @@ internal fun Map<LocalDate, DateTodoSummary>.todayTaskCount(today: LocalDate): I
 }
 
 private const val WEEK_DAY_COUNT = 7
+private const val FRIEND_TODOS_COLLAPSED_COUNT = 3
