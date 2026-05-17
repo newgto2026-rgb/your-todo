@@ -13,6 +13,7 @@ import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
+import com.neo.yourtodo.feature.calendar.impl.di.CalendarZoneId
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -45,6 +46,7 @@ class CalendarViewModel @Inject constructor(
     observeTaskSurfaceSummariesUseCase: ObserveTaskSurfaceSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
     observeObservedTodosUseCase: ObserveObservedTodosUseCase,
+    @CalendarZoneId private val zoneId: ZoneId,
     private val buildTaskSurfaceDateTodosUseCase: BuildTaskSurfaceDateTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
@@ -127,8 +129,9 @@ class CalendarViewModel @Inject constructor(
                 selectedDate = selectedDate,
                 localTodos = todos,
                 assignedTodos = assignedTodos,
-                zoneId = ZoneId.systemDefault()
-            )
+                zoneId = zoneId
+            ),
+            zoneId = zoneId
         )
         myTodos + buildObservedSelectedDateTodos(
             observedPeople = observed,

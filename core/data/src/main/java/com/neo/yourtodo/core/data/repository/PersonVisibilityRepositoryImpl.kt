@@ -23,23 +23,27 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Singleton
 class PersonVisibilityRepositoryImpl @Inject constructor(
     private val userPreferencesDataSource: UserPreferencesDataSource,
     private val personVisibilityNetworkDataSource: PersonVisibilityNetworkDataSource,
     private val personVisibilityDao: PersonVisibilityDao,
-    private val authSessionRefresher: AuthSessionRefresher
+    private val authSessionRefresher: AuthSessionRefresher,
+    private val timeProvider: PersonVisibilityTimeProvider
 ) : PersonVisibilityRepository {
     override fun observeVisibilityGrants(): Flow<List<PersonVisibilityGrant>> =
-        userPreferencesDataSource.authSession.flatMapLatest { session ->
+        userPreferencesDataSource.authSession.distinctUntilChanged().flatMapLatest { session ->
             val currentUserId = session?.takeUnless { it.onboardingRequired }?.userId
                 ?: return@flatMapLatest flowOf(emptyList())
             personVisibilityDao.observeVisibilityGrants(currentUserId)
@@ -70,7 +74,7 @@ class PersonVisibilityRepositoryImpl @Inject constructor(
         }
 
     override fun observeObservedTodos(): Flow<List<ObservedPersonTodos>> =
-        userPreferencesDataSource.authSession.flatMapLatest { session ->
+        userPreferencesDataSource.authSession.distinctUntilChanged().flatMapLatest { session ->
             val currentUserId = session?.takeUnless { it.onboardingRequired }?.userId
                 ?: return@flatMapLatest flowOf(emptyList())
             personVisibilityDao.observeObservedTodos(currentUserId)
@@ -109,14 +113,6 @@ class PersonVisibilityRepositoryImpl @Inject constructor(
             ).cache(currentUserId)
         }
 
-    suspend fun purgeObservedTodosByGrantId(grantId: String): Result<Unit> =
-        runCatching {
-            val currentUserId = currentSession()?.userId ?: throw AuthRequiredException()
-            personVisibilityDao.purgeObservedTodosByGrantId(currentUserId, grantId)
-        }.onFailure { throwable ->
-            if (throwable is CancellationException) throw throwable
-        }
-
     private suspend fun activeGivenGrant(
         currentUserId: String,
         friendUserId: String,
@@ -140,7 +136,7 @@ class PersonVisibilityRepositoryImpl @Inject constructor(
         }
 
     private suspend fun NetworkObservedTodoSyncResponse.cache(currentUserId: String) {
-        val now = System.currentTimeMillis()
+        val now = timeProvider.currentTimeMillis()
         personVisibilityDao.applyObservedTodoSync(
             currentUserId = currentUserId,
             upserts = items.map { it.toEntity(currentUserId, now) },
@@ -205,7 +201,7 @@ class PersonVisibilityRepositoryImpl @Inject constructor(
         toEntity(currentUserId = "").toDomain()
 
     private fun NetworkRevokeVisibilityGrantResponse.toEntity(existing: VisibilityGrantEntity): VisibilityGrantEntity {
-        val revokedAtMillis = revokedAt.toEpochMillisOrNull() ?: System.currentTimeMillis()
+        val revokedAtMillis = revokedAt.toEpochMillisOrNull() ?: timeProvider.currentTimeMillis()
         return existing.copy(
             status = status,
             version = version,

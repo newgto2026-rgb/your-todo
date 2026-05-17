@@ -8,6 +8,10 @@ import com.neo.yourtodo.core.model.personvisibility.ObservedTodo
 import com.neo.yourtodo.core.model.personvisibility.PersonVisibilityGrant
 import com.neo.yourtodo.core.model.personvisibility.PersonVisibilityGrantState
 import com.neo.yourtodo.core.testing.repository.FakePersonVisibilityRepository
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.LocalDate
@@ -88,6 +92,29 @@ class PersonVisibilityUseCasesTest {
         assertThat(result.isSuccess).isTrue()
         assertThat(repository.refreshVisibilityGrantCount).isEqualTo(1)
         assertThat(repository.syncObservedTodoWindows).containsExactly(windowStart to windowEnd)
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun refreshPersonVisibilityStartsIndependentRefreshesInParallel() = runTest {
+        val refreshStarted = CompletableDeferred<Unit>()
+        val allowRefreshToFinish = CompletableDeferred<Unit>()
+        val repository = FakePersonVisibilityRepository().apply {
+            beforeRefreshVisibilityGrants = {
+                refreshStarted.complete(Unit)
+                allowRefreshToFinish.await()
+            }
+        }
+        val useCase = RefreshPersonVisibilityUseCase(repository)
+
+        val result = async { useCase() }
+        refreshStarted.await()
+        runCurrent()
+
+        assertThat(repository.syncObservedTodoWindows).containsExactly(null to null)
+
+        allowRefreshToFinish.complete(Unit)
+        assertThat(result.await().isSuccess).isTrue()
     }
 
     @Test

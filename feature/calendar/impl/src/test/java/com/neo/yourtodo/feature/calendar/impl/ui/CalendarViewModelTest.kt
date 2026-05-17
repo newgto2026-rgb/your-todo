@@ -58,6 +58,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.temporal.WeekFields
 import java.util.Locale
 import kotlin.math.min
@@ -730,6 +731,7 @@ class CalendarViewModelTest {
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
             observeObservedTodosUseCase = ObserveObservedTodosUseCase(personVisibilityRepository),
+            zoneId = ZoneId.of("Asia/Seoul"),
             buildTaskSurfaceDateTodosUseCase = BuildTaskSurfaceDateTodosUseCase(),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             getAssignedTodosUseCase = getAssignedTodosUseCase,

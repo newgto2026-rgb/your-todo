@@ -16,6 +16,8 @@ class FakePersonVisibilityRepository : PersonVisibilityRepository {
     var revokeVisibilityGrantResult: Result<Unit>? = null
     var refreshVisibilityGrantsResult: Result<List<PersonVisibilityGrant>>? = null
     var syncObservedTodosResult: Result<Unit>? = null
+    var beforeRefreshVisibilityGrants: (suspend () -> Unit)? = null
+    var beforeSyncObservedTodos: (suspend () -> Unit)? = null
     val setVisibilityGrantFriendUserIds = mutableListOf<String>()
     val revokedVisibilityGrantFriendUserIds = mutableListOf<String>()
     var refreshVisibilityGrantCount: Int = 0
@@ -38,6 +40,7 @@ class FakePersonVisibilityRepository : PersonVisibilityRepository {
 
     override suspend fun refreshVisibilityGrants(): Result<List<PersonVisibilityGrant>> {
         refreshVisibilityGrantCount += 1
+        beforeRefreshVisibilityGrants?.invoke()
         return refreshVisibilityGrantsResult ?: Result.success(grants.value)
     }
 
@@ -46,6 +49,7 @@ class FakePersonVisibilityRepository : PersonVisibilityRepository {
         windowEnd: LocalDate?
     ): Result<Unit> {
         syncObservedTodoWindows += windowStart to windowEnd
+        beforeSyncObservedTodos?.invoke()
         return syncObservedTodosResult ?: Result.success(Unit)
     }
 

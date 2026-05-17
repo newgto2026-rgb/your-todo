@@ -124,7 +124,8 @@ class PersonVisibilityRepositoryImplTest {
         authSessionRefresher = AuthSessionRefresher(
             userPreferencesDataSource = prefs,
             authNetworkDataSource = FakeAuthNetworkDataSource()
-        )
+        ),
+        timeProvider = PersonVisibilityTimeProvider { 123_456L }
     )
 
     private fun authSession() = AuthSessionData(

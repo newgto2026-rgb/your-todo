@@ -9,6 +9,8 @@ import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -31,8 +33,11 @@ class AppSyncViewModel @Inject constructor(
         if (uiState.value.isSyncing) return
         viewModelScope.launch {
             mutableUiState.update { it.copy(isSyncing = true) }
-            val workspaceResult = refreshWorkspaceUseCase()
-            val personVisibilityResult = refreshPersonVisibilityUseCase()
+            val (workspaceResult, personVisibilityResult) = coroutineScope {
+                val workspace = async { refreshWorkspaceUseCase() }
+                val personVisibility = async { refreshPersonVisibilityUseCase() }
+                workspace.await() to personVisibility.await()
+            }
             mutableUiState.update { it.copy(isSyncing = false) }
             if (!notifyUser) return@launch
             val isFullySynced = workspaceResult.getOrNull()?.isFullySynced == true &&

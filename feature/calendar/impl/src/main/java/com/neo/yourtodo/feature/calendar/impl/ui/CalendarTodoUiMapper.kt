@@ -17,11 +17,12 @@ import kotlin.math.max
 import kotlin.math.min
 
 internal fun buildSelectedDateTodos(
-    taskSurfaceItems: List<TaskSurfaceItem>
+    taskSurfaceItems: List<TaskSurfaceItem>,
+    zoneId: ZoneId
 ): List<CalendarSelectedTodoUiModel> =
-    taskSurfaceItems.map { it.toSelectedTodoUiModel() }
+    taskSurfaceItems.map { it.toSelectedTodoUiModel(zoneId) }
 
-private fun TaskSurfaceItem.toSelectedTodoUiModel(): CalendarSelectedTodoUiModel =
+private fun TaskSurfaceItem.toSelectedTodoUiModel(zoneId: ZoneId): CalendarSelectedTodoUiModel =
     CalendarSelectedTodoUiModel(
         id = id,
         title = title,
@@ -29,7 +30,7 @@ private fun TaskSurfaceItem.toSelectedTodoUiModel(): CalendarSelectedTodoUiModel
         priority = priority,
         isReminderEnabled = isReminderEnabled,
         dueTimeLabel = dueTimeMinutes?.let(::formatLocalTimeFromMinutes)
-            ?: reminderFallbackTimeLabel(),
+            ?: reminderFallbackTimeLabel(zoneId),
         reminderLeadMinutes = reminderLeadMinutes,
         sourceLabel = senderNickname?.let { "@$it" },
         assignmentMode = assignmentMode,
@@ -98,9 +99,9 @@ private fun ObservedTodo.toSummary(): TodoSummary =
         priority = priority
     )
 
-private fun TaskSurfaceItem.reminderFallbackTimeLabel(): String? =
+private fun TaskSurfaceItem.reminderFallbackTimeLabel(zoneId: ZoneId): String? =
     if (assignedTodoId == null) {
-        reminderAtEpochMillis?.let(::formatLocalTimeFromEpochMillis)
+        reminderAtEpochMillis?.let { formatLocalTimeFromEpochMillis(it, zoneId) }
     } else {
         null
     }
@@ -111,9 +112,9 @@ private fun formatLocalTimeFromMinutes(minutes: Int): String {
         .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 }
 
-private fun formatLocalTimeFromEpochMillis(epochMillis: Long): String =
+private fun formatLocalTimeFromEpochMillis(epochMillis: Long, zoneId: ZoneId): String =
     Instant.ofEpochMilli(epochMillis)
-        .atZone(ZoneId.systemDefault())
+        .atZone(zoneId)
         .toLocalTime()
         .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 
