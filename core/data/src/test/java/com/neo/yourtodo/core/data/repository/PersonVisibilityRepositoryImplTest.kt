@@ -111,6 +111,8 @@ class PersonVisibilityRepositoryImplTest {
         assertThat(dao.getObservedSyncState("user-id")?.cursor).isEqualTo("cursor-2")
         assertThat(repository.observeObservedTodos().first().single().todos.single().title)
             .isEqualTo("fresh todo")
+        assertThat(repository.observeObservedTodos().first().single().todos.single().dueTimeMinutes)
+            .isEqualTo(14 * 60 + 30)
     }
 
     private fun repository(
@@ -240,6 +242,7 @@ class PersonVisibilityRepositoryImplTest {
                         owner = NetworkObservedTodoOwner(id = "owner-id", nickname = "owner"),
                         title = "fresh todo",
                         dueDate = "2026-05-20",
+                        dueTime = "14:30",
                         status = "ACTIVE",
                         revision = "2",
                         updatedAt = "2026-05-17T00:00:00Z"

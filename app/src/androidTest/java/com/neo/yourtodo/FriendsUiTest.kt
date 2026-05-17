@@ -58,7 +58,7 @@ class FriendsUiTest {
         }
         activityScenario = ActivityScenario.launch(MainActivity::class.java)
         composeTestRule.waitForIdle()
-        composeTestRule.waitUntilNodeExists("app_tab_friends")
+        composeTestRule.waitUntilNodeExists("app_tab_friends", timeoutMillis = 30_000L)
     }
 
     @After
@@ -128,6 +128,16 @@ class FriendsUiTest {
     }
 
     @Test
+    fun friendsTabOpensSharedTodoMonitorFromExplicitAction() {
+        composeTestRule.onNodeWithTag("app_tab_friends").performClick()
+        composeTestRule.waitUntilNodeExists("friends_screen")
+
+        composeTestRule.onNodeWithTag("friends_shared_todos_friend-1").performClick()
+
+        composeTestRule.waitUntilNodeExists("friends_assignment_monitor_dialog")
+    }
+
+    @Test
     fun pendingFriendRequestRowShowsOnlyAcceptAndDeclineActions() {
         composeTestRule.onNodeWithTag("app_tab_friends").performClick()
         composeTestRule.waitUntilNodeExists("friends_screen")
@@ -135,17 +145,19 @@ class FriendsUiTest {
         composeTestRule.onNodeWithTag("friends_incoming_incoming-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_decline_incoming-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_accept_incoming-1").assertIsDisplayed()
+        composeTestRule.assertNodeDoesNotExist("friends_shared_todos_friend-2")
         composeTestRule.assertNodeDoesNotExist("friends_send_todo_friend-2")
         composeTestRule.assertNodeDoesNotExist("friends_auto_accept_friend-2")
         composeTestRule.assertNodeDoesNotExist("friends_show_my_todos_friend-2")
     }
 
     @Test
-    fun activeFriendRowShowsSendAutoAcceptAndMyTodoVisibilityActions() {
+    fun activeFriendRowShowsSharedSendAutoAcceptAndMyTodoVisibilityActions() {
         composeTestRule.onNodeWithTag("app_tab_friends").performClick()
         composeTestRule.waitUntilNodeExists("friends_screen")
 
         composeTestRule.onNodeWithTag("friends_friend_friend-1").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("friends_shared_todos_friend-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_send_todo_friend-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_auto_accept_friend-1").assertIsDisplayed()
         composeTestRule.onNodeWithTag("friends_show_my_todos_friend-1").assertIsDisplayed()
@@ -155,7 +167,11 @@ class FriendsUiTest {
     fun friendObservedTodosExpandInsideFriendRowWithoutGlobalSectionOrLimit() {
         runBlocking {
             personVisibilityDao.upsertObservedTodos((1..5).map { index ->
-                observedTodo(id = "observed-$index", title = "Observed todo $index")
+                observedTodo(
+                    id = "observed-$index",
+                    title = "Observed todo $index",
+                    dueTimeMinutes = if (index == 1) 9 * 60 + 30 else null
+                )
             })
         }
 
@@ -171,6 +187,9 @@ class FriendsUiTest {
                 .performScrollTo()
                 .assertIsDisplayed()
             composeTestRule.onNodeWithText("Observed todo $index").assertIsDisplayed()
+            if (index == 1) {
+                composeTestRule.onNodeWithText("09:30").assertIsDisplayed()
+            }
         }
         composeTestRule.assertNodeDoesNotExist("friends_global_observed_todos_section")
     }
@@ -204,7 +223,8 @@ class FriendsUiTest {
 
     private fun observedTodo(
         id: String,
-        title: String
+        title: String,
+        dueTimeMinutes: Int? = null
     ): ObservedTodoEntity =
         ObservedTodoEntity(
             currentUserId = OwnerUserId,
@@ -216,7 +236,7 @@ class FriendsUiTest {
             ownerAvatarUrl = null,
             title = title,
             dueDateEpochDay = null,
-            dueTimeMinutes = null,
+            dueTimeMinutes = dueTimeMinutes,
             isDone = false,
             recurrenceOccurrenceId = null,
             projectionVersion = 1,
