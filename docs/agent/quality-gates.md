@@ -13,7 +13,10 @@
 - Flow 테스트에는 Turbine을 사용하고 공용 fake/rule은 `core:testing`을 재사용한다.
 - 테스트는 구현 세부가 아닌 동작 중심으로 작성한다.
 - non-view 레이어 커버리지 최소 80%를 확인한다.
+- 제품 하네스 구조 검사는 `scripts/quality/product-harness-check.sh`로 실행한다.
 - pre-commit/pre-push 훅에서 최신 `origin/main`을 fetch하고 현재 브랜치가 이를 포함하는지 확인한다.
+- pre-commit 훅에서 제품 하네스 구조 검사를 실행한다.
+- pre-push 훅에서 제품 하네스 구조 검사와 변경 영향 lint를 실행한다.
 - pre-push 훅에서 변경 모듈 `lintDebug`를 우선 실행하며, Gradle/CI/훅 변경 시 `./gradlew lint` 전체를 실행한다.
 
 ## 작업 시작 가드
@@ -44,6 +47,8 @@ scripts/start-worktree-from-main.sh codex/my-feature ../worktrees/my-feature
 - 성능/재구성 영향 점검(Compose 관련 변경 시)
 
 ## 검증 명령어
+- 제품 하네스 구조 검사: `scripts/quality/product-harness-check.sh`
+- 제품 하네스 자체 테스트: `scripts/quality/product-harness-check-test.sh`
 - 앱 빌드: `./gradlew assembleDebug`
 - 단위 테스트: `./gradlew testDebugUnitTest`
 - 단일 테스트: `./gradlew testDebugUnitTest --tests "com.example.MyTest"`

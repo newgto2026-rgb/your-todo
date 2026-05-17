@@ -100,6 +100,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 if [ "$should_run_lint" -eq 1 ]; then
+  "$script_dir/../quality/product-harness-check.sh"
+
   sorted_changed_files_tmp="$(mktemp)"
   sort -u "$changed_files_tmp" > "$sorted_changed_files_tmp"
   while IFS= read -r changed_file; do
