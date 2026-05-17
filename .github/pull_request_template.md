@@ -31,6 +31,14 @@
 - Changed modules:
 - Hook/CI signals:
 
+## AI Rework Metrics
+- Branch metrics doc:
+- Rework count:
+- P0/P1/P2:
+- Automation possible:
+- Automation added:
+- Open events:
+
 ## Coverage Impact
 - Affected non-UI layers and expected coverage impact
 - If no coverage change, explain why

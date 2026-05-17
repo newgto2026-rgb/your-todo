@@ -54,9 +54,10 @@
 1. 영향 모듈 단위 테스트를 실행한다.
 2. 영향 모듈 린트를 실행한다.
 3. 제품 하네스 구조 검사를 실행한다.
-4. 버그 수정은 해당 버그를 재현하는 회귀 테스트를 반드시 추가/갱신하고 실행한다.
-5. 필요 시 앱 빌드 또는 통합 테스트를 실행한다.
-6. 테스트 결과와 변경 모듈을 PR 설명에 명시한다.
+4. 재작업/리뷰/CI 실패가 있었다면 branch metrics 문서와 PR 본문 `AI Rework Metrics`를 갱신한다.
+5. 버그 수정은 해당 버그를 재현하는 회귀 테스트를 반드시 추가/갱신하고 실행한다.
+6. 필요 시 앱 빌드 또는 통합 테스트를 실행한다.
+7. 테스트 결과와 변경 모듈을 PR 설명에 명시한다.
 
 ## 3. 전역 필수 정책
 
@@ -127,6 +128,8 @@
 
 - 앱 빌드: `./gradlew assembleDebug`
 - 제품 하네스 구조 검사: `scripts/quality/product-harness-check.sh`
+- 재작업 metrics 로컬 검사: `scripts/quality/rework-metrics-check.sh --local`
+- 재작업 metrics PR 검사: `scripts/quality/rework-metrics-check.sh --pr <number> --repo <owner/name>`
 - 단위 테스트: `./gradlew testDebugUnitTest`
 - 계측 테스트: `./gradlew connectedDebugAndroidTest`
 - 모듈 단위 테스트: `./gradlew :<module>:testDebugUnitTest`
@@ -146,6 +149,7 @@
 상세 참고 문서:
 - 인덱싱/로드 규칙: `docs/agent/indexing.md`
 - 자동화 하네스: `docs/agent/automation-harness.md`
+- AI 재작업 측정: `docs/agent/rework-metrics.md`
 - 테스트/커버리지/검증 커맨드: `docs/agent/quality-gates.md`
 - TDD Guard Hook: `docs/agent/tdd-guard.md`
 - 구현 플레이북: `docs/agent/playbooks/feature-impl.md`

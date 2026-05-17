@@ -21,6 +21,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   build-test-lint:
@@ -44,10 +45,17 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      - name: Run rework metrics checks
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/quality/rework-metrics-check.sh --pr "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}"
+
       - name: Run product harness checks
         run: |
           scripts/quality/product-harness-check-test.sh
           scripts/quality/product-harness-check.sh
+          scripts/quality/rework-metrics-check-test.sh
 
       - name: Run unit tests
         run: ./gradlew --stacktrace testDebugUnitTest

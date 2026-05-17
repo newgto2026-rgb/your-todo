@@ -96,7 +96,8 @@ collect_gradle_modules() {
     return
   fi
 
-  grep -Eo 'include[[:space:]]*\([^)]*\)' "$settings_file" |
+  sed 's#//.*##' "$settings_file" | tr '\n' ' ' |
+    grep -Eo 'include[[:space:]]*\([^)]*\)' |
     sed 's/^[^(]*(//;s/)[[:space:]]*$//' |
     tr ',' '\n' |
     sed -n "s/^[[:space:]]*['\"]\(:[^'\"]*\)['\"][[:space:]]*$/\1/p" |
@@ -161,7 +162,8 @@ check_gradle_dependencies() {
     from_module="$(module_for_build_file "$rel_path")"
     [ -z "$from_module" ] && continue
 
-    grep -Eo 'project[[:space:]]*\([^)]*\)' "$build_file" |
+    sed 's#//.*##' "$build_file" | tr '\n' ' ' |
+      grep -Eo 'project[[:space:]]*\([^)]*\)' |
       sed -n "s/.*['\"]\(:[^'\"]*\)['\"].*/\1/p" |
     while IFS= read -r to_module; do
       [ -z "$to_module" ] && continue

@@ -51,4 +51,7 @@ fi
 
 echo "[Policy] ${remote}/${main_branch} 기준으로 worktree를 생성합니다..."
 git worktree add -b "$branch" "$worktree_path" "$remote_main"
+if [ -x "$worktree_path/scripts/quality/rework-metrics-init.sh" ]; then
+  (cd "$worktree_path" && scripts/quality/rework-metrics-init.sh "$branch")
+fi
 echo "[Policy] 준비 완료: ${worktree_path}"
