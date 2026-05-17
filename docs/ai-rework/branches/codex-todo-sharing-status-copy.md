@@ -5,13 +5,13 @@
 | Field | Value |
 |---|---|
 | Branch | `codex/todo-sharing-status-copy` |
-| PR | `TBD` |
+| PR | `#107` |
 | Primary AI Model | `GPT-5` |
 | Task Type | `UX copy refinement` |
-| Rework Count | `1` |
+| Rework Count | `2` |
 | P0 Issues | `0` |
 | P1 Issues | `0` |
-| P2 Issues | `1` |
+| P2 Issues | `2` |
 | Automation Possible Issues | `0` |
 | Automation Added Issues | `0` |
 | Open Events | `0` |
@@ -33,7 +33,7 @@
 | Automation Added | `no` |
 | Fix Scope | `feature:friends:impl resources` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `7c2f2983e169a6b1fa5b8e72f0ea16fbf8890f4a` |
 | Verification | `./gradlew :feature:friends:impl:lintDebug` |
 
 #### External Refs
@@ -53,11 +53,50 @@ Renamed the monitor entry and related dialog/loading copy to `할 일 공유 현
 
 When a compact action opens a status surface, prefer a noun phrase that names the surface directly instead of describing the exchange mechanics.
 
+### R2 - Korean Dynamic Nickname Particle Was Unsafe
+
+| Field | Value |
+|---|---|
+| Source | `GitHub review thread PRRT_kwDOSAf4v86Cpne_` |
+| Priority | `P2` |
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Attribution | `AI` |
+| Root Cause Category | `Localization grammar` |
+| Automation Possible | `no` |
+| Automation Added | `no` |
+| Fix Scope | `feature:friends:impl Korean resources` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `./gradlew :feature:friends:impl:lintDebug` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86Cpne_`
+- Review Comment: `3254813869`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/107#discussion_r3254813869
+- Review Path: `feature/friends/impl/src/main/res/values-ko/strings.xml:38`
+- Resolved At Capture: `false`
+- Outdated At Capture: `false`
+
+#### Feedback Summary
+
+The title used fixed Korean particle `와` after a dynamic nickname, which can be grammatically wrong depending on whether the nickname ends in a consonant or vowel.
+
+#### Fix Summary
+
+Changed the title to `@%1$s님의 할 일 공유 현황`, avoiding consonant/vowel-dependent particles while keeping the requested `할 일 공유 현황` wording.
+
+#### Lesson
+
+Dynamic Korean names should avoid fixed particles unless the app has a proper josa formatter.
+
 ## External Event Coverage
 
 ### Review Threads
 
-No review threads recorded yet.
+- `PRRT_kwDOSAf4v86Cpne_`: covered by R2.
 
 ### Actionable PR Comments
 
