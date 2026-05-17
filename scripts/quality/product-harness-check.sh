@@ -96,7 +96,10 @@ collect_gradle_modules() {
     return
   fi
 
-  sed -n 's/^[[:space:]]*include("\(:[^"]*\)")[[:space:]]*$/\1/p' "$settings_file" |
+  grep -Eo 'include[[:space:]]*\([^)]*\)' "$settings_file" |
+    sed 's/^[^(]*(//;s/)[[:space:]]*$//' |
+    tr ',' '\n' |
+    sed -n "s/^[[:space:]]*['\"]\(:[^'\"]*\)['\"][[:space:]]*$/\1/p" |
     sort -u > "$modules_tmp"
 }
 
@@ -158,7 +161,8 @@ check_gradle_dependencies() {
     from_module="$(module_for_build_file "$rel_path")"
     [ -z "$from_module" ] && continue
 
-    sed -n 's/.*project("\(:[^"]*\)").*/\1/p' "$build_file" |
+    grep -Eo 'project[[:space:]]*\([^)]*\)' "$build_file" |
+      sed -n "s/.*['\"]\(:[^'\"]*\)['\"].*/\1/p" |
     while IFS= read -r to_module; do
       [ -z "$to_module" ] && continue
       check_gradle_dependency "$from_module" "$to_module" "$rel_path"
@@ -171,13 +175,13 @@ grep_sources() {
   pattern="$2"
 
   if [ ! -d "$base_dir" ]; then
-    return 1
+    return 0
   fi
 
   find "$base_dir" \
     \( -path "*/build/*" -o -path "*/.gradle/*" \) -prune -o \
     -type f \( -name "*.kt" -o -name "*.java" \) -print |
-  xargs grep -nE "$pattern" 2>/dev/null || true
+  xargs grep -nE "$pattern" /dev/null 2>/dev/null || true
 }
 
 check_source_imports() {
