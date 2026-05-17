@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Branch | `codex/friends-visibility-ux-clarity` |
-| PR | `TBD` |
+| PR | `#106` |
 | Primary AI Model | `GPT-5` |
 | Task Type | `UX clarity + API data fix` |
 | Rework Count | `3` |
@@ -70,4 +70,4 @@ Local all-device `:app:connectedDebugAndroidTest` runs failed on `SM-S906N - 16`
 
 ## Non-Rework Follow-up Commits
 
-No non-rework follow-up commits recorded yet.
+- `HEAD`: Recorded the created PR number in this metrics document.
