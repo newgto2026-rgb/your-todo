@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.neo.yourtodo.core.database.AppDatabase
 import com.neo.yourtodo.core.database.dao.AssignedTodoDao
 import com.neo.yourtodo.core.database.dao.CategoryDao
+import com.neo.yourtodo.core.database.dao.PersonVisibilityDao
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.dao.TodoOutboxDao
@@ -44,4 +45,7 @@ object TestDatabaseModule {
 
     @Provides
     fun provideAssignedTodoDao(database: AppDatabase): AssignedTodoDao = database.assignedTodoDao()
+
+    @Provides
+    fun providePersonVisibilityDao(database: AppDatabase): PersonVisibilityDao = database.personVisibilityDao()
 }

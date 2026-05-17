@@ -4,6 +4,7 @@ import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceDateTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
@@ -11,8 +12,8 @@ import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
-import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
@@ -35,6 +36,9 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
+import com.neo.yourtodo.core.model.personvisibility.ObservedPersonTodos
+import com.neo.yourtodo.core.model.personvisibility.ObservedTodo
+import com.neo.yourtodo.core.testing.repository.FakePersonVisibilityRepository
 import com.neo.yourtodo.core.testing.repository.FakeTodoRepository
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
@@ -122,6 +126,26 @@ class CalendarViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.selectedDate).isEqualTo(targetDate)
+    }
+
+    @Test
+    fun toggleMonthExpansionAction_collapsesAndExpandsSelectedWeek() = runTest {
+        val viewModel = createViewModel(FakeTodoRepository())
+
+        assertThat(viewModel.uiState.value.isMonthExpanded).isTrue()
+        assertThat(viewModel.uiState.value.selectedWeekDays).hasSize(7)
+
+        viewModel.onAction(CalendarAction.OnToggleMonthExpansion)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.isMonthExpanded).isFalse()
+        assertThat(viewModel.uiState.value.selectedWeekDays.map { it.date })
+            .contains(viewModel.uiState.value.selectedDate)
+
+        viewModel.onAction(CalendarAction.OnToggleMonthExpansion)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.isMonthExpanded).isTrue()
     }
 
     @Test
@@ -453,7 +477,107 @@ class CalendarViewModelTest {
         assertThat(todo.title).isEqualTo("From friend")
         assertThat(todo.sourceLabel).isEqualTo("@monday")
         assertThat(todo.assignmentMode).isEqualTo(AssignmentMode.REQUEST)
+        assertThat(viewModel.uiState.value.selectedDateTodoSections.single().source)
+            .isEqualTo(CalendarTodoSource.MINE)
         assertThat(viewModel.uiState.value.summariesByDate[selectedDate]?.indicatorCount).isEqualTo(1)
+    }
+
+    @Test
+    fun selectedDateTodos_includeObservedFriendTodosInFriendSection() = runTest {
+        val selectedDate = YearMonth.now().atDay(9)
+        val personVisibilityRepository = FakePersonVisibilityRepository().apply {
+            setObservedTodos(
+                listOf(
+                    observedPersonTodos(
+                        todos = listOf(
+                            observedTodo(
+                                id = "observed-calendar",
+                                title = "Friend visible todo",
+                                dueDate = selectedDate
+                            )
+                        )
+                    )
+                )
+            )
+        }
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            personVisibilityRepository = personVisibilityRepository
+        )
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+
+        val section = viewModel.uiState.value.selectedDateTodoSections.single()
+        val todo = section.visibleTodos.single()
+        assertThat(section.source).isEqualTo(CalendarTodoSource.FRIEND)
+        assertThat(todo.title).isEqualTo("Friend visible todo")
+        assertThat(todo.sourceLabel).isEqualTo("@monday")
+        assertThat(todo.assignedTodoId).isNull()
+        assertThat(viewModel.uiState.value.summariesByDate[selectedDate]?.indicatorCount).isEqualTo(1)
+    }
+
+    @Test
+    fun selectedDateTodos_includeReceivedAssignedTodosOutsideCurrentWeek() = runTest {
+        val selectedDate = YearMonth.now().atDay(1)
+        val assignmentRepository = FakeAssignmentRepository(
+            receivedItems = listOf(
+                assignedTodo(
+                    id = "assigned-outside-week",
+                    title = "Friend todo outside current week",
+                    dueDate = selectedDate
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            assignmentRepository = assignmentRepository
+        )
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.selectedWeekDays.map { it.date }).contains(selectedDate)
+        assertThat(viewModel.uiState.value.selectedDateTodos.map { it.assignedTodoId })
+            .containsExactly("assigned-outside-week")
+    }
+
+    @Test
+    fun toggleFriendTodosExpandedAction_expandsCollapsedFriendSection() = runTest {
+        val selectedDate = YearMonth.now().atDay(9)
+        val personVisibilityRepository = FakePersonVisibilityRepository().apply {
+            setObservedTodos(
+                listOf(
+                    observedPersonTodos(
+                        todos = listOf(
+                            observedTodo(id = "observed-1", title = "Friend 1", dueDate = selectedDate),
+                            observedTodo(id = "observed-2", title = "Friend 2", dueDate = selectedDate),
+                            observedTodo(id = "observed-3", title = "Friend 3", dueDate = selectedDate),
+                            observedTodo(id = "observed-4", title = "Friend 4", dueDate = selectedDate)
+                        )
+                    )
+                )
+            )
+        }
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            personVisibilityRepository = personVisibilityRepository
+        )
+
+        viewModel.onAction(CalendarAction.OnDateClick(selectedDate))
+        advanceUntilIdle()
+
+        val collapsedSection = viewModel.uiState.value.selectedDateTodoSections.single()
+        assertThat(collapsedSection.source).isEqualTo(CalendarTodoSource.FRIEND)
+        assertThat(collapsedSection.isExpanded).isFalse()
+        assertThat(collapsedSection.visibleTodos).hasSize(3)
+
+        viewModel.onAction(CalendarAction.OnToggleFriendTodosExpanded)
+        advanceUntilIdle()
+
+        val expandedSection = viewModel.uiState.value.selectedDateTodoSections.single()
+        assertThat(expandedSection.isExpanded).isTrue()
+        assertThat(expandedSection.visibleTodos).hasSize(4)
     }
 
     @Test
@@ -590,6 +714,7 @@ class CalendarViewModelTest {
         repository: FakeTodoRepository,
         authRepository: FakeAuthRepository = FakeAuthRepository(),
         assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository(),
+        personVisibilityRepository: FakePersonVisibilityRepository = FakePersonVisibilityRepository(),
         calendarWidgetUpdater: RecordingCalendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
         workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
     ): CalendarViewModel {
@@ -604,6 +729,7 @@ class CalendarViewModelTest {
                 getAssignedTodosUseCase = getAssignedTodosUseCase
             ),
             observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository),
+            observeObservedTodosUseCase = ObserveObservedTodosUseCase(personVisibilityRepository),
             buildTaskSurfaceDateTodosUseCase = BuildTaskSurfaceDateTodosUseCase(),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
             getAssignedTodosUseCase = getAssignedTodosUseCase,
@@ -796,3 +922,29 @@ private fun assignedTodo(
     reminder = null,
     checklist = emptyList()
 )
+
+private fun observedPersonTodos(
+    ownerUserId: String = "friend-1",
+    todos: List<ObservedTodo>
+): ObservedPersonTodos =
+    ObservedPersonTodos(
+        ownerUserId = ownerUserId,
+        todos = todos
+    )
+
+private fun observedTodo(
+    id: String,
+    title: String,
+    dueDate: LocalDate,
+    ownerUserId: String = "friend-1"
+): ObservedTodo =
+    ObservedTodo(
+        id = id,
+        ownerUserId = ownerUserId,
+        ownerNickname = "monday",
+        title = title,
+        isDone = false,
+        dueDate = dueDate,
+        dueTimeMinutes = null,
+        priority = TodoPriority.MEDIUM
+    )

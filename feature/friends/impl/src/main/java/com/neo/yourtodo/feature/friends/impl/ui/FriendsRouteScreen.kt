@@ -1,9 +1,13 @@
 package com.neo.yourtodo.feature.friends.impl.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -14,14 +18,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,7 +43,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,16 +53,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
+import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
 import com.neo.yourtodo.core.ui.YourTodoAppHeader
@@ -62,6 +76,9 @@ import com.neo.yourtodo.core.ui.YourTodoScreenBackground
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import com.neo.yourtodo.feature.friends.api.FriendsIncomingAssignmentRoute
 import com.neo.yourtodo.feature.friends.impl.R
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -231,10 +248,21 @@ private fun FriendsScreen(
                                 removing = uiState.runningActionKey == "remove:${friend.friendshipId}",
                                 togglingAutoAccept =
                                     uiState.runningActionKey == "direct_assignment_opt_in:${friend.userId}",
+                                togglingMyTodoVisibility =
+                                    uiState.runningActionKey == "todo_visibility:${friend.userId}",
+                                observedTodos = uiState.observedTodos(friend.userId),
+                                observedTodosExpanded = uiState.isObservedTodosExpanded(friend.userId),
+                                myTodosVisibleToFriend = uiState.isMyTodosVisibleTo(friend.userId),
                                 onClick = { onAction(FriendsAction.OnFriendClick(friend)) },
                                 onSendTodo = { onAction(FriendsAction.OnOpenAssignmentEditor(friend)) },
                                 onAutoAcceptChanged = { enabled ->
                                     onAction(FriendsAction.OnSetDirectAssignmentOptIn(friend, enabled))
+                                },
+                                onMyTodoVisibilityChanged = { enabled ->
+                                    onAction(FriendsAction.OnSetMyTodoVisibility(friend, enabled))
+                                },
+                                onToggleObservedTodos = {
+                                    onAction(FriendsAction.OnToggleObservedTodos(friend.userId))
                                 },
                                 onRemove = { onAction(FriendsAction.OnRemoveFriend(friend.friendshipId)) }
                             )
@@ -424,9 +452,15 @@ private fun FriendRow(
     friend: Friend,
     removing: Boolean,
     togglingAutoAccept: Boolean,
+    togglingMyTodoVisibility: Boolean,
+    observedTodos: List<ObservedTodoUiModel>,
+    observedTodosExpanded: Boolean,
+    myTodosVisibleToFriend: Boolean,
     onClick: () -> Unit,
     onSendTodo: () -> Unit,
     onAutoAcceptChanged: (Boolean) -> Unit,
+    onMyTodoVisibilityChanged: (Boolean) -> Unit,
+    onToggleObservedTodos: () -> Unit,
     onRemove: () -> Unit
 ) {
     var showRemoveDialog by remember(friend.friendshipId) { mutableStateOf(false) }
@@ -455,53 +489,57 @@ private fun FriendRow(
         )
     }
 
-    FriendSurface(
-        testTag = "friends_friend_${friend.userId}",
-        modifier = Modifier.clickable(onClick = onClick)
-    ) {
+    FriendSurface(testTag = "friends_friend_${friend.userId}") {
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            FriendIdentity(
-                initial = friend.initial,
-                nickname = friend.nickname,
-                subtitle = stringResource(
-                    if (friend.isAutoAcceptEnabledForMe()) {
-                        R.string.friends_auto_accept_enabled_subtitle
-                    } else {
-                        R.string.friends_auto_accept_disabled_subtitle
-                    }
-                )
-            )
-            AutoAcceptSwitchRow(
-                checked = friend.isAutoAcceptEnabledForMe(),
-                enabled = !removing && !togglingAutoAccept,
-                onCheckedChange = onAutoAcceptChanged,
-                testTag = "friends_auto_accept_${friend.userId}"
-            )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            TextButton(
-                onClick = onSendTodo,
-                enabled = !removing,
-                modifier = Modifier.testTag("friends_send_todo_${friend.userId}")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-                Text(
-                    text = stringResource(R.string.friends_assignment_open_editor),
-                    modifier = Modifier.padding(start = 4.dp)
+                FriendIdentity(
+                    initial = friend.initial,
+                    nickname = friend.nickname,
+                    subtitle = null,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(onClick = onClick)
+                        .padding(vertical = 2.dp)
+                )
+                FriendRowActions(
+                    friend = friend,
+                    removing = removing,
+                    onSendTodo = onSendTodo,
+                    onRemove = { showRemoveDialog = true }
                 )
             }
-            IconButton(
-                onClick = { showRemoveDialog = true },
-                enabled = !removing,
-                modifier = Modifier.testTag("friends_remove_${friend.friendshipId}")
-            ) {
-                if (removing) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.friends_remove_confirm))
+            FriendQuickSettingsRow(
+                autoAcceptChecked = friend.isAutoAcceptEnabledForMe(),
+                autoAcceptEnabled = !removing && !togglingAutoAccept,
+                myTodoVisibilityChecked = myTodosVisibleToFriend,
+                myTodoVisibilityEnabled = !removing && !togglingMyTodoVisibility,
+                onAutoAcceptChanged = onAutoAcceptChanged,
+                onMyTodoVisibilityChanged = onMyTodoVisibilityChanged,
+                autoAcceptTestTag = "friends_auto_accept_${friend.userId}",
+                myTodoVisibilityTestTag = "friends_show_my_todos_${friend.userId}"
+            )
+            if (observedTodos.isNotEmpty()) {
+                ObservedTodosToggleRow(
+                    nickname = friend.nickname,
+                    count = observedTodos.size,
+                    expanded = observedTodosExpanded,
+                    enabled = !removing,
+                    onClick = onToggleObservedTodos,
+                    testTag = "friends_observed_todos_toggle_${friend.userId}"
+                )
+                if (observedTodosExpanded) {
+                    ObservedTodoList(
+                        friendUserId = friend.userId,
+                        todos = observedTodos
+                    )
                 }
             }
         }
@@ -509,28 +547,299 @@ private fun FriendRow(
 }
 
 @Composable
-private fun AutoAcceptSwitchRow(
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    testTag: String
+private fun FriendRowActions(
+    friend: Friend,
+    removing: Boolean,
+    onSendTodo: () -> Unit,
+    onRemove: () -> Unit
 ) {
     Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = onSendTodo,
+            enabled = !removing,
+            modifier = Modifier
+                .height(38.dp)
+                .testTag("friends_send_todo_${friend.userId}"),
+            shape = RoundedCornerShape(14.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFF1F4FE),
+                contentColor = Color(0xFF4F56A6),
+                disabledContainerColor = Color(0xFFE2E7F2),
+                disabledContentColor = Color(0xFF8A94A3)
+            )
+        ) {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(
+                text = stringResource(R.string.friends_assignment_send_short),
+                modifier = Modifier.padding(start = 4.dp),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                maxLines = 1
+            )
+        }
+        IconButton(
+            onClick = onRemove,
+            enabled = !removing,
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .testTag("friends_remove_${friend.friendshipId}")
+        ) {
+            if (removing) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.friends_remove_confirm),
+                    tint = Color(0xFF7A8595)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FriendQuickSettingsRow(
+    autoAcceptChecked: Boolean,
+    autoAcceptEnabled: Boolean,
+    myTodoVisibilityChecked: Boolean,
+    myTodoVisibilityEnabled: Boolean,
+    onAutoAcceptChanged: (Boolean) -> Unit,
+    onMyTodoVisibilityChanged: (Boolean) -> Unit,
+    autoAcceptTestTag: String,
+    myTodoVisibilityTestTag: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled,
-            modifier = Modifier.testTag(testTag)
+        FriendQuickSettingChip(
+            title = stringResource(R.string.friends_auto_accept_label),
+            checked = autoAcceptChecked,
+            enabled = autoAcceptEnabled,
+            onCheckedChange = onAutoAcceptChanged,
+            testTag = autoAcceptTestTag,
+            modifier = Modifier.weight(1f)
         )
-        Text(
-            text = stringResource(R.string.friends_auto_accept_label),
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-            color = if (enabled) Color(0xFF4E5D73) else Color(0xFF9AA2AE)
+        FriendQuickSettingChip(
+            title = stringResource(R.string.friends_my_todo_visibility_label),
+            checked = myTodoVisibilityChecked,
+            enabled = myTodoVisibilityEnabled,
+            onCheckedChange = onMyTodoVisibilityChanged,
+            testTag = myTodoVisibilityTestTag,
+            modifier = Modifier.weight(1f)
         )
     }
+}
+
+@Composable
+private fun FriendQuickSettingChip(
+    title: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    testTag: String,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = modifier
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.58f))
+            .border(1.dp, if (checked) Color(0xFFD8E2F4) else Color(0xFFE9EEF6), shape)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            )
+            .testTag(testTag)
+            .padding(start = 10.dp, top = 7.dp, end = 8.dp, bottom = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = if (enabled) Color(0xFF303440) else Color(0xFF9AA2AE),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        CompactSwitch(
+            checked = checked,
+            enabled = enabled
+        )
+    }
+}
+
+@Composable
+private fun CompactSwitch(
+    checked: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val trackColor = when {
+        !enabled -> Color(0xFFE4E8EF)
+        checked -> Color(0xFF6570B8)
+        else -> Color(0xFFE5E0EA)
+    }
+    val thumbColor = if (enabled) Color.White else Color(0xFFF5F6F8)
+    Box(
+        modifier = modifier
+            .size(width = 38.dp, height = 22.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(trackColor)
+            .padding(3.dp),
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .size(16.dp)
+                .clip(CircleShape)
+                .background(thumbColor)
+        )
+    }
+}
+
+@Composable
+private fun ObservedTodosToggleRow(
+    nickname: String,
+    count: Int,
+    expanded: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.66f))
+            .border(1.dp, Color(0xFFE2E8F2), shape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .testTag(testTag)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = pluralStringResource(
+                R.plurals.friends_observed_todos_affordance,
+                count,
+                nickname,
+                count
+            ),
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold),
+            color = Color(0xFF303440),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Icon(
+            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = null,
+            tint = Color(0xFF526585),
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+@Composable
+private fun ObservedTodoList(
+    friendUserId: String,
+    todos: List<ObservedTodoUiModel>
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("friends_friend_observed_todos_$friendUserId"),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        todos.forEach { todo ->
+            ObservedTodoRow(todo = todo)
+        }
+    }
+}
+
+@Composable
+private fun ObservedTodoRow(todo: ObservedTodoUiModel) {
+    val locale = Locale.getDefault()
+    val scheduleLabel = todo.scheduleLabel(locale)
+    val statusLabel = if (todo.isDone) stringResource(R.string.friends_assignment_status_done) else null
+    val metaText = listOfNotNull(scheduleLabel, statusLabel).joinToString(" · ")
+    val priorityColor = observedPriorityColor(todo.priority)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.8f))
+            .border(1.dp, Color(0xFFE7EDF5), RoundedCornerShape(14.dp))
+            .testTag("friends_observed_todo_${todo.id}")
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Spacer(
+            modifier = Modifier
+                .size(width = 4.dp, height = 34.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(priorityColor)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = todo.title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = if (todo.isDone) Color(0xFF2D3338).copy(alpha = 0.52f) else Color(0xFF2D3338),
+                textDecoration = if (todo.isDone) TextDecoration.LineThrough else TextDecoration.None,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (metaText.isNotBlank()) {
+                Text(
+                    text = metaText,
+                    modifier = Modifier.padding(top = 2.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF5A6065),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+private fun ObservedTodoUiModel.scheduleLabel(locale: Locale): String? {
+    val dateLabel = dueDate?.formatObservedDate(locale)
+    val timeLabel = dueTimeMinutes?.let { minutes ->
+        "%02d:%02d".format(minutes / 60, minutes % 60)
+    }
+    return listOfNotNull(dateLabel, timeLabel)
+        .takeIf { it.isNotEmpty() }
+        ?.joinToString(" ")
+}
+
+private fun LocalDate.formatObservedDate(locale: Locale): String {
+    val pattern = if (locale.language == Locale.KOREAN.language) {
+        "M월 d일"
+    } else {
+        "MMM d"
+    }
+    return format(DateTimeFormatter.ofPattern(pattern, locale))
+}
+
+private fun observedPriorityColor(priority: TodoPriority): Color = when (priority) {
+    TodoPriority.LOW -> Color(0xFF6FA58C)
+    TodoPriority.MEDIUM -> Color(0xFF6F86C9)
+    TodoPriority.HIGH -> Color(0xFFC76B7D)
 }
 
 @Composable

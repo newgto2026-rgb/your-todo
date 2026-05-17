@@ -9,7 +9,9 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.assignedtodo.FriendAssignmentSummary
 import com.neo.yourtodo.core.model.friends.Friend
 import com.neo.yourtodo.core.model.friends.FriendRequest
+import com.neo.yourtodo.core.model.personvisibility.ObservedTodo
 import com.neo.yourtodo.feature.friends.impl.R
+import java.time.LocalDate
 
 data class FriendsUiState(
     val isLoading: Boolean = true,
@@ -18,6 +20,9 @@ data class FriendsUiState(
     val friends: List<Friend> = emptyList(),
     val incomingRequests: List<FriendRequest> = emptyList(),
     val outgoingRequests: List<FriendRequest> = emptyList(),
+    val observedTodosByFriendId: Map<String, List<ObservedTodoUiModel>> = emptyMap(),
+    val expandedObservedTodoFriendIds: Set<String> = emptySet(),
+    val visibleMyTodoFriendIds: Set<String> = emptySet(),
     val hasLoadedFriendsSnapshot: Boolean = false,
     val friendsSnapshotError: FriendsError? = null,
     val addFriendExpanded: Boolean = false,
@@ -58,6 +63,15 @@ data class FriendsUiState(
     val showEmptyFriends: Boolean
         get() = hasLoadedFriendsSnapshot && friends.isEmpty()
 
+    fun observedTodos(friendUserId: String): List<ObservedTodoUiModel> =
+        observedTodosByFriendId[friendUserId].orEmpty()
+
+    fun isObservedTodosExpanded(friendUserId: String): Boolean =
+        friendUserId in expandedObservedTodoFriendIds
+
+    fun isMyTodosVisibleTo(friendUserId: String): Boolean =
+        friendUserId in visibleMyTodoFriendIds
+
     val assignmentDetail: FriendAssignmentDetailUiModel
         get() {
             val pending = friendReceivedAssignedTodos
@@ -92,6 +106,15 @@ data class FriendsUiState(
             )
         }
 }
+
+data class ObservedTodoUiModel(
+    val id: String,
+    val title: String,
+    val isDone: Boolean,
+    val dueDate: LocalDate?,
+    val dueTimeMinutes: Int?,
+    val priority: TodoPriority
+)
 
 data class FriendAssignmentDetailUiModel(
     val sentItems: List<AssignmentTodoUiModel> = emptyList(),
@@ -148,6 +171,15 @@ internal fun AssignedTodo.toAssignmentTodoUiModel(
     statusLabelRes = status.statusLabelRes(perspective, assignmentMode),
     statusStyle = status.statusStyle(),
     selected = selected
+)
+
+internal fun ObservedTodo.toObservedTodoUiModel(): ObservedTodoUiModel = ObservedTodoUiModel(
+    id = id,
+    title = title,
+    isDone = isDone,
+    dueDate = dueDate,
+    dueTimeMinutes = dueTimeMinutes,
+    priority = priority
 )
 
 internal enum class AssignmentTodoPerspective {
@@ -232,6 +264,8 @@ sealed interface FriendsAction {
     data object OnSendAssignmentNow : FriendsAction
     data object OnSendAssignmentDrafts : FriendsAction
     data class OnSetDirectAssignmentOptIn(val friend: Friend, val enabled: Boolean) : FriendsAction
+    data class OnSetMyTodoVisibility(val friend: Friend, val enabled: Boolean) : FriendsAction
+    data class OnToggleObservedTodos(val friendUserId: String) : FriendsAction
     data object OnErrorShown : FriendsAction
 }
 
@@ -272,7 +306,9 @@ enum class FriendsMessage(@StringRes val messageRes: Int) {
     ASSIGNMENT_ACCEPTED(R.string.friends_assignment_accepted),
     ASSIGNMENT_REJECTED(R.string.friends_assignment_rejected),
     DIRECT_ASSIGNMENT_OPT_IN_ENABLED(R.string.friends_direct_assignment_opt_in_enabled),
-    DIRECT_ASSIGNMENT_OPT_IN_DISABLED(R.string.friends_direct_assignment_opt_in_disabled)
+    DIRECT_ASSIGNMENT_OPT_IN_DISABLED(R.string.friends_direct_assignment_opt_in_disabled),
+    TODO_VISIBILITY_ENABLED(R.string.friends_todo_visibility_enabled),
+    TODO_VISIBILITY_DISABLED(R.string.friends_todo_visibility_disabled)
 }
 
 internal fun Friend.canDirectAssignToFriend(): Boolean =

@@ -13,6 +13,9 @@ import com.neo.yourtodo.core.network.auth.RetrofitAuthNetworkDataSource
 import com.neo.yourtodo.core.network.friends.FriendApi
 import com.neo.yourtodo.core.network.friends.FriendNetworkDataSource
 import com.neo.yourtodo.core.network.friends.RetrofitFriendNetworkDataSource
+import com.neo.yourtodo.core.network.personvisibility.PersonVisibilityApi
+import com.neo.yourtodo.core.network.personvisibility.PersonVisibilityNetworkDataSource
+import com.neo.yourtodo.core.network.personvisibility.RetrofitPersonVisibilityNetworkDataSource
 import com.neo.yourtodo.core.network.push.PushApi
 import com.neo.yourtodo.core.network.push.PushNetworkDataSource
 import com.neo.yourtodo.core.network.push.RetrofitPushNetworkDataSource
@@ -123,6 +126,11 @@ internal object NetworkProvidesModule {
 
     @Provides
     @Singleton
+    fun providePersonVisibilityApi(retrofit: Retrofit): PersonVisibilityApi =
+        retrofit.create(PersonVisibilityApi::class.java)
+
+    @Provides
+    @Singleton
     fun providePushApi(retrofit: Retrofit): PushApi = retrofit.create(PushApi::class.java)
 
     @Provides
@@ -157,6 +165,12 @@ internal abstract class NetworkBindsModule {
     abstract fun bindAssignmentNetworkDataSource(
         impl: RetrofitAssignmentNetworkDataSource
     ): AssignmentNetworkDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindPersonVisibilityNetworkDataSource(
+        impl: RetrofitPersonVisibilityNetworkDataSource
+    ): PersonVisibilityNetworkDataSource
 
     @Binds
     @Singleton

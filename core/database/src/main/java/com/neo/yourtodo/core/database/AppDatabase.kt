@@ -4,15 +4,19 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.neo.yourtodo.core.database.dao.CategoryDao
 import com.neo.yourtodo.core.database.dao.AssignedTodoDao
+import com.neo.yourtodo.core.database.dao.PersonVisibilityDao
 import com.neo.yourtodo.core.database.dao.ReminderDao
 import com.neo.yourtodo.core.database.dao.TodoDao
 import com.neo.yourtodo.core.database.dao.TodoOutboxDao
 import com.neo.yourtodo.core.database.entity.AssignedTodoChecklistItemEntity
 import com.neo.yourtodo.core.database.entity.AssignedTodoEntity
 import com.neo.yourtodo.core.database.entity.CategoryEntity
+import com.neo.yourtodo.core.database.entity.ObservedSyncStateEntity
+import com.neo.yourtodo.core.database.entity.ObservedTodoEntity
 import com.neo.yourtodo.core.database.entity.ReminderEntity
 import com.neo.yourtodo.core.database.entity.TodoEntity
 import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
+import com.neo.yourtodo.core.database.entity.VisibilityGrantEntity
 
 @Database(
     entities = [
@@ -21,9 +25,12 @@ import com.neo.yourtodo.core.database.entity.TodoOutboxEntity
         ReminderEntity::class,
         TodoOutboxEntity::class,
         AssignedTodoEntity::class,
-        AssignedTodoChecklistItemEntity::class
+        AssignedTodoChecklistItemEntity::class,
+        VisibilityGrantEntity::class,
+        ObservedTodoEntity::class,
+        ObservedSyncStateEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,4 +39,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun reminderDao(): ReminderDao
     abstract fun assignedTodoDao(): AssignedTodoDao
+    abstract fun personVisibilityDao(): PersonVisibilityDao
 }

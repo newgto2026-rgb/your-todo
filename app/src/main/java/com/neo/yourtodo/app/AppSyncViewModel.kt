@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.neo.yourtodo.R
+import com.neo.yourtodo.core.domain.usecase.RefreshPersonVisibilityUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.ui.navigation.WorkspaceSyncUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +18,8 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class AppSyncViewModel @Inject constructor(
-    private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase
+    private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
+    private val refreshPersonVisibilityUseCase: RefreshPersonVisibilityUseCase
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow(WorkspaceSyncUiState())
     val uiState = mutableUiState.asStateFlow()
@@ -29,10 +31,12 @@ class AppSyncViewModel @Inject constructor(
         if (uiState.value.isSyncing) return
         viewModelScope.launch {
             mutableUiState.update { it.copy(isSyncing = true) }
-            val result = refreshWorkspaceUseCase()
+            val workspaceResult = refreshWorkspaceUseCase()
+            val personVisibilityResult = refreshPersonVisibilityUseCase()
             mutableUiState.update { it.copy(isSyncing = false) }
             if (!notifyUser) return@launch
-            val isFullySynced = result.getOrNull()?.isFullySynced == true
+            val isFullySynced = workspaceResult.getOrNull()?.isFullySynced == true &&
+                personVisibilityResult.isSuccess
             mutableSideEffect.emit(
                 AppSyncSideEffect.ShowSnackbar(
                     if (isFullySynced) {

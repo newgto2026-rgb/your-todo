@@ -1,5 +1,6 @@
 package com.neo.yourtodo.feature.calendar.impl.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,10 +38,12 @@ import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.feature.calendar.impl.R
 import com.neo.yourtodo.feature.calendar.impl.ui.CalendarSelectedTodoUiModel
+import com.neo.yourtodo.feature.calendar.impl.ui.CalendarTodoSource
 
 @Composable
 internal fun CalendarAgendaItem(
     todo: CalendarSelectedTodoUiModel,
+    isEditable: Boolean = true,
     onClick: () -> Unit,
     onToggleDone: () -> Unit
 ) {
@@ -60,35 +63,53 @@ internal fun CalendarAgendaItem(
         60 -> stringResource(R.string.calendar_reminder_lead_60m)
         else -> null
     }
-    val sourceText = todo.sourceLabel?.let { sourceLabel ->
-        stringResource(
+    val sourceText = when {
+        todo.source == CalendarTodoSource.FRIEND -> todo.sourceLabel
+        todo.sourceLabel != null -> stringResource(
             if (todo.assignmentMode == AssignmentMode.DIRECT) {
                 R.string.calendar_direct_assigned_from
             } else {
                 R.string.calendar_request_assigned_from
             },
-            sourceLabel
+            todo.sourceLabel
         )
+        else -> null
     }
+    val isFriendTodo = todo.source == CalendarTodoSource.FRIEND
+    val itemShape = RoundedCornerShape(14.dp)
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("calendar_day_todo_item_${todo.id}")
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        color = if (todo.isDone) Color(0xFFF1F4F8) else Color.White
+            .testTag("calendar_day_todo_item_${todo.itemKey}")
+            .then(
+                if (isEditable) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            ),
+        shape = itemShape,
+        color = when {
+            isFriendTodo -> Color(0xFFF8FBFA)
+            todo.isDone -> Color(0xFFF1F4F8)
+            else -> Color.White
+        },
+        border = if (isFriendTodo) BorderStroke(1.dp, Color(0xFFE1EDE7)) else null
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (todo.isDone) {
+            if (todo.isDone || isFriendTodo) {
                 Box(
                     modifier = Modifier
                         .padding(start = 2.dp)
                         .size(width = 2.dp, height = 56.dp)
-                        .background(Color(0xFF6C63FF).copy(alpha = 0.85f), RoundedCornerShape(999.dp))
+                        .background(
+                            if (isFriendTodo) Color(0xFF3C7766) else Color(0xFF6F86C9).copy(alpha = 0.85f),
+                            RoundedCornerShape(999.dp)
+                        )
                 )
             }
             Row(
@@ -98,32 +119,36 @@ internal fun CalendarAgendaItem(
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(22.dp)
-                        .testTag("calendar_day_todo_toggle_${todo.id}")
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(if (todo.isDone) Color(0xFF6C63FF) else Color.Transparent)
-                        .border(
-                            width = if (todo.isDone) 0.dp else 1.8.dp,
-                            color = Color(0xFF6C63FF),
-                            shape = RoundedCornerShape(7.dp)
-                        )
-                        .clickable(
-                            onClickLabel = toggleLabel,
-                            role = Role.Checkbox,
-                            onClick = onToggleDone
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (todo.isDone) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(14.dp)
-                        )
+                if (isEditable) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .testTag("calendar_day_todo_toggle_${todo.itemKey}")
+                            .clip(RoundedCornerShape(7.dp))
+                            .background(if (todo.isDone) Color(0xFFDDE4F4) else Color.Transparent)
+                            .border(
+                                width = if (todo.isDone) 0.dp else 1.2.dp,
+                                color = Color(0xFFC8D2E3),
+                                shape = RoundedCornerShape(7.dp)
+                            )
+                            .clickable(
+                                onClickLabel = toggleLabel,
+                                role = Role.Checkbox,
+                                onClick = onToggleDone
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (todo.isDone) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF43566F),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
+                } else if (isFriendTodo) {
+                    FriendTodoAvatar(sourceLabel = todo.sourceLabel)
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
@@ -190,13 +215,39 @@ internal fun CalendarAgendaItem(
                             Text(
                                 text = sourceText,
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = Color(0xFF3C7766).copy(alpha = if (todo.isDone) 0.6f else 1f)
+                                color = Color(0xFF3C7766).copy(alpha = if (todo.isDone) 0.6f else 1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FriendTodoAvatar(sourceLabel: String?) {
+    val initial = sourceLabel
+        ?.trim()
+        ?.trimStart('@')
+        ?.firstOrNull()
+        ?.uppercaseChar()
+        ?.toString()
+        ?: "F"
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFEAF4F0)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = initial,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+            color = Color(0xFF3C7766)
+        )
     }
 }
 

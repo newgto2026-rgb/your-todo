@@ -10,12 +10,16 @@ import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendRequestsUseCase
 import com.neo.yourtodo.core.domain.usecase.GetFriendsUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveVisibilityGrantsUseCase
+import com.neo.yourtodo.core.domain.usecase.RevokeVisibilityGrantUseCase
 import com.neo.yourtodo.core.domain.usecase.RemoveFriendUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondAssignmentBundleUseCase
 import com.neo.yourtodo.core.domain.usecase.RespondFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SendFriendRequestUseCase
 import com.neo.yourtodo.core.domain.usecase.SetDirectAssignmentOptInUseCase
+import com.neo.yourtodo.core.domain.usecase.SetVisibilityGrantUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.core.model.TodoPriority
 import com.neo.yourtodo.core.model.assignedtodo.AssignedTodo
@@ -46,6 +50,10 @@ class FriendsViewModel @Inject constructor(
     private val removeFriend: RemoveFriendUseCase,
     private val createAssignmentBundle: CreateAssignmentBundleUseCase,
     private val setDirectAssignmentOptIn: SetDirectAssignmentOptInUseCase,
+    private val observeObservedTodos: ObserveObservedTodosUseCase,
+    private val observeVisibilityGrants: ObserveVisibilityGrantsUseCase,
+    private val setVisibilityGrant: SetVisibilityGrantUseCase,
+    private val revokeVisibilityGrant: RevokeVisibilityGrantUseCase,
     private val getAssignedTodos: GetAssignedTodosUseCase,
     private val respondAssignmentBundle: RespondAssignmentBundleUseCase,
     private val refreshWorkspaceUseCase: RefreshWorkspaceUseCase,
@@ -71,6 +79,7 @@ class FriendsViewModel @Inject constructor(
             }
         }
         observeWorkspaceSync()
+        observePersonVisibility()
         refresh(initial = true)
     }
 
@@ -159,6 +168,11 @@ class FriendsViewModel @Inject constructor(
                 friend = action.friend,
                 enabled = action.enabled
             )
+            is FriendsAction.OnSetMyTodoVisibility -> runMyTodoVisibilityMutation(
+                friend = action.friend,
+                enabled = action.enabled
+            )
+            is FriendsAction.OnToggleObservedTodos -> toggleObservedTodos(action.friendUserId)
             FriendsAction.OnErrorShown -> mutableUiState.update { it.copy(error = null) }
         }
     }
@@ -276,6 +290,10 @@ class FriendsViewModel @Inject constructor(
                             friends = friendsResult.getOrDefault(emptyList()),
                             incomingRequests = incomingRequestsResult.getOrDefault(emptyList()),
                             outgoingRequests = outgoingRequestsResult.getOrDefault(emptyList()),
+                            expandedObservedTodoFriendIds =
+                                it.expandedObservedTodoFriendIds.intersect(
+                                    friendsResult.getOrDefault(emptyList()).map { friend -> friend.userId }.toSet()
+                                ),
                             hasLoadedFriendsSnapshot = true,
                             friendsSnapshotError = null,
                             error = null
@@ -315,12 +333,49 @@ class FriendsViewModel @Inject constructor(
                             friends = snapshot.friends,
                             incomingRequests = snapshot.incomingRequests,
                             outgoingRequests = snapshot.outgoingRequests,
+                            expandedObservedTodoFriendIds =
+                                it.expandedObservedTodoFriendIds.intersect(
+                                    snapshot.friends.map { friend -> friend.userId }.toSet()
+                                ),
                             hasLoadedFriendsSnapshot = true,
                             friendsSnapshotError = null,
                             isRefreshing = false
                         )
                     }
                     openPendingIncomingAssignmentIfReady()
+                }
+            }
+        }
+    }
+
+    private fun observePersonVisibility() {
+        viewModelScope.launch {
+            observeObservedTodos().collect { observedPeople ->
+                mutableUiState.update { state ->
+                    state.copy(
+                        observedTodosByFriendId = observedPeople.associate { person ->
+                            person.ownerUserId to person.todos.map { it.toObservedTodoUiModel() }
+                        },
+                        expandedObservedTodoFriendIds = state.expandedObservedTodoFriendIds
+                            .filter { friendUserId ->
+                                observedPeople.any { person ->
+                                    person.ownerUserId == friendUserId && person.todos.isNotEmpty()
+                                }
+                            }
+                            .toSet()
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            observeVisibilityGrants().collect { grants ->
+                mutableUiState.update { state ->
+                    state.copy(
+                        visibleMyTodoFriendIds = grants
+                            .filter { it.isActive }
+                            .map { it.observerUserId }
+                            .toSet()
+                    )
                 }
             }
         }
@@ -721,6 +776,38 @@ class FriendsViewModel @Inject constructor(
             },
         ) {
             setDirectAssignmentOptIn(friend.userId, enabled).map { Unit }
+        }
+    }
+
+    private fun runMyTodoVisibilityMutation(
+        friend: Friend,
+        enabled: Boolean
+    ) {
+        runMutation(
+            key = "todo_visibility:${friend.userId}",
+            successMessage = if (enabled) {
+                FriendsMessage.TODO_VISIBILITY_ENABLED
+            } else {
+                FriendsMessage.TODO_VISIBILITY_DISABLED
+            },
+        ) {
+            if (enabled) {
+                setVisibilityGrant(friend.userId).map { Unit }
+            } else {
+                revokeVisibilityGrant(friend.userId)
+            }
+        }
+    }
+
+    private fun toggleObservedTodos(friendUserId: String) {
+        if (uiState.value.observedTodos(friendUserId).isEmpty()) return
+        mutableUiState.update {
+            val expandedIds = if (friendUserId in it.expandedObservedTodoFriendIds) {
+                it.expandedObservedTodoFriendIds - friendUserId
+            } else {
+                it.expandedObservedTodoFriendIds + friendUserId
+            }
+            it.copy(expandedObservedTodoFriendIds = expandedIds)
         }
     }
 

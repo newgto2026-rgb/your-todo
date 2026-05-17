@@ -19,6 +19,8 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.neo.yourtodo.app.MainActivity
 import com.neo.yourtodo.core.database.AppDatabase
+import com.neo.yourtodo.core.database.dao.PersonVisibilityDao
+import com.neo.yourtodo.core.database.entity.ObservedTodoEntity
 import com.neo.yourtodo.core.datastore.source.UserPreferencesDataSource
 import com.neo.yourtodo.core.domain.usecase.AddTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
@@ -29,6 +31,7 @@ import com.neo.yourtodo.core.model.TodoSortOption
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import java.time.LocalDate
+import kotlin.math.abs
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -44,6 +47,7 @@ import org.junit.runner.RunWith
 class CalendarUiTest {
     private companion object {
         const val UiTimeoutMillis = 15_000L
+        const val OwnerUserId = "android-test-user"
     }
 
 
@@ -61,6 +65,9 @@ class CalendarUiTest {
 
     @Inject
     lateinit var appDatabase: AppDatabase
+
+    @Inject
+    lateinit var personVisibilityDao: PersonVisibilityDao
 
     @Inject
     lateinit var userPreferencesDataSource: UserPreferencesDataSource
@@ -219,6 +226,23 @@ class CalendarUiTest {
         ).assertIsDisplayed()
     }
 
+    @Test
+    fun friendTodoOutsideCurrentWeekStillAppearsWhenDateIsSelected() {
+        val targetDate = findDateOutsideTodayWeekInCurrentMonth()
+        val title = "Calendar friend week-independent"
+        runBlocking {
+            personVisibilityDao.upsertObservedTodos(
+                listOf(observedTodo(id = "calendar-friend-week-independent", title = title, dueDate = targetDate))
+            )
+        }
+
+        openCalendarTab()
+        composeTestRule.onNodeWithTag("calendar_day_$targetDate").performClick()
+
+        composeTestRule.onNodeWithTag("calendar_day_todo_sheet").assertIsDisplayed()
+        composeTestRule.onNodeWithText(title).assertIsDisplayed()
+    }
+
     private fun openCalendarTab() {
         composeTestRule.onNodeWithTag("app_tab_calendar", useUnmergedTree = true).performClick()
         composeTestRule.onNodeWithTag("calendar_month_label").assertIsDisplayed()
@@ -236,6 +260,14 @@ class CalendarUiTest {
             .asSequence()
             .map { today.withDayOfMonth(it) }
             .first { it != today }
+    }
+
+    private fun findDateOutsideTodayWeekInCurrentMonth(): LocalDate {
+        val dayRange = 1..today.lengthOfMonth()
+        return dayRange
+            .asSequence()
+            .map { today.withDayOfMonth(it) }
+            .first { abs(it.dayOfMonth - today.dayOfMonth) >= 7 }
     }
 
     private fun ComposeTestRule.waitUntilNodeExists(
@@ -265,4 +297,27 @@ class CalendarUiTest {
             onAllNodes(agendaTodo, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
     }
+
+    private fun observedTodo(
+        id: String,
+        title: String,
+        dueDate: LocalDate
+    ): ObservedTodoEntity =
+        ObservedTodoEntity(
+            currentUserId = OwnerUserId,
+            observedTodoId = id,
+            sourceTodoId = "source-$id",
+            grantId = "grant-calendar",
+            ownerUserId = "friend-1",
+            ownerNickname = "monday",
+            ownerAvatarUrl = null,
+            title = title,
+            dueDateEpochDay = dueDate.toEpochDay(),
+            dueTimeMinutes = null,
+            isDone = false,
+            recurrenceOccurrenceId = null,
+            projectionVersion = 1,
+            updatedAtEpochMillis = 1_778_320_800_000L,
+            cacheUpdatedAtEpochMillis = 1_778_320_800_000L
+        )
 }
