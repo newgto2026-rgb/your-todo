@@ -8,12 +8,12 @@
 | PR | `https://github.com/newgto2026-rgb/your-todo/pull/105` |
 | Primary AI Model | `GPT-5` |
 | Task Type | `Feature implementation` |
-| Rework Count | `8` |
+| Rework Count | `9` |
 | P0 Issues | `0` |
 | P1 Issues | `1` |
-| P2 Issues | `7` |
-| Automation Possible Issues | `5` |
-| Automation Added Issues | `0` |
+| P2 Issues | `8` |
+| Automation Possible Issues | `6` |
+| Automation Added Issues | `1` |
 | Open Events | `0` |
 
 ## Rework Events
@@ -111,8 +111,8 @@
 | Rework Commit | `f5388ef` |
 | Verification | `./gradlew :core:domain:test :core:data:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :app:testDebugUnitTest` |
 | Lesson | Use case orchestration needs tests for concurrency when independent repository calls are intentionally parallel. |
-| Automation Possible | `No` |
-| Automation Added | `No: covered by targeted unit test instead` |
+| Automation Possible | `Yes` |
+| Automation Added | `Yes: added refreshPersonVisibilityStartsIndependentRefreshesInParallel unit coverage` |
 
 ### R7: Review thread - Calendar ViewModel used system default zone directly
 
@@ -140,11 +140,27 @@
 | Status | `verified` |
 | Fix Scope | Updated this branch metrics document to capture the CI failure and corrected the PR body AI Rework Metrics summary to use numeric values that match the document. |
 | Fix Size | `Small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `f2a1984` |
 | Verification | `scripts/quality/rework-metrics-check.sh --pr 105 --repo newgto2026-rgb/your-todo` |
 | Lesson | PR body metric summaries need exact numeric values because CI compares them mechanically against the branch metrics document. |
 | Automation Possible | `Yes` |
 | Automation Added | `No: existing rework metrics CI already catches this mismatch` |
+
+### R9: User correction - automation added summary undercounted added regression coverage
+
+| Field | Value |
+|---|---|
+| Source | `User correction: automation이 가능한건 5개인데 작업한건 0개인건 뭐야?` |
+| Severity | `P2` |
+| Attribution | `AI` |
+| Status | `verified` |
+| Fix Scope | Reclassified the person visibility refresh concurrency event as automation-added because the PR added a targeted unit test for that behavior, and updated the branch summary plus PR body counts. |
+| Fix Size | `Small` |
+| Rework Commit | `HEAD` |
+| Verification | `scripts/quality/rework-metrics-check.sh --pr 105 --repo newgto2026-rgb/your-todo` |
+| Lesson | Automation metrics should count targeted regression tests as added automation, not only new reusable lint or CI gates. |
+| Automation Possible | `No` |
+| Automation Added | `No: this event corrects metric classification rather than adding another automated check` |
 
 ## External Event Coverage
 
@@ -165,6 +181,7 @@ No top-level actionable PR comments recorded.
 
 - `pre-push hook: ./gradlew lint` reported `UnusedResources` for four retired friend setting subtitle strings -> R1.
 - `GitHub Actions run 25991454114` reported a PR body/branch metrics mismatch for `Automation added` -> R8.
+- User correction about `Automation possible` versus `Automation added` interpretation -> R9.
 
 ## Non-Rework Follow-up Commits
 
