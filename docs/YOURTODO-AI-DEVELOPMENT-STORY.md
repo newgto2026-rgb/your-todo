@@ -141,6 +141,7 @@ YourTodo에는 AI와 사람이 같은 품질 기준으로 작업하도록 돕는
 | `.husky/pre-commit` | `scripts/git-hooks/pre-commit.sh` 실행 | main/master 직접 commit을 막고 최신 `origin/main` 위에서 작업하게 함 |
 | `.husky/pre-push` | `scripts/git-hooks/pre-push.sh` 실행 | main/master 직접 push를 막고, 최신 main 포함 여부와 변경 영향 lint를 확인 |
 | 제품 하네스 검사 | `scripts/quality/product-harness-check.sh` | 모듈별 `AGENTS.md`, 루트 모듈 인덱스, Gradle 의존 방향, 금지 import를 자동 검증 |
+| 재작업 관측성 검사 | `scripts/quality/rework-metrics-check.sh` | PR review thread, PR body, follow-up commit, branch metrics 문서가 서로 맞지 않으면 실패 |
 | 영향 범위 lint | 변경 파일을 app/core/feature 모듈로 분류 | 작은 변경은 관련 모듈 `lintDebug`, Gradle/CI/hook 변경은 전체 `lint`로 검증 |
 | Android CI | `.github/workflows/android-ci.yml` | `testDebugUnitTest`, `assembleDebug`, 전체 `lint`, `coverageVerifyAll`을 PR/push에서 실행 |
 | CI artifact | test/lint/build/Jacoco report 업로드 | 실패 원인과 품질 지표를 PR에서 추적 가능하게 함 |
@@ -185,6 +186,7 @@ YourTodo의 개발 방식은 이 흐름과 잘 맞는다.
 | Regression must be explicit | 버그 수정은 회귀 테스트를 요구하고, CI는 기존 테스트와 lint를 다시 실행해 이전 동작을 보호 |
 | Eval quality matters | PR template과 review guideline이 테스트/커버리지/마이그레이션 근거를 요구해 "통과는 했지만 의미가 약한 테스트"를 줄임 |
 | Context continuity matters | PRD/TRD와 follow-up 문서가 장기 작업의 상태를 남겨 다음 AI 세션이나 사람이 같은 맥락에서 이어갈 수 있게 함 |
+| Rework must be observable | review, CI, follow-up commit이 branch metrics 문서와 PR 요약에 남아 재작업 원인과 자동화 가능성을 추적 |
 | Human judgment moves up a layer | 사람은 코드 줄 단위보다 제품 의미, 우선순위, 예외 정책, 외부 공유 메시지를 판단하고 AI는 실행과 검증 루프를 담당 |
 
 이 관점에서 YourTodo의 hook, CI, 품질 게이트는 단순 개발 편의가 아니라 제품 품질 인프라다. AI가 만드는 변경을 빠르게 받아들이되, 모듈 경계, 테스트 선행, lint, coverage, PR 설명, 리뷰 기준을 통과한 변경만 제품에 가까워지도록 만드는 구조이기 때문이다.
@@ -222,7 +224,13 @@ AI는 중복된 화면별 합성 로직을 domain use case로 모으고, filter/
 
 Direct Assignment는 제품 정책, API 계약, Android UI, Room cache, notification routing이 함께 움직이는 기능이다. AI는 PRD/TRD로 권한 방향과 사용자 노출 용어를 정리하고, `REQUEST`와 `DIRECT`가 Todo/Calendar/Widget/Friends에서 일관되게 보이도록 흐름을 설계했다.
 
-### 6.4 AI Todo Draft
+### 6.4 Person Todo Visibility
+
+Person Todo Visibility는 AI 협업에서 제품 의미 분리가 얼마나 중요한지 보여주는 사례다. 기능은 "친구에게 할 일을 주는 것"이 아니라 "친구가 허용한 할 일 흐름을 읽기 전용으로 보는 것"이므로, PRD/TRD 단계에서 `Shared Todo`, `Direct Assignment`, `ObservedTodo`, `VisibilityGrant`를 명확히 분리했다.
+
+AI는 이 분리를 코드 구조에도 반영했다. `core:model`에는 `ObservedTodo`와 `PersonVisibilityGrant`를 두고, `core:domain`은 `PersonVisibilityRepository`와 use case를 제공하며, `core:data`는 Room cache와 Retrofit API를 연결한다. Friends는 활성 친구 row 안에서 `친구 할일`을 펼치고, Calendar는 observed item이 있는 날짜에만 읽기 전용 섹션을 더한다. Widget과 Todo tab은 의도적으로 제외해 "내 할일"의 의미를 보존한다.
+
+### 6.5 AI Todo Draft
 
 앱 자체에도 AI 기능이 들어 있다. 사용자는 한국어 자연어 문장으로 여러 할 일을 입력하고, 앱은 AI proxy를 통해 구조화된 초안을 만든다.
 
@@ -240,6 +248,7 @@ Direct Assignment는 제품 정책, API 계약, Android UI, Room cache, notifica
 | AGENTS 정책 내재화 | 브랜치, 모듈 경계, TDD, 리뷰 기준을 AI 작업 제약으로 적용 |
 | Harness engineering 지향 | 문서, hook, CI, coverage, review 기준을 저장소 안에 넣어 AI가 반복 가능한 방식으로 작업 |
 | Agent eval 사고방식 | 기능 통과 테스트와 회귀 방지 테스트를 함께 보며 평가 품질까지 관리 |
+| Rework observability | 리뷰/CI/후속 커밋을 branch metrics 문서로 reconcile해 개선 여부를 장기 측정 |
 | 사용자 검토 유지 | AI 초안 저장도 review-first UX로 설계 |
 | 산출물 자동화 | 코드뿐 아니라 내부/외부 문서와 PDF까지 생성 |
 | 변화 추적 | main 변경을 다시 분석해 문서를 최신화하는 루프 보유 |
