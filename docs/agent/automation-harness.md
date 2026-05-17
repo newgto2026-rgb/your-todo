@@ -30,10 +30,11 @@ Codex edit hook
 
 | 자동화 | 왜 자동화하는가 | 자동화 결과 | 기술 방식 | 연결 위치 |
 |---|---|---|---|---|
-| 모듈 가이드 정합성 | AI가 변경 대상 모듈의 `AGENTS.md`를 찾지 못하면 작업 경계가 흐려진다. | `settings.gradle.kts`에 포함된 모든 Gradle 모듈은 모듈별 `AGENTS.md`를 가져야 하며, 루트 `AGENTS.md` 인덱스에도 나타나야 한다. | `settings.gradle.kts`의 `include(...)` 호출에서 모든 `:<module>` 값을 추출한다. 한 줄에 여러 모듈이 있거나 single quote를 쓰는 경우도 놓치지 않도록 호출 단위 추출 후 comma split을 수행한다. | `scripts/quality/product-harness-check.sh`, pre-commit, pre-push, CI |
-| Gradle 의존 방향 | 모듈 경계 위반은 컴파일은 되더라도 아키텍처를 무너뜨린다. | `core:* -> feature:*`, `app -> feature:*:impl`, `feature:*:api -> impl/entry`, `feature:*:impl -> entry`, 다른 feature로 향하는 `entry` 의존을 실패 처리한다. | 각 `build.gradle.kts`의 모든 `project(...)` 호출에서 `:<module>` 값을 추출한다. 한 줄에 여러 dependency가 있거나 `project(path = "...")`, single quote가 섞여도 검사 대상에 포함한다. | `scripts/quality/product-harness-check.sh`, pre-commit, pre-push, CI |
+| 모듈 가이드 정합성 | AI가 변경 대상 모듈의 `AGENTS.md`를 찾지 못하면 작업 경계가 흐려진다. | `settings.gradle.kts`에 포함된 모든 Gradle 모듈은 모듈별 `AGENTS.md`를 가져야 하며, 루트 `AGENTS.md` 인덱스에도 나타나야 한다. | `settings.gradle.kts`를 한 줄로 정규화한 뒤 `include(...)` 호출의 모든 `:<module>` 값을 추출한다. 한 줄/여러 줄, single quote, comma-separated 모듈을 놓치지 않도록 호출 단위 추출 후 comma split을 수행한다. | `scripts/quality/product-harness-check.sh`, pre-commit, pre-push, CI |
+| Gradle 의존 방향 | 모듈 경계 위반은 컴파일은 되더라도 아키텍처를 무너뜨린다. | `core:* -> feature:*`, `app -> feature:*:impl`, `feature:*:api -> impl/entry`, `feature:*:impl -> entry`, 다른 feature로 향하는 `entry` 의존을 실패 처리한다. | 각 `build.gradle.kts`를 한 줄로 정규화한 뒤 모든 `project(...)` 호출에서 `:<module>` 값을 추출한다. 한 줄/여러 줄, `project(path = "...")`, single quote가 섞여도 검사 대상에 포함한다. | `scripts/quality/product-harness-check.sh`, pre-commit, pre-push, CI |
 | source import 경계 | Gradle 의존성 외에도 source import로 구현 상세가 새는지 조기에 확인해야 한다. | `core` source에서 feature 패키지를 참조하거나, `app/src/main`이 feature impl 패키지를 직접 참조하거나, feature api source가 impl/entry 패키지를 참조하면 실패한다. | Kotlin/Java source를 대상으로 금지 패키지 패턴을 검색한다. source 파일이 없는 모듈에서도 CI가 멈추지 않도록 `/dev/null` dummy 입력을 붙여 `xargs grep`을 실행한다. 앱 계측 테스트의 feature impl resource 참조는 제품 코드 경계 위반이 아니므로 `app/src/main`만 실패 대상으로 삼는다. | `scripts/quality/product-harness-check.sh`, pre-commit, pre-push, CI |
 | TDD Guard | AI가 운영 코드를 먼저 바꾸고 테스트를 나중으로 미루는 흐름을 막는다. | `*/src/main/*.kt`, `*/src/main/*.java` 변경 전에 같은 모듈의 테스트 변경이 없으면 Codex edit/write/patch 단계에서 거부할 수 있다. | patch 입력과 도구 인자를 읽어 변경 대상 파일을 추출하고, Git working tree의 테스트 변경과 같은 모듈인지 비교한다. | `scripts/codex-hooks/tdd-guard.sh` |
+| Rework metrics reconciliation | AI의 중간 컨텍스트가 사라져도 외부 이벤트 누락을 잡아야 한다. | GitHub review thread, PR body, follow-up commit이 branch metrics 문서에 없으면 실패한다. | GitHub API와 git commit 목록을 branch metrics 문서의 external refs와 대조한다. 현재 HEAD는 자기 hash를 파일 안에 넣을 수 없으므로 `HEAD` 마커를 임시 허용한다. | `scripts/quality/rework-metrics-check.sh`, pre-commit, CI |
 | main 직접 작업 차단 | 실험 작업이 main에 직접 섞이면 PR 단위 검증과 회고가 사라진다. | `main`/`master`에서 commit/push를 거부한다. | Git hook에서 현재 branch와 push target ref를 확인한다. | `scripts/git-hooks/pre-commit.sh`, `scripts/git-hooks/pre-push.sh` |
 | 최신 main 포함 확인 | 오래된 기준 위의 AI 작업은 충돌과 회귀 위험이 크다. | 현재 브랜치가 최신 `origin/main`을 포함하지 않으면 commit/push를 막는다. | `origin/main`을 fetch한 뒤 merge-base 관계를 검사한다. | `scripts/git-hooks/ensure-latest-main.sh` |
 | 영향 범위 lint | 모든 push에서 전체 검증만 실행하면 느리고, 아무 검증도 없으면 위험하다. | 변경 파일을 기준으로 관련 모듈 `lintDebug`를 실행하고, Gradle/CI/hook 변경처럼 영향이 넓은 경우 전체 `lint`로 폴백한다. | changed file path를 app/core/feature 모듈로 분류해 Gradle lint task 목록을 만든다. | `scripts/git-hooks/pre-push.sh` |
@@ -77,7 +78,7 @@ scripts/quality/product-harness-check-test.sh
 
 - 의도된 모듈 구조는 통과한다.
 - 모듈별 `AGENTS.md`가 없으면 실패한다.
-- 한 줄에 여러 `include(...)` 또는 `project(...)`가 있어도 모든 모듈/의존을 검사한다.
+- 한 줄 또는 여러 줄에 걸친 `include(...)`/`project(...)`가 있어도 모든 모듈/의존을 검사한다.
 - `core -> feature` Gradle 의존은 실패한다.
 - `app/src/main`에서 feature impl 패키지를 직접 import하면 실패한다.
 - feature api source가 impl 패키지를 import하면 실패한다.

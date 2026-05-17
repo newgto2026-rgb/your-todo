@@ -113,6 +113,7 @@ YourTodo에는 AI와 사람이 같은 품질 기준으로 작업하도록 돕는
 | `.husky/pre-commit` | `main`/`master` 직접 commit을 막고 최신 `origin/main` 기준 작업을 확인 |
 | `.husky/pre-push` | `main`/`master` 직접 push를 막고 변경 영향 모듈 lint 또는 전체 lint 실행 |
 | `scripts/quality/product-harness-check.sh` | 모듈별 `AGENTS.md`, 루트 모듈 인덱스, Gradle 의존 방향, 금지 import를 검사 |
+| `scripts/quality/rework-metrics-check.sh` | GitHub review thread, PR body, follow-up commit과 branch metrics 문서의 불일치 검사 |
 | `scripts/codex-hooks/tdd-guard.sh` | 운영 Kotlin/Java 코드 변경 전에 같은 모듈 테스트 변경을 요구 |
 | GitHub Actions Android CI | 단위 테스트, 디버그 빌드, strict lint, coverage verification 실행 |
 | `coverageVerifyAll` | 핵심 non-view 모듈의 coverage threshold 검증 |
@@ -129,6 +130,7 @@ YourTodo에는 AI와 사람이 같은 품질 기준으로 작업하도록 돕는
 
 ```sh
 scripts/quality/product-harness-check.sh
+scripts/quality/rework-metrics-check.sh --local
 ./gradlew testDebugUnitTest
 ./gradlew assembleDebug
 ./gradlew lint
@@ -157,6 +159,7 @@ scripts/quality/product-harness-check.sh
 - [데이터 아키텍처 리포트](docs/DATA-ARCHITECTURE-REPORT.md)
 - [Agent 작업 가이드](AGENTS.md)
 - [자동화 하네스](docs/agent/automation-harness.md)
+- [AI 재작업 측정](docs/agent/rework-metrics.md)
 - [품질 게이트](docs/agent/quality-gates.md)
 - [TDD Guard Hook](docs/agent/tdd-guard.md)
 

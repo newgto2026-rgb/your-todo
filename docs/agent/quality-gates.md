@@ -14,7 +14,9 @@
 - 테스트는 구현 세부가 아닌 동작 중심으로 작성한다.
 - non-view 레이어 커버리지 최소 80%를 확인한다.
 - 제품 하네스 구조 검사는 `scripts/quality/product-harness-check.sh`로 실행한다.
+- 재작업 metrics 문서 검사는 `scripts/quality/rework-metrics-check.sh`로 실행한다.
 - pre-commit/pre-push 훅에서 최신 `origin/main`을 fetch하고 현재 브랜치가 이를 포함하는지 확인한다.
+- pre-commit 훅에서 현재 브랜치의 재작업 metrics 문서 존재와 기본 구조를 확인한다.
 - pre-commit 훅에서 제품 하네스 구조 검사를 실행한다.
 - pre-push 훅에서 제품 하네스 구조 검사와 변경 영향 lint를 실행한다.
 - pre-push 훅에서 변경 모듈 `lintDebug`를 우선 실행하며, Gradle/CI/훅 변경 시 `./gradlew lint` 전체를 실행한다.
@@ -49,6 +51,10 @@ scripts/start-worktree-from-main.sh codex/my-feature ../worktrees/my-feature
 ## 검증 명령어
 - 제품 하네스 구조 검사: `scripts/quality/product-harness-check.sh`
 - 제품 하네스 자체 테스트: `scripts/quality/product-harness-check-test.sh`
+- 재작업 metrics 문서 생성: `scripts/quality/rework-metrics-init.sh`
+- 재작업 metrics 로컬 검사: `scripts/quality/rework-metrics-check.sh --local`
+- 재작업 metrics PR 검사: `scripts/quality/rework-metrics-check.sh --pr <number> --repo <owner/name>`
+- 재작업 metrics 자체 테스트: `scripts/quality/rework-metrics-check-test.sh`
 - 앱 빌드: `./gradlew assembleDebug`
 - 단위 테스트: `./gradlew testDebugUnitTest`
 - 단일 테스트: `./gradlew testDebugUnitTest --tests "com.example.MyTest"`

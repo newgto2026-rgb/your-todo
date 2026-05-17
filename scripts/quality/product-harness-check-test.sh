@@ -30,7 +30,10 @@ write_valid_repo() {
   mkdir -p "$repo/feature/todo/entry/src/main/java/com/neo/yourtodo/feature/todo/entry"
 
   cat > "$repo/settings.gradle.kts" <<'EOF'
-include(":app", ':core:domain')
+include(
+    ":app",
+    ':core:domain'
+)
 include(":feature:todo:api", ":feature:todo:impl")
 include ( ':feature:todo:entry' )
 EOF
@@ -58,7 +61,9 @@ EOF
 
   cat > "$repo/app/build.gradle.kts" <<'EOF'
 dependencies {
-    implementation(project(":feature:todo:api")); implementation(project(":feature:todo:entry"))
+    implementation(project(":feature:todo:api")); implementation(project(
+        ":feature:todo:entry"
+    ))
     implementation(project(path = ":core:domain"))
 }
 EOF
@@ -75,7 +80,9 @@ EOF
 
   cat > "$repo/feature/todo/impl/build.gradle.kts" <<'EOF'
 dependencies {
-    implementation(project(":feature:todo:api")); implementation(project(':core:domain'))
+    implementation(project(":feature:todo:api")); implementation(project(
+        ':core:domain'
+    ))
 }
 EOF
 
@@ -132,7 +139,9 @@ core_dep_repo="$tmp_dir/core-dep"
 cp -R "$valid_repo" "$core_dep_repo"
 cat > "$core_dep_repo/core/domain/build.gradle.kts" <<'EOF'
 dependencies {
-    implementation(project(":feature:todo:api")); implementation(project(":core:domain"))
+    implementation(project(
+        ":feature:todo:api"
+    )); implementation(project(":core:domain"))
 }
 EOF
 if run_guard "$core_dep_repo"; then
