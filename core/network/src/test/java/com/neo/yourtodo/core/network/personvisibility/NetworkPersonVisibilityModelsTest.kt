@@ -111,6 +111,7 @@ class NetworkPersonVisibilityModelsTest {
                   },
                   "title": "병원 예약",
                   "dueDate": "2026-05-20",
+                  "dueTime": "14:30",
                   "status": "ACTIVE",
                   "revision": "11",
                   "createdAt": "2026-05-17T00:00:00.000Z",
@@ -134,6 +135,7 @@ class NetworkPersonVisibilityModelsTest {
         )
 
         assertThat(response.items.single().owner.nickname).isEqualTo("민지")
+        assertThat(response.items.single().dueTime).isEqualTo("14:30")
         assertThat(response.items.single().revision).isEqualTo("11")
         assertThat(response.deleted.single().observedTodoId).isEqualTo("observed-old")
         assertThat(response.purgedGrantIds).containsExactly("revoked-grant-id")

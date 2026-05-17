@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,6 +39,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -253,7 +255,7 @@ private fun FriendsScreen(
                                 observedTodos = uiState.observedTodos(friend.userId),
                                 observedTodosExpanded = uiState.isObservedTodosExpanded(friend.userId),
                                 myTodosVisibleToFriend = uiState.isMyTodosVisibleTo(friend.userId),
-                                onClick = { onAction(FriendsAction.OnFriendClick(friend)) },
+                                onOpenSharedTodos = { onAction(FriendsAction.OnFriendClick(friend)) },
                                 onSendTodo = { onAction(FriendsAction.OnOpenAssignmentEditor(friend)) },
                                 onAutoAcceptChanged = { enabled ->
                                     onAction(FriendsAction.OnSetDirectAssignmentOptIn(friend, enabled))
@@ -456,7 +458,7 @@ private fun FriendRow(
     observedTodos: List<ObservedTodoUiModel>,
     observedTodosExpanded: Boolean,
     myTodosVisibleToFriend: Boolean,
-    onClick: () -> Unit,
+    onOpenSharedTodos: () -> Unit,
     onSendTodo: () -> Unit,
     onAutoAcceptChanged: (Boolean) -> Unit,
     onMyTodoVisibilityChanged: (Boolean) -> Unit,
@@ -505,17 +507,20 @@ private fun FriendRow(
                     subtitle = null,
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable(onClick = onClick)
                         .padding(vertical = 2.dp)
                 )
-                FriendRowActions(
+                FriendRemoveAction(
                     friend = friend,
                     removing = removing,
-                    onSendTodo = onSendTodo,
                     onRemove = { showRemoveDialog = true }
                 )
             }
+            FriendPrimaryActionsRow(
+                friend = friend,
+                removing = removing,
+                onOpenSharedTodos = onOpenSharedTodos,
+                onSendTodo = onSendTodo
+            )
             FriendQuickSettingsRow(
                 autoAcceptChecked = friend.isAutoAcceptEnabledForMe(),
                 autoAcceptEnabled = !removing && !togglingAutoAccept,
@@ -547,24 +552,44 @@ private fun FriendRow(
 }
 
 @Composable
-private fun FriendRowActions(
+private fun FriendPrimaryActionsRow(
     friend: Friend,
     removing: Boolean,
+    onOpenSharedTodos: () -> Unit,
     onSendTodo: () -> Unit,
-    onRemove: () -> Unit
+    modifier: Modifier = Modifier
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        OutlinedButton(
+            onClick = onOpenSharedTodos,
+            enabled = !removing,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 38.dp)
+                .testTag("friends_shared_todos_${friend.userId}"),
+            shape = RoundedCornerShape(14.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.friends_assignment_monitor_short),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
         Button(
             onClick = onSendTodo,
             enabled = !removing,
             modifier = Modifier
-                .height(38.dp)
+                .weight(1f)
+                .heightIn(min = 38.dp)
                 .testTag("friends_send_todo_${friend.userId}"),
             shape = RoundedCornerShape(14.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp),
+            contentPadding = PaddingValues(horizontal = 10.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFF1F4FE),
                 contentColor = Color(0xFF4F56A6),
@@ -577,26 +602,35 @@ private fun FriendRowActions(
                 text = stringResource(R.string.friends_assignment_send_short),
                 modifier = Modifier.padding(start = 4.dp),
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        IconButton(
-            onClick = onRemove,
-            enabled = !removing,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .testTag("friends_remove_${friend.friendshipId}")
-        ) {
-            if (removing) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.friends_remove_confirm),
-                    tint = Color(0xFF7A8595)
-                )
-            }
+    }
+}
+
+@Composable
+private fun FriendRemoveAction(
+    friend: Friend,
+    removing: Boolean,
+    onRemove: () -> Unit
+) {
+    IconButton(
+        onClick = onRemove,
+        enabled = !removing,
+        modifier = Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .testTag("friends_remove_${friend.userId}")
+    ) {
+        if (removing) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(R.string.friends_remove_confirm),
+                tint = Color(0xFF7A8595)
+            )
         }
     }
 }
