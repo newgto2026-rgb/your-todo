@@ -25,9 +25,20 @@
 - Manual:
   - Scenario and result
 
+## Harness / Automation
+- Product harness:
+  - `scripts/quality/product-harness-check.sh`
+- Changed modules:
+- Hook/CI signals:
+
 ## Coverage Impact
 - Affected non-UI layers and expected coverage impact
 - If no coverage change, explain why
+
+## Human Judgment
+- Complexity justification:
+- Test quality judgment:
+- AI/tooling caveat, if any:
 
 ## Risks / Rollback
 - Potential risks

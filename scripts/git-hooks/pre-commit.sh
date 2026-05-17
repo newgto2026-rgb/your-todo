@@ -11,3 +11,4 @@ if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
 fi
 
 "$script_dir/ensure-latest-main.sh"
+"$script_dir/../quality/product-harness-check.sh"
