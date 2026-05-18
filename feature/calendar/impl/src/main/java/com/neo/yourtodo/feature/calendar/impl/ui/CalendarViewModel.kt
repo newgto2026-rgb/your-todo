@@ -8,11 +8,13 @@ import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceDateTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveCalendarMonthExpandedUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
+import com.neo.yourtodo.core.domain.usecase.UpdateCalendarMonthExpandedUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.feature.calendar.impl.di.CalendarZoneId
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -44,6 +46,7 @@ private const val STATE_IS_FRIEND_TODOS_EXPANDED_KEY = "calendar_is_friend_todos
 class CalendarViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     observeAuthSessionUseCase: ObserveAuthSessionUseCase,
+    observeCalendarMonthExpandedUseCase: ObserveCalendarMonthExpandedUseCase,
     observeTaskSurfaceSummariesUseCase: ObserveTaskSurfaceSummariesUseCase,
     observeMonthlyTodosUseCase: ObserveMonthlyTodosUseCase,
     observeObservedTodosUseCase: ObserveObservedTodosUseCase,
@@ -51,6 +54,7 @@ class CalendarViewModel @Inject constructor(
     private val buildTaskSurfaceDateTodosUseCase: BuildTaskSurfaceDateTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
     private val syncTodosUseCase: SyncTodosUseCase,
+    private val updateCalendarMonthExpandedUseCase: UpdateCalendarMonthExpandedUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
     private val calendarWidgetUpdater: CalendarWidgetUpdater,
@@ -219,6 +223,12 @@ class CalendarViewModel @Inject constructor(
     }
 
     init {
+        viewModelScope.launch {
+            observeCalendarMonthExpandedUseCase().collect { isExpanded ->
+                savedStateHandle[STATE_IS_MONTH_EXPANDED_KEY] = isExpanded
+                isMonthExpandedState.value = isExpanded
+            }
+        }
         refreshAssignedTodosQuietly()
     }
 
@@ -248,6 +258,9 @@ class CalendarViewModel @Inject constructor(
         val nextValue = !isMonthExpandedState.value
         savedStateHandle[STATE_IS_MONTH_EXPANDED_KEY] = nextValue
         isMonthExpandedState.value = nextValue
+        viewModelScope.launch {
+            updateCalendarMonthExpandedUseCase(nextValue)
+        }
     }
 
     private fun toggleFriendTodosExpanded() {

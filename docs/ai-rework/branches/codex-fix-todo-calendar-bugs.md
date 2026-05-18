@@ -8,12 +8,12 @@
 | PR | `109` |
 | Primary AI Model | `GPT-5` |
 | Task Type | `bugfix` |
-| Rework Count | `6` |
+| Rework Count | `7` |
 | P0 Issues | `1` |
-| P1 Issues | `4` |
+| P1 Issues | `5` |
 | P2 Issues | `1` |
-| Automation Possible Issues | `5` |
-| Automation Added Issues | `4` |
+| Automation Possible Issues | `6` |
+| Automation Added Issues | `5` |
 | Open Events | `0` |
 
 ## Rework Events
@@ -209,6 +209,35 @@ Updated the calendar agenda completed-last helper to use stable `sortedBy { it.i
 #### Lesson
 
 Small presentation ordering helpers should prefer standard stable sort helpers when they express the intent directly.
+
+### R20260518181000-7 - User correction: calendar week mode must persist across app exits
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `user-acceptance` |
+| Feedback Source | `user` |
+| Severity | `P1` |
+| Attribution | `AI` |
+| Root Cause Category | `preference persistence mismatch` |
+| Automation Possible | `Yes` |
+| Automation Added | `Yes` |
+| Fix Scope | `core/domain`, `core/data`, `core/datastore`, `feature/calendar/impl` |
+| Fix Size | `Medium` |
+| Rework Commit | `HEAD` |
+| Verification | `./gradlew :feature:calendar:impl:testDebugUnitTest --tests 'com.neo.yourtodo.feature.calendar.impl.ui.CalendarViewModelTest'`; `./gradlew :core:datastore:testDebugUnitTest --tests 'com.neo.yourtodo.core.datastore.source.UserPreferencesDataSourceImplTest'`; `./gradlew :core:data:testDebugUnitTest --tests 'com.neo.yourtodo.core.data.repository.TodoRepositoryImplTest'`; `./gradlew :feature:calendar:impl:lintDebug :core:datastore:lintDebug :core:data:lintDebug`; `./gradlew :app:assembleDebug`; emulator install and force-stop/relaunch check |
+
+#### Feedback Summary
+
+The calendar month/week toggle had been reported as cached, but the implementation only used `SavedStateHandle`. The user's expected behavior was persistent app-level memory: leaving the app in week mode should reopen the calendar in week mode.
+
+#### Fix Summary
+
+Added a persisted `calendar_month_expanded` preference, domain use cases, data repository binding, and ViewModel wiring so toggling month/week updates DataStore and later CalendarViewModel instances restore it.
+
+#### Lesson
+
+When a requirement says a UI mode is "cached", clarify whether it means ViewModel/navigation restoration or persisted app preference; acceptance criteria should include app exit/reopen behavior.
 
 ## External Event Coverage
 

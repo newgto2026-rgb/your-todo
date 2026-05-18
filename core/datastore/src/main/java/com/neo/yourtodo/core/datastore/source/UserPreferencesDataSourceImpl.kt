@@ -13,6 +13,7 @@ import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_REFRESH_TO
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_EMAIL
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_ID
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.AUTH_USER_NICKNAME
+import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.CALENDAR_MONTH_EXPANDED
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.PUSH_CURRENT_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.PUSH_REGISTERED_TOKEN
 import com.neo.yourtodo.core.datastore.source.UserPreferenceKeys.SELECTED_TODO_CATEGORY_FILTER
@@ -62,6 +63,9 @@ class UserPreferencesDataSourceImpl @Inject constructor(
             stored?.let { value -> TodoSortOption.entries.find { it.name == value } }
                 ?: TodoSortOption.DEFAULT
         }
+
+    override val calendarMonthExpanded: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[CALENDAR_MONTH_EXPANDED] ?: true }
 
     override val todoSyncCursor: Flow<String?> =
         dataStore.data.map { prefs -> prefs[TODO_SYNC_CURSOR] }
@@ -137,6 +141,12 @@ class UserPreferencesDataSourceImpl @Inject constructor(
     override suspend fun setSelectedTodoSortOption(option: TodoSortOption) {
         dataStore.edit { prefs ->
             prefs[SELECTED_TODO_SORT_OPTION] = option.name
+        }
+    }
+
+    override suspend fun setCalendarMonthExpanded(isExpanded: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[CALENDAR_MONTH_EXPANDED] = isExpanded
         }
     }
 

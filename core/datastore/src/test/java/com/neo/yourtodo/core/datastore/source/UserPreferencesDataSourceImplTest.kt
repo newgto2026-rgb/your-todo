@@ -146,6 +146,19 @@ class UserPreferencesDataSourceImplTest {
             .isNull()
     }
 
+    @Test
+    fun calendarMonthExpandedPersists() = runTest {
+        val dataStore = createDataStore(backgroundScope)
+        val firstDataSource = createDataSource(dataStore)
+        val secondDataSource = createDataSource(dataStore)
+
+        assertThat(firstDataSource.calendarMonthExpanded.first()).isTrue()
+
+        firstDataSource.setCalendarMonthExpanded(false)
+
+        assertThat(secondDataSource.calendarMonthExpanded.first()).isFalse()
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun assignmentFeedRefreshTimeDoesNotEmitForUnrelatedPreferenceChanges() = runTest {
