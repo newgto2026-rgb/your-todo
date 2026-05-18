@@ -8,11 +8,11 @@
 | PR | `https://github.com/newgto2026-rgb/your-todo/pull/110` |
 | Primary AI Model | `Codex` |
 | Task Type | `Documentation` |
-| Rework Count | `8` |
+| Rework Count | `9` |
 | P0 Issues | `0` |
 | P1 Issues | `5` |
-| P2 Issues | `3` |
-| Automation Possible Issues | `8` |
+| P2 Issues | `4` |
+| Automation Possible Issues | `9` |
 | Automation Added Issues | `2` |
 | Open Events | `0` |
 
@@ -136,6 +136,7 @@ No check failures recorded yet.
 - `Codex thread`: the temporary artifact is the context file created by the context-compaction rule.
 - `Codex thread`: README should introduce the manual itself.
 - `Codex thread`: summarize user feedback instead of copying raw wording, and make agent-to-agent feedback reflection explicit.
+- `Codex thread`: manual introduction should sit near the app overview so readers understand what the app is before reading deeper docs.
 
 ## Non-Rework Follow-up Commits
 
@@ -157,7 +158,7 @@ No non-rework follow-up commits recorded yet.
 | Automation Added | `No: documented as an operating rule; future doc-lint can enforce raw quote limits` |
 | Fix Scope | `docs + branch metrics` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `1e6c4ee` |
 | Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
 
 #### External Refs
@@ -188,6 +189,50 @@ Replaced raw user feedback refs with summaries, added feedback recording guidanc
 
 Rework records should preserve decisions and traceability, not raw conversation noise. Agent feedback is still feedback and needs a visible closure path.
 
+### R2026051904 - Move manual introduction near app overview
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `user feedback` |
+| Feedback Source | `Codex thread` |
+| Severity | `P2` |
+| Attribution | `Human` |
+| Root Cause Category | `documentation structure` |
+| Automation Possible | `Yes` |
+| Automation Added | `No: placement guidance is documented through README structure; no automated doc-order check added` |
+| Fix Scope | `README` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `git diff --check -- README.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
+
+#### External Refs
+
+- User Feedback Summary: put the manual introduction near the top of README beside the app overview so readers first understand the app.
+
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | The manual introduction was placed near the document index instead of the top app-introduction flow. |
+| Product/Engineering Impact | Readers could reach project process/docs before clearly seeing that the manual explains the product experience. |
+| Root Cause Hypothesis | The README update treated the manual as a document-list item rather than part of the product introduction. |
+| System Gap | No README placement rule distinguishes product-facing introductions from repository documentation links. |
+| Automation Hypothesis | A future README structure check could assert product-facing manual copy appears before architecture/process sections. |
+| Decision | Move the manual introduction directly after the app overview. |
+
+#### Feedback Summary
+
+Place the manual introduction high in README so the app identity and usage guide are visible before architecture and process sections.
+
+#### Fix Summary
+
+Moved the `사용자 매뉴얼` section from the document list area to immediately after `앱 개요`, and adjusted the copy to introduce YourTodo first.
+
+#### Lesson
+
+Product-facing manual links belong near product context, while document indexes can remain later as reference lists.
+
 ### R20260519004925-1 - Review thread: AGENTS.md
 
 | Field | Value |
@@ -202,7 +247,7 @@ Rework records should preserve decisions and traceability, not raw conversation 
 | Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
 | Fix Scope | `docs` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `1e6c4ee` |
 | Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
 
 #### External Refs
@@ -251,7 +296,7 @@ Schema-like documentation fields should remain exact even inside localized prose
 | Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
 | Fix Scope | `docs` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `1e6c4ee` |
 | Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
 
 #### External Refs
@@ -300,7 +345,7 @@ Operational rules should treat metrics field names as stable labels.
 | Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
 | Fix Scope | `docs` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `1e6c4ee` |
 | Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
 
 #### External Refs
@@ -349,7 +394,7 @@ Localized explanations can surround schema labels, but should not rename them.
 | Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
 | Fix Scope | `docs` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `1e6c4ee` |
 | Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
 
 #### External Refs
@@ -398,7 +443,7 @@ When documentation doubles as a template, examples should mirror generated outpu
 | Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
 | Fix Scope | `docs` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `1e6c4ee` |
 | Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
 
 #### External Refs
