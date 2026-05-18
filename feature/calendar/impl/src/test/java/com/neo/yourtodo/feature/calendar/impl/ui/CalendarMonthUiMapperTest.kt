@@ -112,6 +112,32 @@ class CalendarMonthUiMapperTest {
     }
 
     @Test
+    fun buildCalendarUiState_placesCompletedTodosAtBottomWithinEachSection() {
+        val selectedDate = LocalDate.of(2026, 5, 9)
+
+        val state = buildCalendarUiState(
+            profileInitial = null,
+            currentMonth = YearMonth.of(2026, 5),
+            selectedDate = selectedDate,
+            summariesByDate = emptyMap(),
+            selectedDateTodos = listOf(
+                selectedTodo(id = 1, title = "Mine done", isDone = true),
+                selectedTodo(id = 2, title = "Mine active"),
+                selectedTodo(id = -1, title = "Friend done", source = CalendarTodoSource.FRIEND, isDone = true),
+                selectedTodo(id = -2, title = "Friend active", source = CalendarTodoSource.FRIEND)
+            ),
+            today = selectedDate
+        )
+
+        assertThat(state.selectedDateTodoSections[0].visibleTodos.map { it.title })
+            .containsExactly("Mine active", "Mine done")
+            .inOrder()
+        assertThat(state.selectedDateTodoSections[1].visibleTodos.map { it.title })
+            .containsExactly("Friend active", "Friend done")
+            .inOrder()
+    }
+
+    @Test
     fun buildMonthCells_onlyShowsIndicatorsForCurrentMonthCells() {
         val yearMonth = YearMonth.of(2026, 5)
         val inMonthDate = LocalDate.of(2026, 5, 7)
@@ -161,12 +187,13 @@ class CalendarMonthUiMapperTest {
         id: Long,
         title: String,
         assignedTodoId: String? = null,
-        source: CalendarTodoSource = CalendarTodoSource.MINE
+        source: CalendarTodoSource = CalendarTodoSource.MINE,
+        isDone: Boolean = false
     ): CalendarSelectedTodoUiModel =
         CalendarSelectedTodoUiModel(
             id = id,
             title = title,
-            isDone = false,
+            isDone = isDone,
             priority = TodoPriority.MEDIUM,
             isReminderEnabled = false,
             dueTimeLabel = null,

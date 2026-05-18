@@ -86,6 +86,30 @@ class PersonVisibilityDaoTest {
     }
 
     @Test
+    fun applyObservedTodoSyncPurgesGrantBeforeUpsertingFreshRowsForSameGrant() = runTest {
+        dao.upsertObservedTodos(
+            listOf(
+                observedTodo(observedTodoId = "stale", grantId = "grant-1")
+            )
+        )
+
+        dao.applyObservedTodoSync(
+            currentUserId = "viewer-a",
+            upserts = listOf(observedTodo(observedTodoId = "fresh", grantId = "grant-1")),
+            deletedObservedTodoIds = emptyList(),
+            purgedGrantIds = listOf("grant-1"),
+            state = ObservedSyncStateEntity(
+                currentUserId = "viewer-a",
+                cursor = "cursor-2",
+                syncedAtEpochMillis = 300L
+            )
+        )
+
+        assertThat(dao.observeObservedTodos("viewer-a").first().map { it.observedTodoId })
+            .containsExactly("fresh")
+    }
+
+    @Test
     fun purgeObservedTodosByGrantIdOnlyDeletesMatchingGrantForCurrentUser() = runTest {
         dao.upsertObservedTodos(
             listOf(
@@ -101,6 +125,48 @@ class PersonVisibilityDaoTest {
             .containsExactly("grant-2-a")
         assertThat(dao.observeObservedTodos("viewer-b").first().map { it.observedTodoId })
             .containsExactly("grant-1-b")
+    }
+
+    @Test
+    fun replaceVisibilityGrantsAndPruneObservedTodosDeletesRowsForInactiveObservedGrants() = runTest {
+        dao.upsertObservedTodos(
+            listOf(
+                observedTodo(observedTodoId = "kept", grantId = "grant-1"),
+                observedTodo(observedTodoId = "removed", grantId = "grant-2"),
+                observedTodo(currentUserId = "viewer-b", observedTodoId = "other-user", grantId = "grant-2")
+            )
+        )
+
+        dao.replaceVisibilityGrantsAndPruneObservedTodos(
+            currentUserId = "viewer-a",
+            grants = listOf(visibilityGrant(grantId = "grant-1")),
+            activeObservedGrantIds = listOf("grant-1")
+        )
+
+        assertThat(dao.observeObservedTodos("viewer-a").first().map { it.observedTodoId })
+            .containsExactly("kept")
+        assertThat(dao.observeObservedTodos("viewer-b").first().map { it.observedTodoId })
+            .containsExactly("other-user")
+    }
+
+    @Test
+    fun replaceVisibilityGrantsAndPruneObservedTodosClearsRowsWhenNoObservedGrantsRemain() = runTest {
+        dao.upsertObservedTodos(
+            listOf(
+                observedTodo(observedTodoId = "removed", grantId = "grant-1"),
+                observedTodo(currentUserId = "viewer-b", observedTodoId = "other-user", grantId = "grant-1")
+            )
+        )
+
+        dao.replaceVisibilityGrantsAndPruneObservedTodos(
+            currentUserId = "viewer-a",
+            grants = emptyList(),
+            activeObservedGrantIds = emptyList()
+        )
+
+        assertThat(dao.observeObservedTodos("viewer-a").first()).isEmpty()
+        assertThat(dao.observeObservedTodos("viewer-b").first().map { it.observedTodoId })
+            .containsExactly("other-user")
     }
 
     private fun visibilityGrant(

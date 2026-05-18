@@ -4,18 +4,22 @@ import com.neo.yourtodo.core.domain.repository.AuthRepository
 import com.neo.yourtodo.core.domain.repository.AssignmentDirection
 import com.neo.yourtodo.core.domain.repository.AssignmentFeedStatus
 import com.neo.yourtodo.core.domain.repository.AssignmentRepository
+import com.neo.yourtodo.core.domain.repository.CalendarPreferencesRepository
 import com.neo.yourtodo.core.domain.repository.FriendRepository
 import com.neo.yourtodo.core.domain.scheduler.CalendarWidgetUpdater
 import com.neo.yourtodo.core.domain.usecase.BuildTaskSurfaceDateTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.ObserveCalendarMonthExpandedUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveAuthSessionUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodoSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
+import com.neo.yourtodo.core.domain.usecase.UpdateCalendarMonthExpandedUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshSnapshot
@@ -147,6 +151,47 @@ class CalendarViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.isMonthExpanded).isTrue()
+    }
+
+    @Test
+    fun initialState_restoresCachedMonthExpansion() = runTest {
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            savedStateHandle = SavedStateHandle(mapOf("calendar_is_month_expanded" to false)),
+            calendarPreferencesRepository = FakeCalendarPreferencesRepository(isMonthExpanded = false)
+        )
+
+        assertThat(viewModel.uiState.value.isMonthExpanded).isFalse()
+        assertThat(viewModel.uiState.value.selectedWeekDays).hasSize(7)
+    }
+
+    @Test
+    fun initialState_restoresPersistedMonthExpansion() = runTest {
+        val calendarPreferencesRepository = FakeCalendarPreferencesRepository(isMonthExpanded = false)
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            calendarPreferencesRepository = calendarPreferencesRepository
+        )
+
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.isMonthExpanded).isFalse()
+        assertThat(viewModel.uiState.value.selectedWeekDays).hasSize(7)
+    }
+
+    @Test
+    fun toggleMonthExpansionAction_persistsCollapsedState() = runTest {
+        val calendarPreferencesRepository = FakeCalendarPreferencesRepository()
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            calendarPreferencesRepository = calendarPreferencesRepository
+        )
+
+        viewModel.onAction(CalendarAction.OnToggleMonthExpansion)
+        advanceUntilIdle()
+
+        assertThat(viewModel.uiState.value.isMonthExpanded).isFalse()
+        assertThat(calendarPreferencesRepository.observeMonthExpanded().first()).isFalse()
     }
 
     @Test
@@ -293,6 +338,7 @@ class CalendarViewModelTest {
         assertThat(repository.getTodo(todoId)?.isDone).isTrue()
         assertThat(viewModel.uiState.value.selectedDateTodos.single().isDone).isTrue()
         assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
+        assertThat(repository.syncCount).isEqualTo(1)
     }
 
     @Test
@@ -713,16 +759,19 @@ class CalendarViewModelTest {
 
     private fun createViewModel(
         repository: FakeTodoRepository,
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
         authRepository: FakeAuthRepository = FakeAuthRepository(),
         assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository(),
         personVisibilityRepository: FakePersonVisibilityRepository = FakePersonVisibilityRepository(),
+        calendarPreferencesRepository: FakeCalendarPreferencesRepository = FakeCalendarPreferencesRepository(),
         calendarWidgetUpdater: RecordingCalendarWidgetUpdater = RecordingCalendarWidgetUpdater(),
         workspaceSyncNotifier: WorkspaceSyncNotifier = WorkspaceSyncNotifier()
     ): CalendarViewModel {
         val getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository)
         val viewModel = CalendarViewModel(
-            savedStateHandle = SavedStateHandle(),
+            savedStateHandle = savedStateHandle,
             observeAuthSessionUseCase = ObserveAuthSessionUseCase(authRepository),
+            observeCalendarMonthExpandedUseCase = ObserveCalendarMonthExpandedUseCase(calendarPreferencesRepository),
             observeTaskSurfaceSummariesUseCase = ObserveTaskSurfaceSummariesUseCase(
                 observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
                     observeMonthlyTodosUseCase = ObserveMonthlyTodosUseCase(repository)
@@ -734,6 +783,8 @@ class CalendarViewModelTest {
             zoneId = ZoneId.of("Asia/Seoul"),
             buildTaskSurfaceDateTodosUseCase = BuildTaskSurfaceDateTodosUseCase(),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
+            syncTodosUseCase = SyncTodosUseCase(repository),
+            updateCalendarMonthExpandedUseCase = UpdateCalendarMonthExpandedUseCase(calendarPreferencesRepository),
             getAssignedTodosUseCase = getAssignedTodosUseCase,
             manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
                 assignmentRepository,
@@ -797,6 +848,20 @@ class CalendarViewModelTest {
         override suspend fun declineRequest(requestId: String): Result<Unit> = Result.success(Unit)
 
         override suspend fun removeFriend(friendshipId: String): Result<Unit> = Result.success(Unit)
+    }
+
+    private class FakeCalendarPreferencesRepository(
+        isMonthExpanded: Boolean = true
+    ) : CalendarPreferencesRepository {
+        private val isMonthExpandedState = MutableStateFlow(isMonthExpanded)
+
+        override fun observeMonthExpanded(): Flow<Boolean> =
+            isMonthExpandedState
+
+        override suspend fun setMonthExpanded(isExpanded: Boolean): Result<Unit> {
+            isMonthExpandedState.value = isExpanded
+            return Result.success(Unit)
+        }
     }
 
     private class FakeAssignmentRepository(

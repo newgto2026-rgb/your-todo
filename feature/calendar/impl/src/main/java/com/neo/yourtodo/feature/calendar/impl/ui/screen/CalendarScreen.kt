@@ -92,7 +92,8 @@ fun CalendarRouteScreen(
     ) {
         initialCalendarUiState(
             currentMonth = YearMonth.from(routeDate),
-            selectedDate = routeDate
+            selectedDate = routeDate,
+            isMonthExpanded = uiState.isMonthExpanded
         )
     } else {
         uiState

@@ -10,6 +10,7 @@ import com.neo.yourtodo.core.domain.usecase.DeleteTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
 import com.neo.yourtodo.core.model.ReminderRepeatType
 import com.neo.yourtodo.core.model.TodoItem
@@ -43,6 +44,7 @@ class TodoEditorViewModel @Inject constructor(
     private val getTodoUseCase: GetTodoUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
+    private val syncTodosUseCase: SyncTodosUseCase,
     private val todoReminderScheduler: TodoReminderScheduler,
     private val calendarWidgetUpdater: CalendarWidgetUpdater
 ) : ViewModel() {
@@ -104,6 +106,7 @@ class TodoEditorViewModel @Inject constructor(
             deleteTodoUseCase(id).onSuccess {
                 todoReminderScheduler.cancel(id)
                 notifyCalendarWidgetChanged()
+                syncTodosQuietly()
                 sideEffects.emit(TodoEditorSideEffect.Exit)
             }
         }
@@ -152,6 +155,7 @@ class TodoEditorViewModel @Inject constructor(
             result.onSuccess { id ->
                 syncTodoReminder(id)
                 notifyCalendarWidgetChanged()
+                syncTodosQuietly()
                 sideEffects.emit(TodoEditorSideEffect.Exit)
             }.onFailure {
                 _uiState.update { current -> current.copy(errorMessageRes = R.string.todo_error_save_failed) }
@@ -198,6 +202,10 @@ class TodoEditorViewModel @Inject constructor(
 
     private suspend fun notifyCalendarWidgetChanged() {
         calendarWidgetUpdater.updateCalendarWidgets()
+    }
+
+    private suspend fun syncTodosQuietly() {
+        syncTodosUseCase()
     }
 
     private fun validate(state: TodoEditorUiState): TodoEditorValidationResult {

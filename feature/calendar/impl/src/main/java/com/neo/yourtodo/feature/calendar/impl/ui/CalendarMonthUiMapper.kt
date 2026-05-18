@@ -44,14 +44,16 @@ internal fun buildCalendarUiState(
 
 internal fun initialCalendarUiState(
     currentMonth: YearMonth,
-    selectedDate: LocalDate
+    selectedDate: LocalDate,
+    isMonthExpanded: Boolean = true
 ): CalendarUiState =
     buildCalendarUiState(
         profileInitial = null,
         currentMonth = currentMonth,
         selectedDate = selectedDate,
         summariesByDate = emptyMap(),
-        selectedDateTodos = emptyList()
+        selectedDateTodos = emptyList(),
+        isMonthExpanded = isMonthExpanded
     )
 
 internal fun List<CalendarDayUiModel>.selectedWeekDays(selectedDate: LocalDate): List<CalendarDayUiModel> =
@@ -63,7 +65,9 @@ internal fun List<CalendarSelectedTodoUiModel>.toAgendaSections(
     isFriendTodosExpanded: Boolean
 ): List<CalendarAgendaSectionUiModel> {
     val myTodos = filter { it.source == CalendarTodoSource.MINE }
+        .withCompletedLast()
     val friendTodos = filter { it.source == CalendarTodoSource.FRIEND }
+        .withCompletedLast()
     return buildList {
         if (myTodos.isNotEmpty()) {
             add(
@@ -94,6 +98,9 @@ internal fun List<CalendarSelectedTodoUiModel>.toAgendaSections(
         }
     }
 }
+
+private fun List<CalendarSelectedTodoUiModel>.withCompletedLast(): List<CalendarSelectedTodoUiModel> =
+    sortedBy { it.isDone }
 
 internal fun buildMonthCells(
     yearMonth: YearMonth,

@@ -115,6 +115,48 @@ class PersonVisibilityRepositoryImplTest {
             .isEqualTo(14 * 60 + 30)
     }
 
+    @Test
+    fun refreshVisibilityGrantsPrunesObservedTodosForMissingReceivedGrant() = runTest {
+        val prefs = FakePreferencesDataSource().apply { saveAuthSession(authSession()) }
+        val dao = FakePersonVisibilityDao().apply {
+            upsertObservedTodos(
+                listOf(
+                    observedTodo(
+                        currentUserId = "user-id",
+                        observedTodoId = "kept",
+                        grantId = "active-received-grant"
+                    ),
+                    observedTodo(
+                        currentUserId = "user-id",
+                        observedTodoId = "stale",
+                        grantId = "missing-grant"
+                    )
+                )
+            )
+        }
+        val network = FakePersonVisibilityNetworkDataSource().apply {
+            visibilityGrantsResponse = NetworkVisibilityGrantsResponse(
+                received = listOf(
+                    NetworkVisibilityGrant(
+                        id = "active-received-grant",
+                        owner = NetworkVisibilityUser(id = "owner-id", nickname = "owner"),
+                        viewer = NetworkVisibilityUser(id = "user-id", nickname = "me"),
+                        status = "ACTIVE",
+                        createdAt = "2026-05-17T00:00:00Z",
+                        updatedAt = "2026-05-17T00:00:00Z",
+                        version = 1
+                    )
+                )
+            )
+        }
+        val repository = repository(prefs = prefs, dao = dao, network = network)
+
+        repository.refreshVisibilityGrants().getOrThrow()
+
+        assertThat(dao.observeObservedTodos("user-id").first().map { it.observedTodoId })
+            .containsExactly("kept")
+    }
+
     private fun repository(
         prefs: FakePreferencesDataSource = FakePreferencesDataSource(),
         dao: FakePersonVisibilityDao = FakePersonVisibilityDao(),
@@ -190,17 +232,18 @@ class PersonVisibilityRepositoryImplTest {
         val revokedGrantIds = mutableListOf<String>()
         var lastCreateRequest: NetworkCreateVisibilityGrantRequest? = null
         var lastSyncCursor: String? = null
-
-        override suspend fun getVisibilityGrants(accessToken: String): NetworkVisibilityGrantsResponse =
-            NetworkVisibilityGrantsResponse(
-                given = listOf(
-                    networkGrant(
-                        id = "grant-id",
-                        ownerUserId = "user-id",
-                        viewerUserId = "friend-id"
-                    )
+        var visibilityGrantsResponse = NetworkVisibilityGrantsResponse(
+            given = listOf(
+                networkGrant(
+                    id = "grant-id",
+                    ownerUserId = "user-id",
+                    viewerUserId = "friend-id"
                 )
             )
+        )
+
+        override suspend fun getVisibilityGrants(accessToken: String): NetworkVisibilityGrantsResponse =
+            visibilityGrantsResponse
 
         override suspend fun createVisibilityGrant(
             accessToken: String,
@@ -329,6 +372,12 @@ class PersonVisibilityRepositoryImplTest {
             todos.value = todos.value.filterNot { it.currentUserId == currentUserId }
         }
 
+        override suspend fun purgeObservedTodosExceptGrantIds(currentUserId: String, grantIds: List<String>) {
+            todos.value = todos.value.filterNot {
+                it.currentUserId == currentUserId && it.grantId !in grantIds
+            }
+        }
+
         override suspend fun deleteVisibilityGrantsByCurrentUser(currentUserId: String) {
             grants.value = grants.value.filterNot { it.currentUserId == currentUserId }
         }
@@ -355,7 +404,11 @@ class PersonVisibilityRepositoryImplTest {
     private fun observedTodo(
         currentUserId: String,
         observedTodoId: String,
-        grantId: String
+        grantId: String = "grant-id",
+        title: String = observedTodoId,
+        dueDateEpochDay: Long? = null,
+        dueTimeMinutes: Int? = null,
+        isDone: Boolean = false
     ) = ObservedTodoEntity(
         currentUserId = currentUserId,
         observedTodoId = observedTodoId,
@@ -364,10 +417,10 @@ class PersonVisibilityRepositoryImplTest {
         ownerUserId = "owner-id",
         ownerNickname = "owner",
         ownerAvatarUrl = null,
-        title = observedTodoId,
-        dueDateEpochDay = null,
-        dueTimeMinutes = null,
-        isDone = false,
+        title = title,
+        dueDateEpochDay = dueDateEpochDay,
+        dueTimeMinutes = dueTimeMinutes,
+        isDone = isDone,
         recurrenceOccurrenceId = null,
         projectionVersion = 1,
         updatedAtEpochMillis = 100L,
