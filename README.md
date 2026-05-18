@@ -170,6 +170,10 @@ scripts/quality/rework-metrics-check.sh --local
 
 외부 공유용 PDF 문서도 `docs/` 아래에 함께 제공된다.
 
+### 사용자 매뉴얼
+
+[사용자 매뉴얼 PDF](docs/YourTodo_User_Manual.pdf)는 로그인, 프로필 설정, 개인 할 일, 친구, 공유 할 일, AI 할 일 등록, 캘린더, 홈 화면 위젯까지 실제 화면 캡처와 단계별 조작 흐름을 기준으로 정리한 앱 사용 가이드다.
+
 ## 작업 정책
 
 구현 작업은 전용 브랜치와 별도 Git worktree에서 수행한다. `main` 직접 push는 피하고, 변경은 PR을 통해 검증한다. 구현 변경은 영향 모듈 테스트와 lint를 함께 고려한다.

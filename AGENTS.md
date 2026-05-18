@@ -4,7 +4,7 @@
 
 ## 1. 기본 행동 원칙
 
-이 섹션은 `andrej-karpathy-skills`의 네 가지 원칙을 YourTodo 작업 방식에 맞게 재구성한 것이다. 단순 오타 수정 같은 작은 작업에는 과하게 적용하지 말고, 구현/리팩터링/버그 수정/다중 파일 변경에는 기본값으로 적용한다.
+이 섹션은 YourTodo 작업 방식의 기본 원칙이다. 단순 오타 수정 같은 작은 작업에는 과하게 적용하지 말고, 구현/리팩터링/버그 수정/다중 파일 변경에는 기본값으로 적용한다.
 
 ### 1.1 Think Before Coding
 - 추측으로 바로 구현하지 않는다.
@@ -40,8 +40,9 @@
 3. 변경 대상 Gradle 모듈을 식별한다.
 4. 대상 모듈의 `AGENTS.md`만 추가로 연다.
 5. `docs/agent/rework-metrics.md`와 현재 branch metrics 문서가 있으면 최근 피드백/lesson을 확인한다.
-6. 모듈 경계/의존 방향 위반 가능성을 먼저 점검한다.
-7. 구현 작업이면 성공 기준과 검증 명령을 먼저 정한다.
+6. 다단계 작업이면 `tmp/agent-context-<sanitized-branch>.md`를 만들거나 갱신해 최신 사용자 지시, 핵심 결정, 현재 상태, 다음 액션을 남긴다.
+7. 모듈 경계/의존 방향 위반 가능성을 먼저 점검한다.
+8. 구현 작업이면 성공 기준과 검증 명령을 먼저 정한다.
 
 ### 2.2 구현 중
 1. 변경은 최소 범위, 테스트 가능, 기능 중심으로 유지한다.
@@ -66,6 +67,15 @@
 - 수정 후에는 event에 fix scope, verification, lesson을 채우고, 반복 가능성이 있는 lesson은 이 `AGENTS.md` 또는 `docs/agent/*` 정책 문서로 승격한다.
 - PR 전에는 `scripts/quality/rework-metrics-check.sh --local`을 실행해 외부 피드백과 문서가 어긋나지 않는지 확인한다.
 - 주기적으로 `scripts/quality/rework-metrics-report.py`로 branch metrics를 요약하고, 반복되는 root cause나 system gap은 AGENTS 규칙/플레이북/자동화 후보로 반영한다.
+
+### 2.5 컨텍스트 압축 대비
+- 자동 컨텍스트 압축, 세션 재개, 긴 대기 작업에 대비해 다단계 작업은 `tmp/agent-context-<sanitized-branch>.md`에 임시 handoff를 남긴다.
+- 이 파일에는 최신 사용자 명령, 변하지 말아야 할 요구사항, 현재 브랜치/PR, 주요 변경 파일, 검증 상태, 진행 중인 명령, 남은 다음 액션을 적는다.
+- 사용자의 새 피드백이나 요구사항이 들어오면 해당 임시 파일도 함께 갱신한다.
+- 비밀값, 토큰, 개인 인증 정보는 임시 파일에도 쓰지 않는다.
+- 이 규칙에서 말하는 임시 산출물은 컨텍스트 압축 대비로 만든 `tmp/agent-context-*.md` 파일을 뜻한다.
+- 사용자가 작업트리 정리나 임시 산출물 삭제를 요청하면 `tmp/agent-context-*.md`를 함께 정리한다.
+- 임시 파일은 PR 산출물이 아니므로 commit하지 않는다. 공유가 필요한 내용은 `docs/agent/*`나 branch metrics 문서로 승격한다.
 
 ## 3. 전역 필수 정책
 
