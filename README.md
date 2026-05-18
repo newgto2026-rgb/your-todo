@@ -112,10 +112,10 @@ YourTodo에는 AI와 사람이 같은 품질 기준으로 작업하도록 돕는
 
 | 하네스 | 역할 |
 |---|---|
-| `.husky/pre-commit` | `main`/`master` 직접 commit을 막고 최신 `origin/main` 기준 작업을 확인 |
+| `.husky/pre-commit` | `main`/`master` 직접 commit을 막고 최신 `origin/main` 기준 작업과 제품 하네스 구조를 확인 |
 | `.husky/pre-push` | `main`/`master` 직접 push를 막고 변경 영향 모듈 lint 또는 전체 lint 실행 |
 | `scripts/quality/product-harness-check.sh` | 모듈별 `AGENTS.md`, 루트 모듈 인덱스, Gradle 의존 방향, 금지 import를 검사 |
-| `scripts/quality/rework-metrics-check.sh` | GitHub review thread, PR body, follow-up commit과 branch metrics 문서의 불일치 검사 |
+| `scripts/quality/rework-metrics-check.sh` | GitHub review thread, PR body, follow-up commit과 branch metrics 문서의 불일치 검사. 피드백 분석은 피드백 발생 시점에 기록 |
 | `scripts/codex-hooks/tdd-guard.sh` | 운영 Kotlin/Java 코드 변경 전에 같은 모듈 테스트 변경을 요구 |
 | GitHub Actions Android CI | 단위 테스트, 디버그 빌드, strict lint, coverage verification 실행 |
 | `coverageVerifyAll` | 핵심 non-view 모듈의 coverage threshold 검증 |
@@ -159,6 +159,7 @@ scripts/quality/rework-metrics-check.sh --local
 - [앱 구조 소개서](docs/YOURTODO-APP-OVERVIEW.md)
 - [AI 기반 개발 사례 소개서](docs/YOURTODO-AI-DEVELOPMENT-STORY.md)
 - [데이터 아키텍처 리포트](docs/DATA-ARCHITECTURE-REPORT.md)
+- [사용자 매뉴얼 PDF](docs/YourTodo_User_Manual.pdf)
 - [Person Todo Visibility PRD](docs/PRD-Person-Todo-Visibility-MVP.md)
 - [Person Todo Visibility TRD](docs/TRD-Person-Todo-Visibility-MVP.md)
 - [Agent 작업 가이드](AGENTS.md)

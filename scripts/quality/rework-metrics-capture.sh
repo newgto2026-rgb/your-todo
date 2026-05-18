@@ -116,6 +116,17 @@ while IFS="$(printf '\t')" read -r thread_id is_resolved is_outdated path line u
 - Resolved At Capture: \`$is_resolved\`
 - Outdated At Capture: \`$is_outdated\`
 
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | TBD |
+| Product/Engineering Impact | TBD |
+| Root Cause Hypothesis | TBD |
+| System Gap | TBD |
+| Automation Hypothesis | TBD |
+| Decision | TBD |
+
 #### Feedback Summary
 
 TBD

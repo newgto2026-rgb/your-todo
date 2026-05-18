@@ -39,8 +39,9 @@
 2. 전용 브랜치 + 별도 Git worktree에서 작업한다.
 3. 변경 대상 Gradle 모듈을 식별한다.
 4. 대상 모듈의 `AGENTS.md`만 추가로 연다.
-5. 모듈 경계/의존 방향 위반 가능성을 먼저 점검한다.
-6. 구현 작업이면 성공 기준과 검증 명령을 먼저 정한다.
+5. `docs/agent/rework-metrics.md`와 현재 branch metrics 문서가 있으면 최근 피드백/lesson을 확인한다.
+6. 모듈 경계/의존 방향 위반 가능성을 먼저 점검한다.
+7. 구현 작업이면 성공 기준과 검증 명령을 먼저 정한다.
 
 ### 2.2 구현 중
 1. 변경은 최소 범위, 테스트 가능, 기능 중심으로 유지한다.
@@ -54,10 +55,17 @@
 1. 영향 모듈 단위 테스트를 실행한다.
 2. 영향 모듈 린트를 실행한다.
 3. 제품 하네스 구조 검사를 실행한다.
-4. 재작업/리뷰/CI 실패가 있었다면 branch metrics 문서와 PR 본문 `AI Rework Metrics`를 갱신한다.
+4. 재작업/리뷰/CI 실패/사용자 피드백이 있었다면 branch metrics 문서와 PR 본문 `AI Rework Metrics`를 갱신한다.
 5. 버그 수정은 해당 버그를 재현하는 회귀 테스트를 반드시 추가/갱신하고 실행한다.
 6. 필요 시 앱 빌드 또는 통합 테스트를 실행한다.
 7. 테스트 결과와 변경 모듈을 PR 설명에 명시한다.
+
+### 2.4 Compound Engineering 피드백 루프
+- 피드백은 commit 시점에 사후 기록하지 않는다. 피드백이 들어온 순간 `docs/agent/rework-metrics.md` 기준으로 branch metrics event를 만들고 Feedback Signal, 영향, 원인 가설, 시스템 갭, 자동화 가능성, 처리 결정을 먼저 채운다.
+- 수정 전에는 해당 event를 작업 입력으로 다시 읽고, 같은 문제가 생기지 않도록 테스트/문서/hook/CI/AGENTS 정책 중 어디에 학습을 넣을지 결정한다.
+- 수정 후에는 event에 fix scope, verification, lesson을 채우고, 반복 가능성이 있는 lesson은 이 `AGENTS.md` 또는 `docs/agent/*` 정책 문서로 승격한다.
+- PR 전에는 `scripts/quality/rework-metrics-check.sh --local`을 실행해 외부 피드백과 문서가 어긋나지 않는지 확인한다.
+- 주기적으로 `scripts/quality/rework-metrics-report.py`로 branch metrics를 요약하고, 반복되는 root cause나 system gap은 AGENTS 규칙/플레이북/자동화 후보로 반영한다.
 
 ## 3. 전역 필수 정책
 
