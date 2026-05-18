@@ -15,8 +15,8 @@
 - non-view 레이어 커버리지 최소 80%를 확인한다.
 - 제품 하네스 구조 검사는 `scripts/quality/product-harness-check.sh`로 실행한다.
 - 재작업 metrics 문서 검사는 `scripts/quality/rework-metrics-check.sh`로 실행한다.
+- 재작업 metrics는 commit 시점에 새로 쓰는 문서가 아니라, 리뷰/CI/사용자 피드백이 들어온 순간 Compound Engineering Intake 분석을 먼저 남기는 문서다.
 - pre-commit/pre-push 훅에서 최신 `origin/main`을 fetch하고 현재 브랜치가 이를 포함하는지 확인한다.
-- pre-commit 훅에서 현재 브랜치의 재작업 metrics 문서 존재와 기본 구조를 확인한다.
 - pre-commit 훅에서 제품 하네스 구조 검사를 실행한다.
 - pre-push 훅에서 제품 하네스 구조 검사와 변경 영향 lint를 실행한다.
 - pre-push 훅에서 변경 모듈 `lintDebug`를 우선 실행하며, Gradle/CI/훅 변경 시 `./gradlew lint` 전체를 실행한다.
