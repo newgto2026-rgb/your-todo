@@ -15,6 +15,7 @@ import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
@@ -147,6 +148,17 @@ class CalendarViewModelTest {
         advanceUntilIdle()
 
         assertThat(viewModel.uiState.value.isMonthExpanded).isTrue()
+    }
+
+    @Test
+    fun initialState_restoresCachedMonthExpansion() = runTest {
+        val viewModel = createViewModel(
+            repository = FakeTodoRepository(),
+            savedStateHandle = SavedStateHandle(mapOf("calendar_is_month_expanded" to false))
+        )
+
+        assertThat(viewModel.uiState.value.isMonthExpanded).isFalse()
+        assertThat(viewModel.uiState.value.selectedWeekDays).hasSize(7)
     }
 
     @Test
@@ -293,6 +305,7 @@ class CalendarViewModelTest {
         assertThat(repository.getTodo(todoId)?.isDone).isTrue()
         assertThat(viewModel.uiState.value.selectedDateTodos.single().isDone).isTrue()
         assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
+        assertThat(repository.syncCount).isEqualTo(1)
     }
 
     @Test
@@ -713,6 +726,7 @@ class CalendarViewModelTest {
 
     private fun createViewModel(
         repository: FakeTodoRepository,
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
         authRepository: FakeAuthRepository = FakeAuthRepository(),
         assignmentRepository: FakeAssignmentRepository = FakeAssignmentRepository(),
         personVisibilityRepository: FakePersonVisibilityRepository = FakePersonVisibilityRepository(),
@@ -721,7 +735,7 @@ class CalendarViewModelTest {
     ): CalendarViewModel {
         val getAssignedTodosUseCase = GetAssignedTodosUseCase(assignmentRepository)
         val viewModel = CalendarViewModel(
-            savedStateHandle = SavedStateHandle(),
+            savedStateHandle = savedStateHandle,
             observeAuthSessionUseCase = ObserveAuthSessionUseCase(authRepository),
             observeTaskSurfaceSummariesUseCase = ObserveTaskSurfaceSummariesUseCase(
                 observeMonthlyTodoSummariesUseCase = ObserveMonthlyTodoSummariesUseCase(
@@ -734,6 +748,7 @@ class CalendarViewModelTest {
             zoneId = ZoneId.of("Asia/Seoul"),
             buildTaskSurfaceDateTodosUseCase = BuildTaskSurfaceDateTodosUseCase(),
             toggleTodoDoneUseCase = ToggleTodoDoneUseCase(repository),
+            syncTodosUseCase = SyncTodosUseCase(repository),
             getAssignedTodosUseCase = getAssignedTodosUseCase,
             manageAssignedTodoUseCase = ManageAssignedTodoUseCase(
                 assignmentRepository,

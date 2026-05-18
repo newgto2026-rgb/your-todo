@@ -12,6 +12,7 @@ import com.neo.yourtodo.core.domain.usecase.GetAssignedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.GetTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.RefreshWorkspaceUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.UpdateTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshClock
 import com.neo.yourtodo.core.domain.usecase.WorkspaceRefreshPolicy
@@ -82,6 +83,7 @@ class TodoEditorViewModelTest {
                     syncNotifier = WorkspaceSyncNotifier()
                 )
             ),
+            syncTodosUseCase = SyncTodosUseCase(repository),
             todoReminderScheduler = reminderScheduler,
             calendarWidgetUpdater = calendarWidgetUpdater
         )
@@ -193,6 +195,7 @@ class TodoEditorViewModelTest {
         assertThat(exitDeferred.await()).isEqualTo(TodoEditorSideEffect.Exit)
         assertThat(reminderScheduler.cancelledTodoIds).contains(todos.first().id)
         assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
+        assertThat(repository.syncCount).isEqualTo(1)
     }
 
     @Test
@@ -226,6 +229,7 @@ class TodoEditorViewModelTest {
         assertThat(updated?.reminderAtEpochMillis).isNotNull()
         assertThat(reminderScheduler.scheduledTodos.map(TodoItem::id)).contains(id)
         assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
+        assertThat(repository.syncCount).isEqualTo(1)
     }
 
     @Test
@@ -256,6 +260,7 @@ class TodoEditorViewModelTest {
         assertThat(reminderScheduler.cancelledTodoIds).contains(id)
         assertThat(exitDeferred.await()).isEqualTo(TodoEditorSideEffect.Exit)
         assertThat(calendarWidgetUpdater.updateCount).isEqualTo(1)
+        assertThat(repository.syncCount).isEqualTo(1)
     }
 
     @Test

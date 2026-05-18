@@ -27,6 +27,7 @@ import com.neo.yourtodo.core.model.assignedtodo.AssignmentDecision
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentDraftItem
 import com.neo.yourtodo.core.model.assignedtodo.AssignmentMode
 import com.neo.yourtodo.core.model.friends.Friend
+import com.neo.yourtodo.core.model.personvisibility.ObservedTodo
 import com.neo.yourtodo.feature.friends.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -354,7 +355,8 @@ class FriendsViewModel @Inject constructor(
                 mutableUiState.update { state ->
                     state.copy(
                         observedTodosByFriendId = observedPeople.associate { person ->
-                            person.ownerUserId to person.todos.map { it.toObservedTodoUiModel() }
+                            person.ownerUserId to person.todos.sortedWith(observedTodoOrder)
+                                .map { it.toObservedTodoUiModel() }
                         },
                         expandedObservedTodoFriendIds = state.expandedObservedTodoFriendIds
                             .filter { friendUserId ->
@@ -924,5 +926,12 @@ class FriendsViewModel @Inject constructor(
         const val MaxAssignmentTitleLength = 80
         const val MaxDueDateLength = 10
         const val MaxDueTimeLength = 5
+        val observedTodoOrder = compareBy<ObservedTodo> { it.isDone }
+            .thenBy { it.dueDate == null }
+            .thenBy { it.dueDate }
+            .thenBy { it.dueTimeMinutes == null }
+            .thenBy { it.dueTimeMinutes ?: Int.MAX_VALUE }
+            .thenBy { it.title }
+            .thenBy { it.id }
     }
 }

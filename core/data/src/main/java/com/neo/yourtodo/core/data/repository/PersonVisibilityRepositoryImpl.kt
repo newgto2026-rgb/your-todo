@@ -92,9 +92,10 @@ class PersonVisibilityRepositoryImpl @Inject constructor(
         authenticatedRequest { accessToken, currentUserId ->
             val grants = personVisibilityNetworkDataSource.getVisibilityGrants(accessToken)
                 .let { it.given + it.received }
-            personVisibilityDao.replaceVisibilityGrants(
+            personVisibilityDao.replaceVisibilityGrantsAndPruneObservedTodos(
                 currentUserId = currentUserId,
-                grants = grants.map { it.toEntity(currentUserId) }
+                grants = grants.map { it.toEntity(currentUserId) },
+                activeObservedGrantIds = grants.activeObservedGrantIds(currentUserId)
             )
             grants.map { it.toDomain() }
         }
@@ -124,9 +125,10 @@ class PersonVisibilityRepositoryImpl @Inject constructor(
             viewerUserId = friendUserId
         ) ?: personVisibilityNetworkDataSource.getVisibilityGrants(accessToken).let { response ->
             val grants = response.given + response.received
-            personVisibilityDao.replaceVisibilityGrants(
+            personVisibilityDao.replaceVisibilityGrantsAndPruneObservedTodos(
                 currentUserId = currentUserId,
-                grants = grants.map { it.toEntity(currentUserId) }
+                grants = grants.map { it.toEntity(currentUserId) },
+                activeObservedGrantIds = grants.activeObservedGrantIds(currentUserId)
             )
             grants.firstOrNull {
                 it.owner.id == currentUserId &&
@@ -199,6 +201,12 @@ class PersonVisibilityRepositoryImpl @Inject constructor(
 
     private fun NetworkVisibilityGrant.toDomain(): PersonVisibilityGrant =
         toEntity(currentUserId = "").toDomain()
+
+    private fun List<NetworkVisibilityGrant>.activeObservedGrantIds(currentUserId: String): List<String> =
+        filter {
+            it.viewer.id == currentUserId &&
+                it.status == PersonVisibilityGrantState.ACTIVE.name
+        }.map { it.id }
 
     private fun NetworkRevokeVisibilityGrantResponse.toEntity(existing: VisibilityGrantEntity): VisibilityGrantEntity {
         val revokedAtMillis = revokedAt.toEpochMillisOrNull() ?: timeProvider.currentTimeMillis()

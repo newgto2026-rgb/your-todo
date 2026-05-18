@@ -68,6 +68,9 @@ interface PersonVisibilityDao {
     @Query("DELETE FROM observed_todos WHERE currentUserId = :currentUserId")
     suspend fun purgeObservedTodosByCurrentUser(currentUserId: String)
 
+    @Query("DELETE FROM observed_todos WHERE currentUserId = :currentUserId AND grantId NOT IN (:grantIds)")
+    suspend fun purgeObservedTodosExceptGrantIds(currentUserId: String, grantIds: List<String>)
+
     @Query("DELETE FROM visibility_grants WHERE currentUserId = :currentUserId")
     suspend fun deleteVisibilityGrantsByCurrentUser(currentUserId: String)
 
@@ -79,6 +82,20 @@ interface PersonVisibilityDao {
         deleteVisibilityGrantsByCurrentUser(currentUserId)
         if (grants.isNotEmpty()) {
             upsertVisibilityGrants(grants)
+        }
+    }
+
+    @Transaction
+    suspend fun replaceVisibilityGrantsAndPruneObservedTodos(
+        currentUserId: String,
+        grants: List<VisibilityGrantEntity>,
+        activeObservedGrantIds: List<String>
+    ) {
+        replaceVisibilityGrants(currentUserId, grants)
+        if (activeObservedGrantIds.isEmpty()) {
+            purgeObservedTodosByCurrentUser(currentUserId)
+        } else {
+            purgeObservedTodosExceptGrantIds(currentUserId, activeObservedGrantIds)
         }
     }
 

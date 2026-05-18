@@ -25,6 +25,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -32,7 +33,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeDown
-import androidx.compose.ui.test.swipeLeft
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.pressBack
@@ -1195,7 +1195,7 @@ class TodoUiTest {
     }
 
     @Test
-    fun listSwipeDelete_confirmsAndDeletesItem() {
+    fun listLongPressDelete_confirmsAndDeletesItem() {
         val title = "Delete UI ${System.currentTimeMillis()}"
         val id = runBlocking {
             addTodoUseCase(
@@ -1214,8 +1214,11 @@ class TodoUiTest {
             composeTestRule.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
         }
 
+        composeTestRule.assertNoTodoScreenTag("all", "todo_row_delete_$id")
         composeTestRule.onNodeWithTag("todo_row_$id", useUnmergedTree = true)
-            .performTouchInput { swipeLeft() }
+            .performTouchInput { longClick() }
+        composeTestRule.waitUntilNodeExists("todo_row_delete_$id")
+        composeTestRule.onNodeWithTag("todo_row_delete_$id", useUnmergedTree = true).performClick()
         composeTestRule.waitUntilNodeExists("delete_confirmation_dialog")
         composeTestRule.onNodeWithTag("confirm_delete_button").performClick()
 
@@ -1536,8 +1539,9 @@ class TodoUiTest {
     @Test
     fun todayPlanner_showsOverdueTimedAndDueTodaySections() {
         val today = LocalDate.now()
+        var quickActionIds = emptyList<Long>()
         runBlocking {
-            addTodoUseCase(
+            val overdueId = addTodoUseCase(
                 title = "QA overdue",
                 dueDate = today.minusDays(1),
                 categoryId = null,
@@ -1546,7 +1550,7 @@ class TodoUiTest {
                 reminderRepeatType = ReminderRepeatType.NONE,
                 reminderRepeatDaysMask = 0
             ).getOrThrow()
-            addTodoUseCase(
+            val timedTodayId = addTodoUseCase(
                 title = "QA timed today",
                 dueDate = today,
                 categoryId = null,
@@ -1556,7 +1560,7 @@ class TodoUiTest {
                 reminderRepeatType = ReminderRepeatType.NONE,
                 reminderRepeatDaysMask = 0
             ).getOrThrow()
-            addTodoUseCase(
+            val dueTodayId = addTodoUseCase(
                 title = "QA due today",
                 dueDate = today,
                 categoryId = null,
@@ -1575,6 +1579,7 @@ class TodoUiTest {
                 reminderRepeatDaysMask = 0,
                 priority = TodoPriority.HIGH
             ).getOrThrow()
+            quickActionIds = listOf(overdueId, timedTodayId, dueTodayId)
         }
 
         tabNode("today").performClick()
@@ -1589,6 +1594,12 @@ class TodoUiTest {
             .performScrollToNode(hasText("QA due today"))
         composeTestRule.onNodeWithText("QA due today")
             .assertIsDisplayed()
+        quickActionIds.forEach { id ->
+            composeTestRule.onNodeWithTag("todo_list")
+                .performScrollToNode(hasTestTag("todo_quick_tomorrow_$id"))
+            composeTestRule.onNodeWithTag("todo_quick_tomorrow_$id", useUnmergedTree = true)
+                .assertIsDisplayed()
+        }
         composeTestRule.onAllNodesWithText("QA high priority").assertCountEquals(0)
     }
 

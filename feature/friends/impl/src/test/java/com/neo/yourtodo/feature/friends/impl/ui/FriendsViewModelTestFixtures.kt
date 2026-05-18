@@ -525,14 +525,17 @@ internal fun observedPersonTodos(
 internal fun observedTodo(
     id: String = "observed-1",
     ownerUserId: String = "friend-1",
-    title: String = "Friend todo"
+    title: String = "Friend todo",
+    isDone: Boolean = false,
+    dueDate: LocalDate? = null,
+    dueTimeMinutes: Int? = null
 ) = ObservedTodo(
     id = id,
     ownerUserId = ownerUserId,
     title = title,
-    isDone = false,
-    dueDate = null,
-    dueTimeMinutes = null,
+    isDone = isDone,
+    dueDate = dueDate,
+    dueTimeMinutes = dueTimeMinutes,
     priority = TodoPriority.MEDIUM
 )
 

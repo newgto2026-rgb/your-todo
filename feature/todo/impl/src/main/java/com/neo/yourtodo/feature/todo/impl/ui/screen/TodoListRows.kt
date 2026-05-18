@@ -1,26 +1,20 @@
 package com.neo.yourtodo.feature.todo.impl.ui.screen
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -81,7 +75,7 @@ internal fun TodoPlannerRow(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DeletableTodoItemRow(
+        LongPressDeleteTodoItemRow(
             itemId = item.id,
             title = item.title,
             dueDateText = rowDueLabel,
@@ -127,9 +121,8 @@ internal fun TodoPlannerRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeletableTodoItemRow(
+private fun LongPressDeleteTodoItemRow(
     itemId: Long,
     title: String,
     dueDateText: String?,
@@ -144,52 +137,49 @@ private fun DeletableTodoItemRow(
     priorityColor: Color,
     assignedFromText: String?
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDeleteRequest()
+    var isDeleteVisible by rememberSaveable(itemId) { mutableStateOf(false) }
+
+    TodoItemRow(
+        title = title,
+        dueDateText = dueDateText,
+        reminderText = reminderText,
+        isDone = isDone,
+        isEmphasized = isEmphasized,
+        isReminderEnabled = isReminderEnabled,
+        onToggleDone = onToggleDone,
+        onClick = {
+            if (isDeleteVisible) {
+                isDeleteVisible = false
+            } else {
+                onClick()
             }
-            false
+        },
+        onLongClick = { isDeleteVisible = true },
+        modifier = Modifier.testTag("todo_row_$itemId"),
+        priorityLabel = priorityLabel,
+        priorityColor = priorityColor,
+        toggleTestTag = "todo_row_toggle_$itemId",
+        sourceText = assignedFromText,
+        content = if (isDeleteVisible) {
+            {
+                IconButton(
+                    onClick = {
+                        isDeleteVisible = false
+                        onDeleteRequest()
+                    },
+                    modifier = Modifier.testTag("todo_row_delete_$itemId")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.todo_editor_delete),
+                        tint = Color(0xFFD85C5C)
+                    )
+                }
+            }
+        } else {
+            null
         }
     )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = true,
-        backgroundContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFFD85C5C))
-                    .padding(end = 22.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = Color.White
-                )
-            }
-        }
-    ) {
-        TodoItemRow(
-            title = title,
-            dueDateText = dueDateText,
-            reminderText = reminderText,
-            isDone = isDone,
-            isEmphasized = isEmphasized,
-            isReminderEnabled = isReminderEnabled,
-            onToggleDone = onToggleDone,
-            onClick = onClick,
-            modifier = Modifier.testTag("todo_row_$itemId"),
-            priorityLabel = priorityLabel,
-            priorityColor = priorityColor,
-            toggleTestTag = "todo_row_toggle_$itemId",
-            sourceText = assignedFromText
-        )
-    }
 }
 
 private fun priorityColor(priority: TodoPriority): Color = when (priority) {

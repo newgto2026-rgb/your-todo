@@ -14,6 +14,7 @@ import com.neo.yourtodo.core.model.friends.DirectAssignmentConsentSummary
 import com.neo.yourtodo.core.testing.rule.MainDispatcherRule
 import com.neo.yourtodo.feature.friends.impl.R
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -165,6 +166,43 @@ class FriendsViewModelTest {
 
         assertThat(expanded.observedTodos("friend-1").map { it.title })
             .containsExactly("Plan trip", "Buy lunch")
+    }
+
+    @Test
+    fun observedFriendTodosPlaceCompletedItemsAtBottom() = runTest {
+        val personVisibilityRepository = FakePersonVisibilityRepository().apply {
+            observedTodosState.value = listOf(
+                observedPersonTodos(
+                    ownerUserId = "friend-1",
+                    todos = listOf(
+                        observedTodo(
+                            id = "observed-done",
+                            title = "Done first from cache",
+                            isDone = true,
+                            dueDate = LocalDate.of(2026, 5, 18)
+                        ),
+                        observedTodo(
+                            id = "observed-active",
+                            title = "Active later from cache",
+                            isDone = false,
+                            dueDate = LocalDate.of(2026, 5, 19)
+                        )
+                    )
+                )
+            )
+        }
+        val repository = FakeFriendRepository().apply {
+            friends = listOf(friend())
+        }
+        val viewModel = repository.createViewModel(
+            personVisibilityRepository = personVisibilityRepository
+        )
+
+        val loaded = viewModel.uiState.first { it.observedTodos("friend-1").size == 2 }
+
+        assertThat(loaded.observedTodos("friend-1").map { it.title })
+            .containsExactly("Active later from cache", "Done first from cache")
+            .inOrder()
     }
 
     @Test

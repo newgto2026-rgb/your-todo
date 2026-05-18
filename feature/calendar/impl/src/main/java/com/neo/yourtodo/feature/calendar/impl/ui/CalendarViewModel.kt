@@ -11,6 +11,7 @@ import com.neo.yourtodo.core.domain.usecase.ManageAssignedTodoUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveMonthlyTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveObservedTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ObserveTaskSurfaceSummariesUseCase
+import com.neo.yourtodo.core.domain.usecase.SyncTodosUseCase
 import com.neo.yourtodo.core.domain.usecase.ToggleTodoDoneUseCase
 import com.neo.yourtodo.core.domain.usecase.WorkspaceSyncNotifier
 import com.neo.yourtodo.feature.calendar.impl.di.CalendarZoneId
@@ -49,6 +50,7 @@ class CalendarViewModel @Inject constructor(
     @CalendarZoneId private val zoneId: ZoneId,
     private val buildTaskSurfaceDateTodosUseCase: BuildTaskSurfaceDateTodosUseCase,
     private val toggleTodoDoneUseCase: ToggleTodoDoneUseCase,
+    private val syncTodosUseCase: SyncTodosUseCase,
     private val getAssignedTodosUseCase: GetAssignedTodosUseCase,
     private val manageAssignedTodoUseCase: ManageAssignedTodoUseCase,
     private val calendarWidgetUpdater: CalendarWidgetUpdater,
@@ -178,7 +180,8 @@ class CalendarViewModel @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = initialCalendarUiState(
             currentMonth = monthState.value,
-            selectedDate = selectedDateState.value
+            selectedDate = selectedDateState.value,
+            isMonthExpanded = isMonthExpandedState.value
         )
     )
 
@@ -276,7 +279,10 @@ class CalendarViewModel @Inject constructor(
                 }
             } else {
                 toggleTodoDoneUseCase(todoId)
-                    .onSuccess { calendarWidgetUpdater.updateCalendarWidgets() }
+                    .onSuccess {
+                        calendarWidgetUpdater.updateCalendarWidgets()
+                        syncTodosUseCase()
+                    }
             }
         }
     }
