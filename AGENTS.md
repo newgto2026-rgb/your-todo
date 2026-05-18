@@ -62,9 +62,10 @@
 7. 테스트 결과와 변경 모듈을 PR 설명에 명시한다.
 
 ### 2.4 Compound Engineering 피드백 루프
-- 피드백은 commit 시점에 사후 기록하지 않는다. 피드백이 들어온 순간 `docs/agent/rework-metrics.md` 기준으로 branch metrics event를 만들고 Feedback Signal, 영향, 원인 가설, 시스템 갭, 자동화 가능성, 처리 결정을 먼저 채운다.
+- 피드백은 commit 시점에 사후 기록하지 않는다. 피드백이 들어온 순간 `docs/agent/rework-metrics.md` 기준으로 branch metrics event를 만들고 Feedback Signal, Product/Engineering Impact, Root Cause Hypothesis, System Gap, Automation Hypothesis, Decision을 먼저 채운다.
+- 사용자 피드백은 원문을 길게 옮기지 말고 핵심 신호만 요약한다. GitHub review, 리뷰봇, 다른 에이전트의 피드백은 thread/comment id와 짧은 요약을 남기고, 수정이나 정책 반영 여부를 반드시 추적한다.
 - 수정 전에는 해당 event를 작업 입력으로 다시 읽고, 같은 문제가 생기지 않도록 테스트/문서/hook/CI/AGENTS 정책 중 어디에 학습을 넣을지 결정한다.
-- 수정 후에는 event에 fix scope, verification, lesson을 채우고, 반복 가능성이 있는 lesson은 이 `AGENTS.md` 또는 `docs/agent/*` 정책 문서로 승격한다.
+- 수정 후에는 event에 Fix Scope, Verification, Lesson을 채운다. 반복 가능성이 있는 Lesson은 이 `AGENTS.md` 또는 `docs/agent/*` 정책 문서로 승격한다.
 - PR 전에는 `scripts/quality/rework-metrics-check.sh --local`을 실행해 외부 피드백과 문서가 어긋나지 않는지 확인한다.
 - 주기적으로 `scripts/quality/rework-metrics-report.py`로 branch metrics를 요약하고, 반복되는 root cause나 system gap은 AGENTS 규칙/플레이북/자동화 후보로 반영한다.
 

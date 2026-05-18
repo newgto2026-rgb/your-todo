@@ -8,11 +8,11 @@
 | PR | `https://github.com/newgto2026-rgb/your-todo/pull/110` |
 | Primary AI Model | `Codex` |
 | Task Type | `Documentation` |
-| Rework Count | `2` |
+| Rework Count | `8` |
 | P0 Issues | `0` |
-| P1 Issues | `0` |
-| P2 Issues | `2` |
-| Automation Possible Issues | `2` |
+| P1 Issues | `5` |
+| P2 Issues | `3` |
+| Automation Possible Issues | `8` |
 | Automation Added Issues | `2` |
 | Open Events | `0` |
 
@@ -37,8 +37,8 @@
 
 #### External Refs
 
-- User Feedback: `재작업 규칙을 좀 바꿔줄래? 커밋할때가 아니라 피드백이 나왔을때 그 피드백에 대한 분석이 들어가야해 compound engineering 의 개념이야`
-- User Feedback: `주기적으로 그 agents.md에 그 해당 문서를 참조해서 다시 같은 문제가 안일어나도록 피드백 루프를 만들어줘`
+- User Feedback Summary: feedback should be analyzed at intake time, not reconstructed at commit time.
+- User Feedback Summary: recurring rework lessons should feed back into AGENTS.md and agent playbooks.
 
 #### Compound Engineering Intake
 
@@ -77,16 +77,15 @@ Rework observability is useful only when it changes the next action. Reconciliat
 | Automation Added | `Yes: ignored temp context convention plus AGENTS cleanup rule` |
 | Fix Scope | `docs + ignore rule + temp handoff` |
 | Fix Size | `small` |
-| Rework Commit | `HEAD` |
+| Rework Commit | `687b900` |
 | Verification | `git diff --check -- .gitignore AGENTS.md README.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/product-harness-check.sh` |
 
 #### External Refs
 
-- User Feedback: `컨텍스트 자동압축을 대비해 컨텍스트를 잊지않도록 모든 명령사항과 핵심 내용들을 임시파일에 저장해주고 작업트리 정리를 요구하면 함께 지워줄수있도록 하자. 메인 Agents.md에 카파시에 대한 내용도 지워줘`
-- User Feedback: `readme에 메뉴얼 업데이트하는것도 잊지말고`
-- User Feedback: `임시 산출물 정리는 agents.md의 영역인거같은데`
-- User Feedback: `아니 메뉴얼을 어떻게 갱신하는지가 아니라 메뉴얼 자체를 소개로 올려달라고`
-- User Feedback: `그리고 말이 자꾸 꼬이는데 임시 산출물은 결국 컨텍스트 정리 규칙으로 나온 임시 산출물일거고 컨텍스트 내용을 저장한것을 임시 산출물이라고 부르는거야`
+- User Feedback Summary: preserve long-running task context in an ignored temporary context file.
+- User Feedback Summary: remove the Karpathy attribution from the main AGENTS.md.
+- User Feedback Summary: README should introduce the manual itself, not describe the manual update process.
+- User Feedback Summary: the temporary artifact in this rule is the saved context file itself.
 
 #### Compound Engineering Intake
 
@@ -115,7 +114,11 @@ README should describe project artifacts for readers, while AGENTS.md should def
 
 ### Review Threads
 
-No review threads recorded yet.
+- `PRRT_kwDOSAf4v86C4yfG`: exact intake field names in `AGENTS.md`
+- `PRRT_kwDOSAf4v86C4yfh`: exact Title Case fix fields in `AGENTS.md`
+- `PRRT_kwDOSAf4v86C4yfo`: exact intake field names in `docs/agent/rework-metrics.md`
+- `PRRT_kwDOSAf4v86C4yfz`: `Field | Analysis` intake table header in `docs/agent/rework-metrics.md`
+- `PRRT_kwDOSAf4v86C4yf2`: exact Title Case post-fix fields in `docs/agent/rework-metrics.md`
 
 ### Actionable PR Comments
 
@@ -132,7 +135,300 @@ No check failures recorded yet.
 - `Codex thread`: context-compaction continuity should use a temporary handoff file.
 - `Codex thread`: the temporary artifact is the context file created by the context-compaction rule.
 - `Codex thread`: README should introduce the manual itself.
+- `Codex thread`: summarize user feedback instead of copying raw wording, and make agent-to-agent feedback reflection explicit.
 
 ## Non-Rework Follow-up Commits
 
 No non-rework follow-up commits recorded yet.
+
+## Rework Events
+
+### R2026051903 - Summarize feedback and emphasize agent review reflection
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `user feedback` |
+| Feedback Source | `Codex thread` |
+| Severity | `P2` |
+| Attribution | `Mixed` |
+| Root Cause Category | `feedback recording hygiene` |
+| Automation Possible | `Yes` |
+| Automation Added | `No: documented as an operating rule; future doc-lint can enforce raw quote limits` |
+| Fix Scope | `docs + branch metrics` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
+
+#### External Refs
+
+- User Feedback Summary: branch metrics should store concise feedback signals, not raw user wording.
+- User Feedback Summary: agent-to-agent and review-bot feedback should be captured and reflected carefully.
+
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | Feedback records were too verbatim and did not emphasize that agent/review-bot feedback must be reflected, not merely captured. |
+| Product/Engineering Impact | Raw phrasing can make metrics noisy and less reusable, while agent feedback can be lost if treated as secondary to human feedback. |
+| Root Cause Hypothesis | The capture process optimized for traceability but did not distinguish concise summaries from raw transcript copying. |
+| System Gap | AGENTS.md and the rework guide did not define feedback summarization hygiene or agent-to-agent feedback treatment. |
+| Automation Hypothesis | A future doc-lint rule could detect overly long `User Feedback` quote blocks and require `User Feedback Summary` labels. |
+| Decision | Summarize existing user feedback refs and update the operating rules to require concise summaries plus explicit agent/review feedback reflection. |
+
+#### Feedback Summary
+
+Store the essential signal of user feedback and give agent/review-bot feedback first-class treatment in the rework loop.
+
+#### Fix Summary
+
+Replaced raw user feedback refs with summaries, added feedback recording guidance to AGENTS.md and the rework guide, and documented the agent feedback reflection expectation.
+
+#### Lesson
+
+Rework records should preserve decisions and traceability, not raw conversation noise. Agent feedback is still feedback and needs a visible closure path.
+
+### R20260519004925-1 - Review thread: AGENTS.md
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Severity | `P1` |
+| Attribution | `AI` |
+| Root Cause Category | `documentation consistency` |
+| Automation Possible | `Yes` |
+| Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
+| Fix Scope | `docs` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86C4yfG`
+- Review Comment: `3260174685`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/110#discussion_r3260174685
+- Review Path: `AGENTS.md:65`
+- Resolved At Capture: `false`
+- Outdated At Capture: `false`
+
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | AGENTS.md used Korean paraphrases for intake fields instead of exact names like Feedback Signal and Product/Engineering Impact. |
+| Product/Engineering Impact | Agents could fill inconsistent field names, weakening the capture template and metrics reconciliation. |
+| Root Cause Hypothesis | The prose was localized without preserving exact schema names. |
+| System Gap | No doc lint enforces field-name consistency across AGENTS.md, the rework guide, and capture output. |
+| Automation Hypothesis | A future doc consistency check could assert required field names appear verbatim in the operating rules. |
+| Decision | Replace paraphrased field names with exact English Title Case names. |
+
+#### Feedback Summary
+
+Use exact intake field names in AGENTS.md so agents can map prose instructions to the branch metrics template without ambiguity.
+
+#### Fix Summary
+
+Updated AGENTS.md to list Feedback Signal, Product/Engineering Impact, Root Cause Hypothesis, System Gap, Automation Hypothesis, and Decision verbatim.
+
+#### Lesson
+
+Schema-like documentation fields should remain exact even inside localized prose.
+
+### R20260519004925-2 - Review thread: AGENTS.md
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Severity | `P1` |
+| Attribution | `AI` |
+| Root Cause Category | `documentation consistency` |
+| Automation Possible | `Yes` |
+| Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
+| Fix Scope | `docs` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86C4yfh`
+- Review Comment: `3260174715`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/110#discussion_r3260174715
+- Review Path: `AGENTS.md:67`
+- Resolved At Capture: `false`
+- Outdated At Capture: `false`
+
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | AGENTS.md used lowercase/paraphrased fix fields instead of Title Case names such as Fix Scope, Verification, and Lesson. |
+| Product/Engineering Impact | Inconsistent field casing makes it harder for agents and scripts to align event updates. |
+| Root Cause Hypothesis | The prose treated metrics fields as ordinary words rather than schema labels. |
+| System Gap | No automated doc check verifies Title Case field names in guidance prose. |
+| Automation Hypothesis | A future doc consistency check could scan for required Title Case labels. |
+| Decision | Update AGENTS.md to use exact Title Case field names. |
+
+#### Feedback Summary
+
+Use exact Title Case update field names in AGENTS.md.
+
+#### Fix Summary
+
+Updated AGENTS.md to say Fix Scope, Verification, and Lesson, and to preserve Lesson casing when describing promotion.
+
+#### Lesson
+
+Operational rules should treat metrics field names as stable labels.
+
+### R20260519004925-3 - Review thread: docs/agent/rework-metrics.md
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Severity | `P1` |
+| Attribution | `AI` |
+| Root Cause Category | `documentation consistency` |
+| Automation Possible | `Yes` |
+| Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
+| Fix Scope | `docs` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86C4yfo`
+- Review Comment: `3260174723`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/110#discussion_r3260174723
+- Review Path: `docs/agent/rework-metrics.md:7`
+- Resolved At Capture: `false`
+- Outdated At Capture: `false`
+
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | The rework guide described intake fields with Korean paraphrases rather than exact schema labels. |
+| Product/Engineering Impact | Readers could create branch metrics events with mismatched field names. |
+| Root Cause Hypothesis | The purpose prose prioritized natural language over schema consistency. |
+| System Gap | The documentation did not explicitly require exact field names in all references. |
+| Automation Hypothesis | A future doc consistency check could compare prose references against the canonical intake table. |
+| Decision | Replace the prose list with exact field names. |
+
+#### Feedback Summary
+
+The rework guide should introduce intake fields with their exact names.
+
+#### Fix Summary
+
+Updated the purpose section to list Feedback Signal, Product/Engineering Impact, Root Cause Hypothesis, System Gap, Automation Hypothesis, and Decision verbatim.
+
+#### Lesson
+
+Localized explanations can surround schema labels, but should not rename them.
+
+### R20260519004925-4 - Review thread: docs/agent/rework-metrics.md
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Severity | `P1` |
+| Attribution | `AI` |
+| Root Cause Category | `documentation consistency` |
+| Automation Possible | `Yes` |
+| Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
+| Fix Scope | `docs` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86C4yfz`
+- Review Comment: `3260174733`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/110#discussion_r3260174733
+- Review Path: `docs/agent/rework-metrics.md:25`
+- Resolved At Capture: `false`
+- Outdated At Capture: `false`
+
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | The intake table header used Korean `설명` while generated branch metrics use `Analysis`. |
+| Product/Engineering Impact | Template examples could diverge from generated event structure. |
+| Root Cause Hypothesis | The guide table was written as explanatory documentation but also functions as a canonical template. |
+| System Gap | No check compares guide table headers with capture script output. |
+| Automation Hypothesis | A future doc consistency check could assert the canonical `Field | Analysis` header. |
+| Decision | Change the table header to `Analysis`. |
+
+#### Feedback Summary
+
+The canonical intake table should match capture script output.
+
+#### Fix Summary
+
+Changed the intake table header to `Field | Analysis`.
+
+#### Lesson
+
+When documentation doubles as a template, examples should mirror generated output exactly.
+
+### R20260519004925-5 - Review thread: docs/agent/rework-metrics.md
+
+| Field | Value |
+|---|---|
+| Status | `verified` |
+| Detected Phase | `review` |
+| Feedback Source | `gemini-code-assist` |
+| Severity | `P1` |
+| Attribution | `AI` |
+| Root Cause Category | `documentation consistency` |
+| Automation Possible | `Yes` |
+| Automation Added | `No: existing review and rework reconciliation caught this; doc-lint rule can be a future improvement` |
+| Fix Scope | `docs` |
+| Fix Size | `small` |
+| Rework Commit | `HEAD` |
+| Verification | `git diff --check -- AGENTS.md docs/agent/rework-metrics.md docs/ai-rework/branches/codex-manual-pdf-update.md`, `scripts/quality/rework-metrics-check.sh --local` |
+
+#### External Refs
+
+- Review Thread: `PRRT_kwDOSAf4v86C4yf2`
+- Review Comment: `3260174739`
+- Review URL: https://github.com/newgto2026-rgb/your-todo/pull/110#discussion_r3260174739
+- Review Path: `docs/agent/rework-metrics.md:34`
+- Resolved At Capture: `false`
+- Outdated At Capture: `false`
+
+#### Compound Engineering Intake
+
+| Field | Analysis |
+|---|---|
+| Feedback Signal | The guide described post-fix fields with lowercase names instead of exact Title Case labels. |
+| Product/Engineering Impact | Event completion could drift from expected field names, making summaries less reliable. |
+| Root Cause Hypothesis | Field names were normalized into prose instead of preserved as labels. |
+| System Gap | No automated check enforces Title Case field names in the guide. |
+| Automation Hypothesis | A future doc consistency check could scan post-fix guidance for Fix Scope, Fix Size, Verification, Lesson, and Rework Commit. |
+| Decision | Update post-fix guidance to use exact Title Case labels. |
+
+#### Feedback Summary
+
+The guide should use exact Title Case names for post-fix fields.
+
+#### Fix Summary
+
+Updated the post-fix prose and operating rules to use Fix Scope, Fix Size, Verification, Lesson, and Rework Commit.
+
+#### Lesson
+
+Keep schema labels exact wherever agents are expected to follow them mechanically.
