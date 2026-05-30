@@ -48,7 +48,7 @@ android {
                 "String",
                 "YOURTODO_AI_SERVER_BASE_URL",
                 quotedBuildConfigString(
-                    aiServerBaseUrlProperty.orElse(serverBaseUrlProperty).orElse(placeholderDevBaseUrl).get()
+                    aiServerBaseUrlProperty.orElse(serverBaseUrlProperty).orElse("").get()
                 )
             )
         }

@@ -5,11 +5,11 @@
 
 ## 2026-05-10 검증 메모
 
-- Agent workspace guardrail: 앱 구현/QA의 기준 worktree는 `<android-worktree>`이고, 활성 서버 구현/QA 기준은 `<server-worktree>`이다. 컨텍스트 요약이나 AGENTS 전달에 `<android-worktree>`가 등장해도 해당 경로는 현재 QA 구현/검증 기준으로 사용하지 않는다.
+- Agent workspace guardrail: 앱 구현/QA의 기준 worktree는 `<active-android-worktree>`이고, 활성 서버 구현/QA 기준은 `<push-notifications-server-worktree>`이다. 컨텍스트 요약이나 AGENTS 전달에 `<stale-android-worktree>`가 등장해도 해당 경로는 현재 QA 구현/검증 기준으로 사용하지 않는다.
 - 2026-05-10 QA reset: 사용자가 "QA도 하나도 못믿겠어 다시해"라고 정정했다. 아래 기존 자동/기기 검증 메모는 원인 추적 이력으로만 남기며, 활성 앱이 바라보는 실제 서버와 서버 구현 브랜치가 일치함을 확인하기 전에는 어떤 항목도 최종 해결로 간주하지 않는다.
-- Active server mismatch finding: 설치 앱의 기본 서버 URL은 `https://<your-dev-url>/`이고, 해당 ngrok은 현재 `yourtodo` compose(`<server-worktree>`)의 `yourtodo-server:local` 컨테이너를 보고 있다. 서버 에이전트 확인 기준 활성 서버 worktree는 `<server-worktree>`, branch `codex/shared-todo-mvp`, commit `c186a7d`이며 이 활성 서버는 `PUT /api/push-token`이 404로 응답한다.
-- Implemented server code finding: 푸시 토큰/FCM 구현 코드는 `<server-worktree>`의 `codex/server-push-notifications` 브랜치에 존재한다. 주요 파일은 `src/app/api/push-token/route.ts`, `src/lib/push/service.ts`, `prisma/migrations/20260509050000_push_notifications/migration.sql`이다.
-- Active server correction: `push-notifications/server`의 기존 구현 코드를 새로 작성하지 않고 그대로 `docker compose -f infra/compose.yaml up --build -d`로 활성화했다. 현재 활성 compose는 `<server-worktree>`이고, `/api/push-token`은 local/ngrok 모두 404가 아니라 인증 필요 401로 응답한다.
+- Active server mismatch finding: 설치 앱의 기본 서버 URL은 `https://<your-dev-url>/`이고, 해당 ngrok은 현재 `yourtodo` compose(`<shared-todo-server-worktree>`)의 `yourtodo-server:local` 컨테이너를 보고 있다. 서버 에이전트 확인 기준 활성 서버 worktree는 `<shared-todo-server-worktree>`, branch `codex/shared-todo-mvp`, commit `c186a7d`이며 이 활성 서버는 `PUT /api/push-token`이 404로 응답한다.
+- Implemented server code finding: 푸시 토큰/FCM 구현 코드는 `<push-notifications-server-worktree>`의 `codex/server-push-notifications` 브랜치에 존재한다. 주요 파일은 `src/app/api/push-token/route.ts`, `src/lib/push/service.ts`, `prisma/migrations/20260509050000_push_notifications/migration.sql`이다.
+- Active server correction: `push-notifications/server`의 기존 구현 코드를 새로 작성하지 않고 그대로 `docker compose -f infra/compose.yaml up --build -d`로 활성화했다. 현재 활성 compose는 `<push-notifications-server-worktree>`이고, `/api/push-token`은 local/ngrok 모두 404가 아니라 인증 필요 401로 응답한다.
 - Reverification rule: 서버 의존 QA는 활성 서버가 구현 코드와 같은 브랜치/이미지/마이그레이션을 사용한다는 증거, 실제 neo/tee 데이터, 앱 로그, 자동화 테스트 결과를 한 항목씩 다시 붙인 뒤에만 "자동 검증 완료"로 표기한다. 사용자가 수동 확인하기 전에는 닫지 않는다. 아래 개별 항목의 과거 `Done`/`Manually confirmed` 기록은 재검증 전까지 이력으로만 취급한다.
 - Code verification: targeted unit tests, `CalendarWidgetLaunchUiTest`, affected module lint, `assembleDebug` 통과
 - Latest final app verification: `:app:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleDebug` 통과
@@ -68,13 +68,13 @@
 - Expected: 설치 앱이 바라보는 서버에 `PUT /api/push-token` 등록 API, `push_tokens` 테이블, FCM dispatch 코드, 관련 migration/env가 모두 반영되어야 한다. 토큰 등록 실패가 있으면 푸시 수신 QA를 진행할 수 없다.
 - Confirmed finding:
   - 앱 기본 서버 URL: `core/network/build.gradle.kts` 기준 debug default `https://<your-dev-url>/`
-  - 활성 compose: `docker compose ls` 기준 `<server-worktree>`
+  - 활성 compose: `docker compose ls` 기준 `<shared-todo-server-worktree>`
   - 활성 서버 응답: `GET /api/health/live`는 200, `PUT /api/push-token`은 404
-  - 활성 서버 소스 후보 `<server-worktree>` 브랜치 `codex/server-todo-sync-mvp`에는 push-token route/model 구현이 없고 문서 계약만 있다.
-  - 이미 구현된 서버 코드: `<server-worktree>` 브랜치 `codex/server-push-notifications`
+  - 활성 서버 소스 후보 `<shared-todo-server-worktree>` 브랜치 `codex/server-todo-sync-mvp`에는 push-token route/model 구현이 없고 문서 계약만 있다.
+  - 이미 구현된 서버 코드: `<push-notifications-server-worktree>` 브랜치 `codex/server-push-notifications`
 - 2026-05-10 correction:
   - Done: `push-notifications/server`에서 `DATABASE_URL=... npm run db:validate`, `npm test` 65개, `npm run build` 통과
-  - Done: 활성 compose를 `<server-worktree>` 기준으로 재기동
+  - Done: 활성 compose를 `<push-notifications-server-worktree>` 기준으로 재기동
   - Done: local `GET /api/health/ready` 200, `PUT /api/push-token` unauthenticated 401 확인
   - Done: ngrok `GET /api/health/ready` 200, `PUT /api/push-token` unauthenticated 401 확인
   - Done: Medium Phone emulator(tee)와 Galaxy(neo) 앱 재시작 후 양쪽 모두 `PUT https://<your-dev-url>/api/push-token` 200 확인
@@ -86,9 +86,9 @@
   - Done: 실제 알림 클릭 후 앱이 `@neo와 공유한 일` 다이얼로그로 진입했고, 최종 UI dump에서 `받은 할 일 요청`, `QA push smoke 150735`, `수락 대기`, `선택 거절`, `선택 수락` 노출 확인
   - Note: 기존 DB에 같은 enum 값을 추가하는 timestamp가 다른 migration이 이미 적용되어 있어, 실패한 로컬 dev migration row `20260509060000_assigned_todo_reopened_notification`을 적용 완료 상태로 정리했다. SQL 내용은 이미 적용된 `20260510010000_assigned_todo_reopened_notification`과 동일한 `ASSIGNED_TODO_REOPENED` enum 추가다.
 - Implemented code to inspect before any deployment/switch:
-  - `<server-worktree>/src/app/api/push-token/route.ts`
-  - `<server-worktree>/src/lib/push/service.ts`
-  - `<server-worktree>/prisma/migrations/20260509050000_push_notifications/migration.sql`
+  - `<push-notifications-server-worktree>/src/app/api/push-token/route.ts`
+  - `<push-notifications-server-worktree>/src/lib/push/service.ts`
+  - `<push-notifications-server-worktree>/prisma/migrations/20260509050000_push_notifications/migration.sql`
 - Reverification checklist:
   - 활성 compose가 어느 체크아웃/이미지를 빌드하는지 서버 에이전트와 재확인
   - 구현 브랜치가 활성 서버에 반영됐는지 확인
@@ -248,7 +248,7 @@
 - 2026-05-10 follow-up fix: shared-todo-server의 sent/friend assigned-todos list 응답에 `sender`/`receiver` user summary를 포함하도록 보강했다. 서버 응답 직접 검증에서 `tee -> neo` history 19건이 모두 `sender=tee`, `receiver=neo`로 내려오는 것을 확인했다.
 - 2026-05-10 device verification: 갤럭시(neo)와 Medium Phone 에뮬레이터(tee)에 최신 앱을 설치하고 서버 컨테이너를 새 코드로 재기동한 뒤 친구 상세를 다시 열어 확인했다. 갤럭시 neo -> tee는 `요청함 2/4`, `요청받음 17/23`, 에뮬 tee -> neo는 `요청함 17/23`, `요청받음 2/4`로 서로 대응됨을 확인했다. 수동 확인 전까지 최종 종료로 표기하지 않는다.
 - 2026-05-10 active-server recheck:
-  - Done: active compose가 `<server-worktree>`이고 `/api/push-token`이 local/ngrok 모두 401로 응답함을 재확인
+  - Done: active compose가 `<push-notifications-server-worktree>`이고 `/api/push-token`이 local/ngrok 모두 401로 응답함을 재확인
   - Finding: DB 실제 row는 `neo -> tee` 총 5건/완료 3건, `tee -> neo` 총 23건/완료 17건이다. 새 push smoke 요청 1건 때문에 이전 `2/4`가 현재 `3/5`로 바뀌었다.
   - Finding: list API는 neo received active 4건 + history 19건 = 23건을 내려주지만, summary API만 `receiverDeletedAt: null` 필터 때문에 11건으로 계산해 불일치가 재현됐다.
   - Fix: active server `getFriendAssignmentSummary().received`에서 Friends summary용 `receiverDeletedAt: null` 제외 조건을 제거했다. 일반 `/api/assigned-todos/received` task surface의 숨김 정책은 유지한다.
