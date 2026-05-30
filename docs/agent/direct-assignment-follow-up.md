@@ -9,7 +9,7 @@ Last updated: 2026-05-15
 - Keep important context in docs so later context summaries can continue without losing decisions.
 
 ## Branch and workspace
-- Worktree: `/Users/kimtaenyun/.codex/worktrees/b074/MyFirstApp`
+- Worktree: `<local-worktree>`
 - Branch: `codex/force-assignment`
 - Do not work on `main` directly.
 
@@ -38,7 +38,7 @@ Last updated: 2026-05-15
 - Revised server decision: consent opt-in endpoint must define idempotent replay and conflict semantics because Android sends per-action `Idempotency-Key` values.
 - Final review decision: `AssignmentRepository` implementers must handle the mode-aware create method directly so DIRECT cannot silently fall back to REQUEST.
 - Final review decision: Friends copy must use neutral sent/received wording because those sections contain both REQUEST and DIRECT items.
-- 2026-05-15 server correction: Android default debug server is `https://stainable-sulphate-grading.ngrok-free.dev/`; this ngrok forwards to local Docker `yourtodo-server-1` on port 8080. The old container was 5 days stale and returned 404 for the opt-in endpoint. It was rebuilt/restarted from the server worktree and now returns `401 AUTH_REQUIRED` for `PUT /api/friends/{friendUserId}/direct-assignment-opt-in`, proving the route exists.
+- 2026-05-15 server correction: Android default debug server is `https://<your-dev-url>/`; this ngrok forwards to local Docker `yourtodo-server-1` on port 8080. The old container was 5 days stale and returned 404 for the opt-in endpoint. It was rebuilt/restarted from the server worktree and now returns `401 AUTH_REQUIRED` for `PUT /api/friends/{friendUserId}/direct-assignment-opt-in`, proving the route exists.
 - 2026-05-15 login correction: emulator Google sign-in reached `POST /api/auth/google` but server returned `401` because local Docker was missing ignored `infra/env/server.env` and therefore had no `GOOGLE_WEB_CLIENT_ID`. Galaxy could still appear healthy when it reused an existing app session/refresh token instead of calling Google sign-in. Local server env was created from `infra/env/server.env.example` with `GOOGLE_WEB_CLIENT_ID` matching Android `default_web_client_id`, then `yourtodo-server-1` was force-recreated.
 - 2026-05-15 auto-accept correction: a stale or alternate Android create path could still send `assignmentMode=REQUEST` after the receiver enabled auto-accept, causing `PENDING_ACCEPTANCE` and showing in the received request list. Server now treats receiver opt-in as the final source of truth and promotes REQUEST/omitted mode creates to `DIRECT/ACCEPTED` when allowed. Android AI todo save also now sends `AssignmentMode.DIRECT` for friends whose `canDirectAssignToFriend` is active.
 - 2026-05-15 push correction: recent `ASSIGNMENT_BUNDLE_RECEIVED` event failed because Docker env lacked FCM credentials even though push tokens existed. The ignored server env was synced from the push-notifications worktree, `yourtodo-server-1` now has FCM project/client env injected, and future notification events should dispatch instead of failing with `Firebase Cloud Messaging credentials are not configured`.
@@ -81,7 +81,7 @@ Last updated: 2026-05-15
   - Direct opt-in request/accept/reject push flows are superseded; do not route them to Profile.
 
 ## Server implementation scope
-- Server worktree: `/Users/kimtaenyun/.codex/worktrees/direct-assignment-server/server`
+- Server worktree: `<server-worktree>`
 - Server branch: `codex/direct-assignment-opt-in`, based on `origin/main` at `14f1784`.
 - Added Prisma `AssignmentMode` and `DIRECT_ASSIGNMENT_RECEIVED`.
 - Added directional auto-accept booleans to `Friendship`:
@@ -131,7 +131,7 @@ Before final PR, review with agents and locally check:
   - `./gradlew :core:domain:test :core:network:testDebugUnitTest :core:database:testDebugUnitTest :core:data:testDebugUnitTest :feature:friends:impl:testDebugUnitTest :feature:todo:impl:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :feature:calendar:widget:testDebugUnitTest :app:testDebugUnitTest`
   - `./gradlew :app:lintDebug :core:network:lintDebug :core:database:lintDebug :core:data:lintDebug :feature:friends:impl:lintDebug :feature:todo:impl:lintDebug :feature:calendar:impl:lintDebug :feature:calendar:widget:lintDebug`
   - `./gradlew assembleDebug :app:assembleDebugAndroidTest`
-  - Galaxy `SM-S906N`: full `connectedDebugAndroidTest` 69/69 passed.
+  - Galaxy device: full `connectedDebugAndroidTest` 69/69 passed.
   - Emulator: full `connectedDebugAndroidTest` had one Todo UI timeout, then `TodoUiTest#detailAdd_highPriorityAppearsOnlyInHighPriorityFilter` passed when rerun alone.
 - Server passed:
   - `npm run db:generate`
@@ -144,7 +144,7 @@ Before final PR, review with agents and locally check:
   - `docker compose -f infra/compose.yaml up --build -d` completed.
   - `yourtodo-server-1` is healthy on port 8080.
   - ngrok opt-in route now returns `401 AUTH_REQUIRED`, not stale 404.
-  - Google login requires ignored server file `/Users/kimtaenyun/.codex/worktrees/direct-assignment-server/server/infra/env/server.env`; without it `POST /api/auth/google` logs `GOOGLE_WEB_CLIENT_ID is not configured` and returns `401`.
+  - Google login requires the ignored server env file; without it `POST /api/auth/google` logs `GOOGLE_WEB_CLIENT_ID is not configured` and returns `401`.
   - Push dispatch also requires FCM env in the same ignored server env; without it `notification_events.last_error` becomes `Firebase Cloud Messaging credentials are not configured`.
   - New server migration `20260515020000_direct_assignment_consent_notifications` has been applied locally.
   - Latest Android debug APK installed on Galaxy and emulator.

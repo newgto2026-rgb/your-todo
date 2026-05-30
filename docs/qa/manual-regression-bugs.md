@@ -5,19 +5,19 @@
 
 ## 2026-05-10 검증 메모
 
-- Agent workspace guardrail: 앱 구현/QA의 기준 worktree는 `/Users/kimtaenyun/.codex/worktrees/5101/MyFirstApp`이고, 활성 서버 구현/QA 기준은 `/Users/kimtaenyun/.codex/worktrees/push-notifications/server`이다. 컨텍스트 요약이나 AGENTS 전달에 `/Users/kimtaenyun/.codex/worktrees/633c/MyFirstApp`가 등장해도 해당 경로는 현재 QA 구현/검증 기준으로 사용하지 않는다.
+- Agent workspace guardrail: 앱 구현/QA의 기준 worktree는 `<android-worktree>`이고, 활성 서버 구현/QA 기준은 `<server-worktree>`이다. 컨텍스트 요약이나 AGENTS 전달에 `<android-worktree>`가 등장해도 해당 경로는 현재 QA 구현/검증 기준으로 사용하지 않는다.
 - 2026-05-10 QA reset: 사용자가 "QA도 하나도 못믿겠어 다시해"라고 정정했다. 아래 기존 자동/기기 검증 메모는 원인 추적 이력으로만 남기며, 활성 앱이 바라보는 실제 서버와 서버 구현 브랜치가 일치함을 확인하기 전에는 어떤 항목도 최종 해결로 간주하지 않는다.
-- Active server mismatch finding: 설치 앱의 기본 서버 URL은 `https://stainable-sulphate-grading.ngrok-free.dev/`이고, 해당 ngrok은 현재 `yourtodo` compose(`/Users/kimtaenyun/.codex/worktrees/shared-todo-server/server/infra/compose.yaml`)의 `yourtodo-server:local` 컨테이너를 보고 있다. 서버 에이전트 확인 기준 활성 서버 worktree는 `/Users/kimtaenyun/.codex/worktrees/shared-todo-server/server`, branch `codex/shared-todo-mvp`, commit `c186a7d`이며 이 활성 서버는 `PUT /api/push-token`이 404로 응답한다.
-- Implemented server code finding: 푸시 토큰/FCM 구현 코드는 `/Users/kimtaenyun/.codex/worktrees/push-notifications/server`의 `codex/server-push-notifications` 브랜치에 존재한다. 주요 파일은 `src/app/api/push-token/route.ts`, `src/lib/push/service.ts`, `prisma/migrations/20260509050000_push_notifications/migration.sql`이다.
-- Active server correction: `push-notifications/server`의 기존 구현 코드를 새로 작성하지 않고 그대로 `docker compose -f infra/compose.yaml up --build -d`로 활성화했다. 현재 활성 compose는 `/Users/kimtaenyun/.codex/worktrees/push-notifications/server/infra/compose.yaml`이고, `/api/push-token`은 local/ngrok 모두 404가 아니라 인증 필요 401로 응답한다.
+- Active server mismatch finding: 설치 앱의 기본 서버 URL은 `https://<your-dev-url>/`이고, 해당 ngrok은 현재 `yourtodo` compose(`<server-worktree>`)의 `yourtodo-server:local` 컨테이너를 보고 있다. 서버 에이전트 확인 기준 활성 서버 worktree는 `<server-worktree>`, branch `codex/shared-todo-mvp`, commit `c186a7d`이며 이 활성 서버는 `PUT /api/push-token`이 404로 응답한다.
+- Implemented server code finding: 푸시 토큰/FCM 구현 코드는 `<server-worktree>`의 `codex/server-push-notifications` 브랜치에 존재한다. 주요 파일은 `src/app/api/push-token/route.ts`, `src/lib/push/service.ts`, `prisma/migrations/20260509050000_push_notifications/migration.sql`이다.
+- Active server correction: `push-notifications/server`의 기존 구현 코드를 새로 작성하지 않고 그대로 `docker compose -f infra/compose.yaml up --build -d`로 활성화했다. 현재 활성 compose는 `<server-worktree>`이고, `/api/push-token`은 local/ngrok 모두 404가 아니라 인증 필요 401로 응답한다.
 - Reverification rule: 서버 의존 QA는 활성 서버가 구현 코드와 같은 브랜치/이미지/마이그레이션을 사용한다는 증거, 실제 neo/tee 데이터, 앱 로그, 자동화 테스트 결과를 한 항목씩 다시 붙인 뒤에만 "자동 검증 완료"로 표기한다. 사용자가 수동 확인하기 전에는 닫지 않는다. 아래 개별 항목의 과거 `Done`/`Manually confirmed` 기록은 재검증 전까지 이력으로만 취급한다.
 - Code verification: targeted unit tests, `CalendarWidgetLaunchUiTest`, affected module lint, `assembleDebug` 통과
 - Latest final app verification: `:app:testDebugUnitTest`, `:app:lintDebug`, `:app:assembleDebug` 통과
-- Latest install verification: latest `app-debug.apk` installed with `adb install -r` on Medium Phone emulator(tee) and Galaxy RFCT32G6YLN(neo). Both apps were launched against `https://stainable-sulphate-grading.ngrok-free.dev/`; DB `push_tokens.last_seen_at` updated for tee at `2026-05-10 06:22:54 UTC` and neo at `2026-05-10 06:24:09 UTC`.
+- Latest install verification: latest `app-debug.apk` installed with `adb install -r` on Medium Phone emulator(tee) and Galaxy device(neo). Both apps were launched against `https://<your-dev-url>/`; DB `push_tokens.last_seen_at` updated for tee at `2026-05-10 06:22:54 UTC` and neo at `2026-05-10 06:24:09 UTC`.
 - Latest connected verification: `PushNotificationLaunchUiTest`, `CalendarWidgetLaunchUiTest` on `Medium_Phone_API_36` passed after DB v10 migration changes. After active server correction, targeted `PushNotificationLaunchUiTest` passed again on `Medium_Phone_API_36`; targeted `CalendarWidgetLaunchUiTest` also passed again on `Medium_Phone_API_36` after clearing stale test/sample APKs from emulator storage.
 - Latest module verification: `./gradlew :app:testDebugUnitTest :core:domain:test :core:database:testDebugUnitTest :core:data:testDebugUnitTest :feature:todo:impl:testDebugUnitTest :feature:friends:impl:testDebugUnitTest :feature:calendar:impl:testDebugUnitTest :feature:calendar:widget:testDebugUnitTest` passed after QA reset and active server correction.
 - Test hardening: date-sensitive `TodoEditorViewModelTest.saveEditUpdatesTodoAndSchedulesReminder` now uses a future due date instead of assuming `2026-05-10 09:30` is always future
-- Device install: emulator-5554, Galaxy RFCT32G6YLN 최종 APK 재설치 및 실행 완료
+- Device install: emulator-5554, Galaxy device 최종 APK 재설치 및 실행 완료
 - Closure policy: 아래 항목은 사용자가 실제 기기에서 일괄 확인 OK를 주기 전까지 닫지 않는다.
 - Navigation identity verification: `PushNotificationLaunchUiTest`와 `CalendarWidgetLaunchUiTest`에서 top-level 화면의 `NavEntry`/ViewModel identity hash 보존과 launch-only route entry 미생성을 자동 검증한다.
 - Latest server verification: shared-todo-server `db:validate`, 전체 `npm test` 64개, `npm run build` 통과. 로컬 compose 서버 재빌드/재기동 후 `/api/health/ready` 확인 완료
@@ -67,18 +67,18 @@
 - Report: 사용자가 푸시 자체가 오지 않는다고 보고했고, 현재 QA가 다른 서버를 바라본 것 아니냐고 지적했다.
 - Expected: 설치 앱이 바라보는 서버에 `PUT /api/push-token` 등록 API, `push_tokens` 테이블, FCM dispatch 코드, 관련 migration/env가 모두 반영되어야 한다. 토큰 등록 실패가 있으면 푸시 수신 QA를 진행할 수 없다.
 - Confirmed finding:
-  - 앱 기본 서버 URL: `core/network/build.gradle.kts` 기준 debug default `https://stainable-sulphate-grading.ngrok-free.dev/`
-  - 활성 compose: `docker compose ls` 기준 `/Users/kimtaenyun/.codex/worktrees/shared-todo-server/server/infra/compose.yaml`
+  - 앱 기본 서버 URL: `core/network/build.gradle.kts` 기준 debug default `https://<your-dev-url>/`
+  - 활성 compose: `docker compose ls` 기준 `<server-worktree>`
   - 활성 서버 응답: `GET /api/health/live`는 200, `PUT /api/push-token`은 404
-  - 활성 서버 소스 후보 `/Users/kimtaenyun/server` 브랜치 `codex/server-todo-sync-mvp`에는 push-token route/model 구현이 없고 문서 계약만 있다.
-  - 이미 구현된 서버 코드: `/Users/kimtaenyun/.codex/worktrees/push-notifications/server` 브랜치 `codex/server-push-notifications`
+  - 활성 서버 소스 후보 `<server-worktree>` 브랜치 `codex/server-todo-sync-mvp`에는 push-token route/model 구현이 없고 문서 계약만 있다.
+  - 이미 구현된 서버 코드: `<server-worktree>` 브랜치 `codex/server-push-notifications`
 - 2026-05-10 correction:
   - Done: `push-notifications/server`에서 `DATABASE_URL=... npm run db:validate`, `npm test` 65개, `npm run build` 통과
-  - Done: 활성 compose를 `/Users/kimtaenyun/.codex/worktrees/push-notifications/server/infra/compose.yaml` 기준으로 재기동
+  - Done: 활성 compose를 `<server-worktree>` 기준으로 재기동
   - Done: local `GET /api/health/ready` 200, `PUT /api/push-token` unauthenticated 401 확인
   - Done: ngrok `GET /api/health/ready` 200, `PUT /api/push-token` unauthenticated 401 확인
-  - Done: Medium Phone emulator(tee)와 Galaxy(neo) 앱 재시작 후 양쪽 모두 `PUT https://stainable-sulphate-grading.ngrok-free.dev/api/push-token` 200 확인
-  - Done: latest APK 재설치 후 Medium Phone emulator(tee)와 Galaxy(neo) 모두 `PUT https://stainable-sulphate-grading.ngrok-free.dev/api/push-token` 200 및 DB `last_seen_at` 갱신 재확인
+  - Done: Medium Phone emulator(tee)와 Galaxy(neo) 앱 재시작 후 양쪽 모두 `PUT https://<your-dev-url>/api/push-token` 200 확인
+  - Done: latest APK 재설치 후 Medium Phone emulator(tee)와 Galaxy(neo) 모두 `PUT https://<your-dev-url>/api/push-token` 200 및 DB `last_seen_at` 갱신 재확인
   - Done: DB `push_tokens` 2건의 `last_seen_at`이 2026-05-10 06:06 UTC대로 갱신됨을 확인
   - Done: 서버 API로 실제 `neo -> tee` assignment bundle 생성 시 `ASSIGNMENT_BUNDLE_RECEIVED` notification event가 `SENT`, `attempt_count=1`, `sent_at=2026-05-10 06:07:36 UTC`로 기록됨
   - Done: Medium Phone emulator(tee) logcat에서 `com.neo.yourtodo` notification posted 이벤트와 notification sound 로그 확인
@@ -86,9 +86,9 @@
   - Done: 실제 알림 클릭 후 앱이 `@neo와 공유한 일` 다이얼로그로 진입했고, 최종 UI dump에서 `받은 할 일 요청`, `QA push smoke 150735`, `수락 대기`, `선택 거절`, `선택 수락` 노출 확인
   - Note: 기존 DB에 같은 enum 값을 추가하는 timestamp가 다른 migration이 이미 적용되어 있어, 실패한 로컬 dev migration row `20260509060000_assigned_todo_reopened_notification`을 적용 완료 상태로 정리했다. SQL 내용은 이미 적용된 `20260510010000_assigned_todo_reopened_notification`과 동일한 `ASSIGNED_TODO_REOPENED` enum 추가다.
 - Implemented code to inspect before any deployment/switch:
-  - `/Users/kimtaenyun/.codex/worktrees/push-notifications/server/src/app/api/push-token/route.ts`
-  - `/Users/kimtaenyun/.codex/worktrees/push-notifications/server/src/lib/push/service.ts`
-  - `/Users/kimtaenyun/.codex/worktrees/push-notifications/server/prisma/migrations/20260509050000_push_notifications/migration.sql`
+  - `<server-worktree>/src/app/api/push-token/route.ts`
+  - `<server-worktree>/src/lib/push/service.ts`
+  - `<server-worktree>/prisma/migrations/20260509050000_push_notifications/migration.sql`
 - Reverification checklist:
   - 활성 compose가 어느 체크아웃/이미지를 빌드하는지 서버 에이전트와 재확인
   - 구현 브랜치가 활성 서버에 반영됐는지 확인
@@ -248,7 +248,7 @@
 - 2026-05-10 follow-up fix: shared-todo-server의 sent/friend assigned-todos list 응답에 `sender`/`receiver` user summary를 포함하도록 보강했다. 서버 응답 직접 검증에서 `tee -> neo` history 19건이 모두 `sender=tee`, `receiver=neo`로 내려오는 것을 확인했다.
 - 2026-05-10 device verification: 갤럭시(neo)와 Medium Phone 에뮬레이터(tee)에 최신 앱을 설치하고 서버 컨테이너를 새 코드로 재기동한 뒤 친구 상세를 다시 열어 확인했다. 갤럭시 neo -> tee는 `요청함 2/4`, `요청받음 17/23`, 에뮬 tee -> neo는 `요청함 17/23`, `요청받음 2/4`로 서로 대응됨을 확인했다. 수동 확인 전까지 최종 종료로 표기하지 않는다.
 - 2026-05-10 active-server recheck:
-  - Done: active compose가 `/Users/kimtaenyun/.codex/worktrees/push-notifications/server/infra/compose.yaml`이고 `/api/push-token`이 local/ngrok 모두 401로 응답함을 재확인
+  - Done: active compose가 `<server-worktree>`이고 `/api/push-token`이 local/ngrok 모두 401로 응답함을 재확인
   - Finding: DB 실제 row는 `neo -> tee` 총 5건/완료 3건, `tee -> neo` 총 23건/완료 17건이다. 새 push smoke 요청 1건 때문에 이전 `2/4`가 현재 `3/5`로 바뀌었다.
   - Finding: list API는 neo received active 4건 + history 19건 = 23건을 내려주지만, summary API만 `receiverDeletedAt: null` 필터 때문에 11건으로 계산해 불일치가 재현됐다.
   - Fix: active server `getFriendAssignmentSummary().received`에서 Friends summary용 `receiverDeletedAt: null` 제외 조건을 제거했다. 일반 `/api/assigned-todos/received` task surface의 숨김 정책은 유지한다.
@@ -393,9 +393,9 @@
   - Done: `TodoListViewModelTest.completedReceivedAssignedTodoReopenKeepsRowStableWhileServerResultIsDelayed`
   - Done: `TodoUiTest.allTab_toggleDoneMovesCompletedRowBelowActiveRows`
   - Done: targeted `:feature:todo:impl:testDebugUnitTest` regression tests
-  - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy SM-S906N
+  - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy device
   - Done: full `./gradlew testDebugUnitTest lintDebug assembleDebug`
-  - Done: full `./gradlew connectedDebugAndroidTest` on Medium Phone emulator and Galaxy SM-S906N
+  - Done: full `./gradlew connectedDebugAndroidTest` on Medium Phone emulator and Galaxy device
 - Manual verification:
   - 일반 Todo 완료 체크/해제 시 목록 row 깜빡임 없음
   - 받은 공유 할 일 완료 체크/되돌림 시 목록 row 깜빡임 없음
@@ -441,9 +441,9 @@
   - Done: `PushNotificationLaunchUiTest.foregroundFriendStatusPushClick_opensFriendsTabWithoutDecisionDialog`
   - Done: `PushNotificationLaunchUiTest.foregroundNonFriendStatusPushClick_opensFirstTab`
   - Done: targeted `:app:testDebugUnitTest` push/navigation/message tests
-  - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy SM-S906N
+  - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy device
   - Done: full `./gradlew testDebugUnitTest lintDebug assembleDebug`
-  - Done: full `./gradlew connectedDebugAndroidTest` on Medium Phone emulator and Galaxy SM-S906N
+  - Done: full `./gradlew connectedDebugAndroidTest` on Medium Phone emulator and Galaxy device
 - Manual verification:
   - 여러 개의 푸시 알림을 쌓은 뒤 각각 탭해도 모두 앱 진입 동작이 수행됨
   - 할 일 요청 알림은 수락/거절 화면으로 진입
@@ -467,7 +467,7 @@
   - Done: `FriendsViewModelTest.closeFriendDetailWhileAssignmentDetailIsLoadingCancelsRefreshAndDismissesDialog`
   - Done: `PushNotificationLaunchUiTest.foregroundPushClick_opensIncomingAssignmentDecisionDialog`에서 다이얼로그 하단 닫기 버튼 표시와 dismiss 검증
   - Done: targeted `:feature:friends:impl:testDebugUnitTest`
-  - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy SM-S906N
+  - Done: targeted `:app:connectedDebugAndroidTest` on Medium Phone emulator and Galaxy device
 - Manual verification:
   - 네트워크 지연/실패 상태에서 공유한 일 팝업 표시
   - 로딩 중 기존 하단 닫기 버튼으로 즉시 닫히는지 확인
