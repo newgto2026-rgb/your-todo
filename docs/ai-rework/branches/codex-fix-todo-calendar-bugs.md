@@ -117,7 +117,7 @@ Relationship/visibility cache updates should prune dependent caches in the same 
 | Root Cause Category | `missing regression coverage` |
 | Automation Possible | `Yes` |
 | Automation Added | `Yes` |
-| Fix Scope | `/Users/kimtaenyun/server/src/lib/person-visibility/service.test.ts` |
+| Fix Scope | `<server-worktree>/src/lib/person-visibility/service.test.ts` |
 | Fix Size | `Small` |
 | Rework Commit | `HEAD` |
 | Verification | `npx vitest run src/lib/person-visibility/service.test.ts && npm run typecheck` |

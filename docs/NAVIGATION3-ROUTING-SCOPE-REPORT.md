@@ -15,11 +15,11 @@
 
 핵심 파일:
 
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavigationGraph.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavHost.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavigationState.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/app/src/main/java/com/neo/yourtodo/app/AppNavigator.kt`
-- `/Users/kimtaenyun/.codex/worktrees/c6f0/YourTodo/core/ui/src/main/java/com/neo/yourtodo/core/ui/navigation/AppFeatureEntry.kt`
+- `app/src/main/java/com/neo/yourtodo/app/AppNavigationGraph.kt`
+- `app/src/main/java/com/neo/yourtodo/app/AppNavHost.kt`
+- `app/src/main/java/com/neo/yourtodo/app/AppNavigationState.kt`
+- `app/src/main/java/com/neo/yourtodo/app/AppNavigator.kt`
+- `core/ui/src/main/java/com/neo/yourtodo/core/ui/navigation/AppFeatureEntry.kt`
 
 ## 확장 계약
 

@@ -27,13 +27,13 @@ scripts/codex-hooks/tdd-guard.sh apply_patch < /tmp/change.patch
 Codex 설정의 pre-tool hook에서 `edit`, `write`, `patch`, `apply_patch` 도구 실행 전에 아래 스크립트를 호출한다.
 
 ```sh
-/Users/kimtaenyun/.codex/worktrees/978d/MyFirstApp/scripts/codex-hooks/tdd-guard.sh
+<repo>/scripts/codex-hooks/tdd-guard.sh
 ```
 
 도구가 대상 파일 경로를 인자로 넘길 수 있다면 아래처럼 넘기는 것을 권장한다.
 
 ```sh
-/Users/kimtaenyun/.codex/worktrees/978d/MyFirstApp/scripts/codex-hooks/tdd-guard.sh edit "$TARGET_FILE"
+<repo>/scripts/codex-hooks/tdd-guard.sh edit "$TARGET_FILE"
 ```
 
 긴급 우회가 필요하면 명시적으로 환경 변수를 설정한다.

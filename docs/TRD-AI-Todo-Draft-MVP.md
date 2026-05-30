@@ -99,10 +99,12 @@ Proxy validation:
 
 ## Debug Configuration
 
-Debug default:
+Public source must not hard-code the active development tunnel. Put the current
+development URL in ignored `local.properties`:
 
 ```properties
-yourtodo.aiServerBaseUrl=http://10.0.2.2:8787/
+yourtodo.serverBaseUrl=https://<your-dev-url>/
+yourtodo.aiServerBaseUrl=https://<your-dev-url>/
 ```
 
 Run proxy:

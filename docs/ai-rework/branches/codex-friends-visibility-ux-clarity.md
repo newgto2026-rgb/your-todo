@@ -179,7 +179,7 @@ No GitHub PR comments recorded yet. This branch is a post-merge improvement bran
 
 ### Check Failures
 
-Local all-device `:app:connectedDebugAndroidTest` runs failed on `SM-S906N - 16` while waiting for the initial `app_tab_friends` test tag, before exercising the changed UI. The same Friends UI test class passed on `Medium_Phone_API_36(AVD) - 16` with `ANDROID_SERIAL=emulator-5554`; the shared setup wait was extended to reduce device-start flakiness.
+Local all-device `:app:connectedDebugAndroidTest` runs failed on `Galaxy device - 16` while waiting for the initial `app_tab_friends` test tag, before exercising the changed UI. The same Friends UI test class passed on `Medium_Phone_API_36(AVD) - 16` with `ANDROID_SERIAL=emulator-5554`; the shared setup wait was extended to reduce device-start flakiness.
 
 ## Non-Rework Follow-up Commits
 
